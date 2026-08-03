@@ -22,6 +22,35 @@
 const DEFAULT_MODEL = 'gemini-2.0-flash';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
+/* ============================================================================
+   Basic abuse protection (rate limiting).
+   NOTE: In-memory map on a single warm instance. On Vercel's serverless edge
+   this is a best-effort guard — for production-grade DDoS defense you should
+   also enable Vercel's built-in WAF / Attack Challenge Mode (see README).
+   ========================================================================== */
+const RATE_WINDOW_MS = 60 * 1000;        // 60s window
+const RATE_MAX_REQUESTS = 20;            // max requests per IP per window
+const MAX_BODY_BYTES = 64 * 1024;        // 64KB body cap
+const rateBuckets = new Map();            // ip -> { count, resetAt }
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip);
+  if (!bucket || bucket.resetAt <= now) {
+    rateBuckets.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return false;
+  }
+  bucket.count += 1;
+  return bucket.count > RATE_MAX_REQUESTS;
+}
+
+function getClientIp(req) {
+  return (
+    (req.headers && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || '')) ||
+    'unknown'
+  ).toString().split(',')[0].trim() || 'unknown';
+}
+
 function buildMessages({ messages, context }) {
   const system = [
     'You are PrepAI, a friendly, knowledgeable placement assistant for college students.',
@@ -73,8 +102,18 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') return res.status(204).end();
+if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // --- Abuse protection: rate limit + body size cap ---
+  const ip = getClientIp(req);
+  if (isRateLimited(ip)) {
+    return res.status(429).json({ error: 'Too many requests. Please slow down and try again shortly.' });
+  }
+  const contentLength = Number(req.headers['content-length'] || 0);
+  if (contentLength > MAX_BODY_BYTES) {
+    return res.status(413).json({ error: 'Request body too large.' });
+  }
 
   const apiKey = process.env.LLM_API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
