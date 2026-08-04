@@ -13,8 +13,9 @@ const App = {
       coding: { render: (c) => Coding.render(c), title: 'Coding Practice', subtitle: 'Solve challenges in your browser' },
       interview: { render: (c) => Interview.render(c), title: 'HR Simulator', subtitle: 'Practice with our AI interviewer' },
       skills: { render: (c) => Skills.render(c), title: 'Skill Gap Analysis', subtitle: 'Find what to learn next' },
-      company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle: 'Top tech interview patterns' },
-      youtube: { render: (c) => Youtube.render(c), title: 'YouTube Lectures', subtitle: 'Top-rated programming playlists from the best instructors' }
+company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle: 'Top tech interview patterns' },
+      youtube: { render: (c) => Youtube.render(c), title: 'YouTube Lectures', subtitle: 'Top-rated programming playlists from the best instructors' },
+      lecturequestions: { render: (c) => LectureQuestions.render(c), title: 'Lecture Questions', subtitle: 'Timestamped subject practice with runnable C++ code' }
     };
 
     // Initialize auth
