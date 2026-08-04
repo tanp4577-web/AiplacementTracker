@@ -7,11 +7,12 @@
    Keeps the existing in-browser editor + instant test runner.
    =============================================== */
 const Coding = {
-  state: {
+state: {
     questions: [],
     current: null,
     code: '',
     results: [],
+    lang: 'javascript', // 'javascript' | 'cpp'
     filters: { difficulty: 'all', source: 'both', role: 'all', count: 10 },
     session: [],
     sessionIndex: 0,
@@ -224,17 +225,47 @@ render(container) {
     this._openQuestion(this.state.session[0]);
   },
 
+_lookupCppQuestion(id) {
+    // Find the matching C++ version of a JS question by id (suffix "-cpp").
+    if (typeof EXTRA_CODING_CPP === 'undefined') return null;
+    return EXTRA_CODING_CPP.find(c => c.id === id + '-cpp') || null;
+  },
+
   _openQuestion(id) {
     const q = this.state.questions.find(x => x.id === id);
     if (!q) return;
     this.state.current = q;
     this.state.code = q.starterCode;
     this.state.results = [];
+    // Default language: if a C++ version exists, prefer C++ for this question.
+    this.state.lang = this._lookupCppQuestion(q.id) ? 'cpp' : 'javascript';
 
     const inSession = this.state.sessionActive && this.state.session.includes(q.id);
     const sessionPos = inSession ? this.state.session.indexOf(q.id) : -1;
     const sessionTotal = this.state.session.length;
     const src = q.source || 'LeetCode';
+
+    const renderEditor = () => {
+      const isCpp = this.state.lang === 'cpp';
+      const cppQ = this._lookupCppQuestion(q.id);
+      const starter = isCpp ? (cppQ ? cppQ.starterCpp : this._cppTemplate(q)) : q.starterCode;
+      const fileLabel = isCpp ? 'solution.cpp' : 'solution.js';
+      const editor = document.getElementById('codeEditor');
+      if (editor) {
+        editor.value = starter;
+        this.state.code = starter;
+      }
+      const fileEl = document.getElementById('codeFileLabel');
+      if (fileEl) fileEl.textContent = fileLabel;
+      const jsBtn = document.getElementById('langJsBtn');
+      const cppBtn = document.getElementById('langCppBtn');
+      if (jsBtn) jsBtn.classList.toggle('active', !isCpp);
+      if (cppBtn) cppBtn.classList.toggle('active', isCpp);
+      const runBtn = document.getElementById('runBtn');
+      if (runBtn) runBtn.textContent = isCpp ? '▶ Run C++ Tests' : ' Run Tests';
+      const cppNote = document.getElementById('cppNote');
+      if (cppNote) cppNote.style.display = (isCpp && cppQ) ? 'block' : 'none';
+    };
 
     this.container.innerHTML = `
       <div class="mb-2 flex-between" style="flex-wrap:wrap;gap:10px">
@@ -256,12 +287,20 @@ render(container) {
             ${q.topic ? `<span class="chip purple">${q.topic}</span>` : ''}
             ${(q.targetRoles || []).map(r => `<span class="chip cyan">${r}</span>`).join('')}
           </div>
+          <div class="flex gap-2 mb-2" style="align-items:center">
+            <span class="text-dim" style="font-size:12.5px">Language:</span>
+            <button class="btn btn-ghost btn-sm ${this.state.lang === 'javascript' ? 'active' : ''}" id="langJsBtn">JavaScript</button>
+            <button class="btn btn-ghost btn-sm ${this.state.lang === 'cpp' ? 'active' : ''}" id="langCppBtn">C++</button>
+          </div>
           <div class="code-wrap">
             <div class="code-header">
               <div class="code-dots"><span></span><span></span><span></span></div>
-              <span class="code-file">solution.js</span>
+              <span class="code-file" id="codeFileLabel">solution.js</span>
             </div>
             <textarea class="code-input" id="codeEditor" spellcheck="false">${q.starterCode}</textarea>
+          </div>
+          <div class="text-dim" id="cppNote" style="display:none;font-size:12px;margin-top:6px">
+            <b style="color:var(--accent)">C++ mode:</b> run via the Wandbox GCC compiler (needs internet). Offline fallback shows expected output.
           </div>
           <div class="flex gap-2 mt-2">
             <button class="btn btn-primary" id="runBtn"> Run Tests</button>
@@ -297,10 +336,16 @@ render(container) {
         this._renderList();
       }
     });
-    document.getElementById('runBtn').addEventListener('click', () => this._runTests());
+    document.getElementById('runBtn').addEventListener('click', () => {
+      if (this.state.lang === 'cpp') this._runCppTests();
+      else this._runTests();
+    });
     document.getElementById('resetCodeBtn').addEventListener('click', () => {
-      document.getElementById('codeEditor').value = q.starterCode;
-      this.state.code = q.starterCode;
+      const isCpp = this.state.lang === 'cpp';
+      const cppQ = this._lookupCppQuestion(q.id);
+      const starter = isCpp ? (cppQ ? cppQ.starterCpp : this._cppTemplate(q)) : q.starterCode;
+      document.getElementById('codeEditor').value = starter;
+      this.state.code = starter;
     });
     document.getElementById('solutionBtn').addEventListener('click', () => {
       const panel = document.getElementById('solutionPanel');
@@ -316,10 +361,360 @@ render(container) {
     document.getElementById('codeEditor').addEventListener('input', (e) => {
       this.state.code = e.target.value;
     });
+    document.getElementById('langJsBtn').addEventListener('click', () => {
+      this.state.lang = 'javascript';
+      renderEditor();
+    });
+    document.getElementById('langCppBtn').addEventListener('click', () => {
+      this.state.lang = 'cpp';
+      renderEditor();
+    });
+
+    renderEditor();
 
     if (inSession) {
       const nextBtn = document.getElementById('nextBtn');
       if (nextBtn) nextBtn.addEventListener('click', () => this._nextSessionQuestion());
+    }
+  },
+
+  /* A generic C++ template for JS-only questions that have no pre-supplied C++ candidate. */
+  _cppTemplate(q) {
+    if (q.topic === 'Trees') {
+      return `struct TreeNode {
+    int val;
+    TreeNode *left, *right;
+    TreeNode(int x) : val(x), left(nullptr), right(nullptr) {}
+};
+
+// Implement below
+`;
+    }
+    return `#include <bits/stdc++.h>
+using namespace std;
+
+// Implement the solution here
+`;
+  },
+
+  /* ---- Run C++ test cases via Wandbox (with offline fallback) ---- */
+  async _runCppTests() {
+    const q = this.state.current;
+    const cppQ = this._lookupCppQuestion(q.id);
+    const resultsDiv = document.getElementById('testResults');
+    const bodyCode = document.getElementById('codeEditor').value || this.state.code;
+
+    if (!cppQ || !Array.isArray(cppQ.cppTestCases) || !cppQ.cppTestCases.length) {
+      resultsDiv.innerHTML = `<div class="empty-state"><h3>No C++ test cases</h3><p>This question has no C++ test harness yet.</p></div>`;
+      return;
+    }
+
+    resultsDiv.innerHTML = `
+      <div class="empty-state">
+        <div class="spinner" style="width:26px;height:26px"></div>
+        <h3>Compiling ${cppQ.cppTestCases.length} test(s)...</h3>
+        <p>Running C++ (GCC) through Wandbox</p>
+      </div>
+    `;
+
+    const results = [];
+    let allPass = true;
+    let networkError = null;
+
+    for (let i = 0; i < cppQ.cppTestCases.length; i++) {
+      const tc = cppQ.cppTestCases[i];
+      const harness = this._cppHarness(cppQ, bodyCode);
+      try {
+        const res = await fetch('https://wandbox.org/api/compile.json', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            compiler: 'gcc-head',
+            code: harness,
+            options: 'warning,gnu++17',
+            stdin: tc.input || ''
+          })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const program = (data.program || '').trim();
+        const errors = data.compiler_error || data.stderr || '';
+        if (errors) {
+          results.push({ input: tc.input, expected: tc.expected, actual: 'Compile Error: ' + errors.trim().split('\n').slice(0, 3).join('\n'), pass: false });
+          allPass = false;
+        } else {
+          const pass = program === tc.expected.trim();
+          results.push({ input: tc.input, expected: tc.expected, actual: program, pass });
+          if (!pass) allPass = false;
+        }
+      } catch (e) {
+        networkError = e;
+        break;
+      }
+    }
+
+    if (networkError && results.length === 0) {
+      resultsDiv.innerHTML = `
+        <div class="card test-case" style="background:rgba(230,162,60,0.08);border-color:rgba(230,162,60,0.4)">
+          <div class="test-title"><span>⚠ Offline mode</span><span class="text-warning">Network unavailable</span></div>
+          <div class="test-io">
+            <div style="color:var(--text)">Could not reach the online C++ compiler (${this._escapeHtml(networkError.message)}).</div>
+            <div style="margin-top:4px">Run this locally to verify, or check the expected outputs below.</div>
+          </div>
+        </div>
+        ${cppQ.cppTestCases.map(tc => `<div class="test-io mt-1"><div>Expected: <code style="color:var(--success)">${this._escapeHtml(tc.expected)}</code></div></div>`).join('')}
+      `;
+      return;
+    }
+
+    this.state.results = results;
+    const passCount = results.filter(r => r.pass).length;
+    allPass = passCount === results.length;
+
+    // Progress tracking (same as JS mode)
+    const email = Auth.getEmail();
+    if (email) {
+      const prog = DB.getProgress(email);
+      const coding = prog.coding || { solved: [], totalAttempts: 0 };
+      coding.totalAttempts++;
+      if (allPass && !coding.solved.includes(q.id)) {
+        coding.solved.push(q.id);
+        App.showToast(' All tests passed! Challenge solved.', 'success');
+      }
+      DB.saveProgress(email, { coding });
+      App.refreshAll();
+    }
+
+    if (this.state.sessionActive && this.state.session.includes(q.id)) {
+      this.state.sessionResults[q.id] = allPass;
+      const nextBtn = document.getElementById('nextBtn');
+      if (nextBtn) nextBtn.style.display = 'inline-flex';
+    }
+
+    resultsDiv.innerHTML = `
+      <div class="mb-2">
+        <div class="card stat-card" style="padding:14px">
+          <div class="card-stat ${allPass ? 'text-success' : ''}">${passCount}/${results.length}</div>
+          <div class="card-stat-label">Tests Passed</div>
+        </div>
+      </div>
+      ${results.map((r, i) => `
+        <div class="test-case ${r.pass ? 'pass' : 'fail'}">
+          <div class="test-title">
+            <span>Test ${i + 1}</span>
+            <span class="${r.pass ? 'text-success' : 'text-danger'}">${r.pass ? '[OK] PASS' : '[X] FAIL'}</span>
+          </div>
+          <div class="test-io">
+            <div>Input: <code>${this._escapeHtml(r.input)}</code></div>
+            <div>Expected: <code>${this._escapeHtml(r.expected)}</code></div>
+            <div>Your Output: <code>${this._escapeHtml(r.actual)}</code></div>
+          </div>
+        </div>
+      `).join('')}
+    `;
+  },
+
+  /* Build a full compilable C++ program from the user's function + a
+     test harness that reads the given stdin and prints the result. */
+  _cppHarness(cppQ, bodyCode) {
+    const includes = `#include <bits/stdc++.h>
+using namespace std;
+`;
+    return includes + bodyCode + '\n' + this._cppMainFor(cppQ);
+  },
+
+  _cppMainFor(cppQ) {
+    const id = cppQ.id;
+    switch (id) {
+      case 'two-sum-cpp':
+        return `int main(){
+  int n, target; cin >> n >> target;
+  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
+  auto r = twoSum(nums, target);
+  cout << r[0] << " " << r[1];
+  return 0;
+}`;
+      case 'valid-anagram-cpp':
+        return `int main(){
+  string s, t; getline(cin, s); getline(cin, t);
+  cout << (isAnagram(s, t) ? "true" : "false");
+  return 0;
+}`;
+      case 'missing-number-cpp':
+        return `int main(){
+  int n; cin >> n;
+  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
+  cout << missingNumber(nums);
+  return 0;
+}`;
+      case 'single-number-cpp':
+        return `int main(){
+  int n; cin >> n;
+  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
+  cout << singleNumber(nums);
+  return 0;
+}`;
+      case 'valid-palindrome-cpp':
+        return `int main(){
+  string s; getline(cin, s);
+  cout << (isPalindrome(s) ? "true" : "false");
+  return 0;
+}`;
+      case 'first-unique-char-cpp':
+        return `int main(){
+  string s; cin >> s;
+  cout << firstUniqChar(s);
+  return 0;
+}`;
+      case 'fizzbuzz-cpp':
+        return `int main(){
+  int n; cin >> n;
+  auto r = fizzBuzz(n);
+  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
+  return 0;
+}`;
+      case 'move-zeroes-cpp':
+        return `int main(){
+  int n; cin >> n;
+  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
+  moveZeroes(nums);
+  for (size_t i=0;i<nums.size();i++) cout << nums[i] << (i+1==nums.size()?"":" ");
+  return 0;
+}`;
+      case 'container-most-water-cpp':
+        return `int main(){
+  int n; cin >> n;
+  vector<int> h(n); for (int i=0;i<n;i++) cin >> h[i];
+  cout << maxArea(h);
+  return 0;
+}`;
+      case 'binary-search-cpp':
+        return `int main(){
+  int n, target; cin >> n >> target;
+  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
+  cout << search(nums, target);
+  return 0;
+}`;
+      case 'kth-largest-cpp':
+        return `int main(){
+  int n, k; cin >> n >> k;
+  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
+  cout << findKthLargest(nums, k);
+  return 0;
+}`;
+      case 'max-subarray-cpp':
+        return `int main(){
+  int n; cin >> n;
+  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
+  cout << maxSubArray(nums);
+  return 0;
+}`;
+      case 'climbing-stairs-cpp':
+        return `int main(){
+  int n; cin >> n;
+  cout << climbStairs(n);
+  return 0;
+}`;
+      case 'coin-change-cpp':
+        return `int main(){
+  int m, amount; cin >> m >> amount;
+  vector<int> coins(m); for (int i=0;i<m;i++) cin >> coins[i];
+  cout << coinChange(coins, amount);
+  return 0;
+}`;
+      case 'valid-parentheses-cpp':
+        return `int main(){
+  string s; cin >> s;
+  cout << (isValid(s) ? "true" : "false");
+  return 0;
+}`;
+      case 'daily-temperatures-cpp':
+        return `int main(){
+  int n; cin >> n;
+  vector<int> t(n); for (int i=0;i<n;i++) cin >> t[i];
+  auto r = dailyTemperatures(t);
+  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
+  return 0;
+}`;
+      case 'merge-intervals-cpp':
+        return `int main(){
+  int n; cin >> n;
+  vector<vector<int>> itv(n, vector<int>(2));
+  for (int i=0;i<n;i++) cin >> itv[i][0] >> itv[i][1];
+  auto r = merge(itv);
+  for (size_t i=0;i<r.size();i++) cout << r[i][0] << " " << r[i][1] << (i+1==r.size()?"":" ");
+  return 0;
+}`;
+      case 'jump-game-cpp':
+        return `int main(){
+  int n; cin >> n;
+  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
+  cout << (canJump(nums) ? "true" : "false");
+  return 0;
+}`;
+      case 'group-anagrams-cpp':
+        return `int main(){
+  int n; cin >> n; cin.ignore();
+  vector<string> strs(n);
+  for (int i=0;i<n;i++) getline(cin, strs[i]);
+  auto r = groupAnagrams(strs);
+  cout << r.size();
+  return 0;
+}`;
+      case 'top-k-frequent-cpp':
+        return `int main(){
+  int n, k; cin >> n >> k;
+  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
+  auto r = topKFrequent(nums, k);
+  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
+  return 0;
+}`;
+      case 'max-depth-tree-cpp':
+        return `int main(){
+  int n; if (!(cin >> n)) return 0;
+  vector<int> a(n);
+  for (int i=0;i<n;i++) cin >> a[i];
+  vector<TreeNode*> v(n, nullptr);
+  TreeNode* root = nullptr;
+  for (int i=0;i<n;i++){ if(a[i]!=-1) v[i]=new TreeNode(a[i]); }
+  for (int i=0;i<n;i++){
+    if(!v[i]) continue;
+    if(!root) root=v[i];
+    if(2*i+1<n) v[i]->left=v[2*i+1];
+    if(2*i+2<n) v[i]->right=v[2*i+2];
+  }
+  cout << maxDepth(root);
+  return 0;
+}`;
+      case 'inorder-traversal-cpp':
+        return `int main(){
+  int n; if (!(cin >> n)) return 0;
+  vector<int> a(n);
+  for (int i=0;i<n;i++) cin >> a[i];
+  if(n==0){ return 0; }
+  vector<TreeNode*> v(n, nullptr);
+  TreeNode* root=nullptr;
+  for (int i=0;i<n;i++){ if(a[i]!=-1) v[i]=new TreeNode(a[i]); }
+  for (int i=0;i<n;i++){
+    if(!v[i]) continue;
+    if(!root) root=v[i];
+    if(2*i+1<n) v[i]->left=v[2*i+1];
+    if(2*i+2<n) v[i]->right=v[2*i+2];
+  }
+  auto r = inorderTraversal(root);
+  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
+  return 0;
+}`;
+      case 'number-of-islands-cpp':
+        return `int main(){
+  int R, C; cin >> R >> C;
+  vector<vector<char>> g(R, vector<char>(C));
+  for (int i=0;i<R;i++) for (int j=0;j<C;j++) cin >> g[i][j];
+  cout << numIslands(g);
+  return 0;
+}`;
+      default:
+        return `int main(){ cout << ""; return 0; }`;
     }
   },
 

