@@ -14,4 +14,4 @@
 3. [x] Add CSS styles for the lecture question cards in `css/style.css`
 4. [x] Add sidebar nav link + script tags in `index.html`
 5. [x] Register `lecturequestions` view in `js/app.js`
-6. [ ] Verify in browser
+6. [x] Verify in browser
