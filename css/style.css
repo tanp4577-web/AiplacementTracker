@@ -805,11 +805,251 @@ canvas.radar-canvas, canvas.bar-canvas { width: 100%; height: auto; max-height: 
 .lq-card:hover { transform: rotate(0deg) translateY(-2px); box-shadow: var(--shadow-lg); }
 .lq-card .tag-row { margin-top: 8px; }
 
-/* ============ RESPONSIVE ============ */
+/* ================================================================
+   YOUTUBE LECTURES v2  — completion tracking, embed fallback
+   ================================================================ */
+.yt-header-row {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.yt-header-right {
+  display: flex; flex-direction: column; gap: 10px;
+  min-width: 240px; flex-shrink: 0;
+}
+.yt-progress-wrap { display: flex; flex-direction: column; gap: 4px; }
+.yt-progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dim); }
+
+/* Completion state on card */
+.yt-card.yt-completed { border-color: var(--success); }
+.yt-card.yt-completed .yt-thumb img { filter: brightness(0.7) saturate(0.6); }
+
+/* Done badge overlay on thumbnail */
+.yt-done-badge {
+  position: absolute; bottom: 8px; left: 8px;
+  background: var(--success); color: #fff;
+  font-size: 11px; font-weight: 700; padding: 3px 9px;
+  border-radius: 12px; letter-spacing: 0.4px;
+}
+.yt-restricted-badge {
+  position: absolute; top: 8px; left: 8px;
+  background: rgba(209,72,63,0.88); color: #fff;
+  font-size: 10px; font-weight: 700; padding: 3px 8px;
+  border-radius: 10px; letter-spacing: 0.3px;
+}
+
+/* Card action strip */
+.yt-card-actions {
+  display: flex; align-items: center; justify-content: flex-end;
+  margin-top: auto; padding-top: 6px; gap: 8px;
+}
+
+/* Completion checkbox button */
+.yt-check-btn {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 2px solid var(--border); background: var(--surface-2);
+  color: var(--text-dim); cursor: pointer; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+.yt-check-btn svg { width: 15px; height: 15px; }
+.yt-check-btn:hover { border-color: var(--success); color: var(--success); transform: scale(1.1); }
+.yt-check-btn.done { background: var(--success); border-color: var(--success); color: #fff; }
+
+/* Mark-done button inside player */
+.yt-mark-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border: 2px solid var(--border);
+  border-radius: var(--radius-wobble); background: var(--surface-2);
+  color: var(--text); font-size: 13px; font-weight: 700;
+  cursor: pointer; font-family: var(--font-hand);
+  transition: all 0.2s ease; white-space: nowrap;
+}
+.yt-mark-btn:hover { border-color: var(--success); color: var(--success); }
+.yt-mark-btn.done { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+
+/* Watch on YouTube link in modal */
+.yt-watch-link {
+  display: inline-flex; align-items: center;
+  text-decoration: none; font-size: 12.5px;
+}
+
+/* Embed error fallback (when video is restricted) */
+.yt-embed-error {
+  position: absolute; inset: 0; background: rgba(0,0,0,0.75);
+  display: flex; align-items: center; justify-content: center;
+}
+.yt-embed-error-inner {
+  text-align: center; padding: 24px 32px;
+  background: var(--surface); border: 2px solid var(--border);
+  border-radius: var(--radius-wobble); box-shadow: var(--shadow-lg);
+  max-width: 380px;
+}
+.yt-completion-toggle { flex-shrink: 0; text-align: center; }
+
+/* ================================================================
+   LIVE INTERVIEW v2  — Dual-panel split screen
+   ================================================================ */
+.live-interview-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.li-panel {
+  background: var(--surface); border: 2px solid var(--border);
+  border-radius: var(--radius-wobble); padding: 18px;
+  box-shadow: var(--shadow);
+}
+.li-panel-left { transform: rotate(-0.3deg); }
+.li-panel-right { transform: rotate(0.3deg); }
+.li-panel-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--text-dim);
+  margin-bottom: 12px;
+}
+.li-section-label {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text-dim);
+  margin: 14px 0 6px;
+}
+
+/* Camera feed area */
+.li-cam-wrap {
+  position: relative; border-radius: 12px; overflow: hidden;
+  background: #000; aspect-ratio: 16/9; border: 1px solid var(--border);
+}
+.li-cam-wrap video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.li-cam-overlay {
+  position: absolute; inset: 0; display: flex;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.5); transition: opacity 0.4s ease;
+}
+.li-cam-placeholder { text-align: center; color: var(--text-dim); }
+.li-cam-placeholder p { font-size: 13px; margin-top: 10px; }
+.li-cam-controls {
+  position: absolute; bottom: 10px; right: 10px; z-index: 3;
+  display: flex; gap: 8px;
+}
+.li-audio-level {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 4px;
+  background: rgba(255,255,255,0.08); z-index: 3;
+}
+.li-audio-fill { height: 100%; background: var(--success); width: 0%; transition: width 0.06s linear; }
+
+/* AI avatar area */
+.li-ai-avatar-wrap {
+  display: flex; align-items: center; gap: 16px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-wobble); padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+/* Live stats strip */
+.li-stats-row {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 8px; margin-bottom: 10px;
+}
+.li-stat-box {
+  text-align: center; padding: 8px 4px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.li-stat-val { font-size: 18px; font-weight: 700; font-family: var(--font-hand); color: var(--accent); }
+.li-stat-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-dim); margin-top: 2px; }
+
+/* Report metrics grid */
+.li-report-metrics {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px; margin: 14px 0;
+}
+.li-report-metric {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.li-rm-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-dim); }
+.li-rm-val { font-size: 14px; font-weight: 700; color: var(--text); }
+
+/* ================================================================
+   SKILL GAP ANALYZER v2
+   ================================================================ */
+.sg-banner {
+  border-color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+}
+.sg-banner-inner { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.sg-banner-icon { font-size: 36px; flex-shrink: 0; }
+.sg-readiness-pill {
+  margin-left: auto; background: var(--success-soft);
+  border: 2px solid var(--success); border-radius: 12px;
+  padding: 8px 16px; text-align: center; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.sg-readiness-pill span:first-child { font-size: 22px; font-weight: 700; font-family: var(--font-hand); color: var(--success); }
+
+/* Role grid in setup and bottom-of-analysis */
+.sg-role-grid { display: flex; flex-direction: column; gap: 7px; max-height: 480px; overflow-y: auto; }
+.sg-role-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border: 1.5px solid var(--border);
+  border-radius: var(--radius-wobble); background: var(--surface-2);
+  cursor: pointer; transition: all 0.15s ease;
+}
+.sg-role-card:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateX(3px); }
+.sg-role-card-sm { padding: 8px 12px; }
+.sg-role-icon { font-size: 20px; flex-shrink: 0; }
+.sg-role-info { flex: 1; min-width: 0; }
+.sg-role-name { font-size: 14px; font-weight: 700; }
+.sg-role-sub { font-size: 11.5px; color: var(--text-dim); }
+.sg-role-match {
+  font-size: 13px; font-weight: 700; padding: 4px 10px;
+  border-radius: 12px; border: 1px solid; flex-shrink: 0;
+}
+
+/* Readiness gauge */
+.sg-readiness-gauge { margin: 8px 0 16px; }
+
+/* Skill matrix */
+.sg-skill-matrix { max-height: 420px; overflow-y: auto; }
+.sg-skill-chip { cursor: default; }
+
+/* Manual skill chips */
+.sg-manual-chip { display: inline-flex; align-items: center; gap: 6px; }
+.sg-remove-skill {
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-size: 12px; line-height: 1; color: inherit; opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.sg-remove-skill:hover { opacity: 1; }
+
+/* YouTube lecture shortcut links in roadmap */
+.sg-yt-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; color: var(--accent); text-decoration: none;
+  font-weight: 700; margin-top: 6px; padding: 4px 10px;
+  background: var(--accent-soft); border: 1px solid rgba(255,77,77,0.3);
+  border-radius: 20px; transition: all 0.15s ease;
+}
+.sg-yt-link:hover { background: rgba(255,77,77,0.18); transform: translateX(2px); }
+
+/* Gap → lecture map rows */
+.sg-yt-map-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; border-bottom: 1px dashed rgba(45,45,45,0.12);
+  flex-wrap: wrap;
+}
+.sg-yt-map-row:last-child { border-bottom: none; }
+
+/* ================================================================
+   RESPONSIVE — covers all new components
+   ================================================================ */
 @media (max-width: 1100px) {
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
   .grid-3 { grid-template-columns: repeat(2, 1fr); }
   .yt-grid { grid-template-columns: repeat(2, 1fr); }
+  .live-interview-layout { grid-template-columns: 1fr; }
+  .li-stats-row { grid-template-columns: repeat(4, 1fr); }
 }
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); width: 260px; }
@@ -817,7 +1057,7 @@ canvas.radar-canvas, canvas.bar-canvas { width: 100%; height: auto; max-height: 
   .main-content { margin-left: 0; }
   .menu-toggle { display: block; }
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 90; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
-.overlay.show { opacity: 1; pointer-events: auto; }
+  .overlay.show { opacity: 1; pointer-events: auto; }
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
   .yt-grid { grid-template-columns: 1fr; }
   .view-container { padding: 16px; }
@@ -826,4 +1066,15 @@ canvas.radar-canvas, canvas.bar-canvas { width: 100%; height: auto; max-height: 
   .stat-card { min-width: 140px; }
   .chat-window { height: 520px; }
   .heatmap { grid-template-columns: repeat(13, 1fr); }
+  /* Interview */
+  .live-interview-layout { grid-template-columns: 1fr; gap: 14px; }
+  .li-stats-row { grid-template-columns: repeat(2, 1fr); }
+  .li-report-metrics { grid-template-columns: repeat(2, 1fr); }
+  /* Skill Gap */
+  .sg-banner-inner { gap: 10px; }
+  .sg-readiness-pill { margin-left: 0; }
+  /* YouTube */
+  .yt-header-row { flex-direction: column; }
+  .yt-header-right { min-width: unset; width: 100%; }
+  .yt-completion-toggle { width: 100%; }
 }

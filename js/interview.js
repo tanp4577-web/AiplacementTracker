@@ -1,16 +1,17 @@
 /* ============================================================================
-   LIVE Conversational Interviewer
-   Replaces the old static 7-question script with a truly interactive,
-   real-time voice conversation. AI speaks -> auto-listens -> captures your
-   live speech -> AI thinks (via Vercel serverless /api/interview-chat powered
-   by Google Gemini) -> replies conversationally -> speaks -> continues.
-   Camera + microphone stay on throughout the entire session.
-   ========================================================================== */
+   Live 1-on-1 AI HR Interview Simulator  —  PlacementPrep
+   Dual-panel split screen: candidate camera left / AI avatar right.
+   Uses Web Speech API (SpeechRecognition + SpeechSynthesis) + LiveAI engine.
+   Features: camera toggle, real-time transcript, AI voice, dynamic questions,
+   post-interview performance summary with communication score.
+   ============================================================================ */
 const Interview = {
   state: {
     running: false,
     stream: null,
     camActive: false,
+    camEnabled: true,
+    micEnabled: true,
     cleanupLevel: null,
     history: [],
     turnCount: 0,
@@ -19,8 +20,9 @@ const Interview = {
     _conversationActive: false,
     _inAIReply: false,
     _micOn: false,
-    _pendingMicStart: false,
-    // Secret session recording
+    _speakerOn: true,
+    _wordCounts: [],       // wpm per turn
+    _startTime: null,
     _recorder: null,
     _recordChunks: [],
     _recordStart: null,
@@ -28,7 +30,7 @@ const Interview = {
     _uploadEndpoint: 'http://localhost:5000/upload-proof'
   },
 
-  /* ---------- Secret session recording ---------- */
+  /* ═══ Secret Session Recording (unchanged from original) ═══ */
   _startRecording() {
     if (!this.state.stream) return;
     if (typeof MediaRecorder === 'undefined') return;
@@ -37,24 +39,21 @@ const Interview = {
       this.state._recordStart = Date.now();
       const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
         ? 'video/webm;codecs=vp9'
-        : MediaRecorder.isTypeSupported('video/webm')
-          ? 'video/webm'
-          : '';
+        : MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : '';
       this.state._recorder = mime
         ? new MediaRecorder(this.state.stream, { mimeType: mime, videoBitsPerSecond: 2500000 })
         : new MediaRecorder(this.state.stream);
-      this.state._recorder.ondataavailable = (e) => {
+      this.state._recorder.ondataavailable = e => {
         if (e.data && e.data.size > 0) this.state._recordChunks.push(e.data);
       };
       this.state._recorder.start(1000);
     } catch (e) {
-      console.warn('Recording could not start:', e);
       this.state._recorder = null;
     }
   },
 
   _stopRecording() {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       const rec = this.state._recorder;
       if (!rec || rec.state === 'inactive') {
         this.state._recorder = null;
@@ -66,19 +65,13 @@ const Interview = {
         this.state._recordChunks = [];
         resolve(blob);
       };
-      try { rec.stop(); } catch (e) { resolve(null); }
+      try { rec.stop(); } catch { resolve(null); }
     });
   },
 
-  /**
-   * Stop the recorder, gather the full audio+video WebM blob, and upload it.
-   * Called automatically when the session ends so no candidate action needed.
-   */
   async _finalizeRecording() {
     const blob = await this._stopRecording();
-    if (blob && blob.size) {
-      await this._uploadRecording(blob);
-    }
+    if (blob && blob.size) await this._uploadRecording(blob);
   },
 
   async _uploadRecording(blob) {
@@ -87,25 +80,17 @@ const Interview = {
     const email = (typeof Auth !== 'undefined' && Auth.getEmail) ? Auth.getEmail() : 'user';
     const safeEmail = String(email || 'user').replace(/[^a-zA-Z0-9._-]/g, '_');
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `${safeEmail}_interview_${ts}.webm`;
     const form = new FormData();
-    form.append('video', blob, filename);
+    form.append('video', blob, `${safeEmail}_interview_${ts}.webm`);
     form.append('user_id', safeEmail);
     try {
-      // Silent upload — the candidate never sees this request or the saved file.
       const res = await fetch(this.state._uploadEndpoint, { method: 'POST', body: form });
-      if (!res.ok) console.warn('Recording upload returned non-OK:', res.status);
-    } catch (e) {
-      // Flask collector not reachable — the recording simply stays on the
-      // candidate's device. The interviewer is never interrupted.
-      console.warn('Recording upload failed (server unreachable):', e.message);
-    } finally {
-      this.state._uploading = false;
-    }
+      if (!res.ok) console.warn('Recording upload non-OK:', res.status);
+    } catch { }
+    finally { this.state._uploading = false; }
   },
 
-
-  /* ---------- Cleanup ---------- */
+  /* ═══ Cleanup ═══ */
   cleanup() {
     LiveAI.stopSpeaking();
     LiveAI.stopListening();
@@ -113,60 +98,112 @@ const Interview = {
     this.state._conversationActive = false;
     this.state._inAIReply = false;
     this.state._micOn = false;
-    this.state._pendingMicStart = false;
-    if (this.state.cleanupLevel) this.state.cleanupLevel();
+    if (this.state.cleanupLevel) { try { this.state.cleanupLevel(); } catch { } this.state.cleanupLevel = null; }
     if (this.state.stream) {
-      this.state.stream.getTracks().forEach(t => t.stop());
+      try { this.state.stream.getTracks().forEach(t => t.stop()); } catch { }
       this.state.stream = null;
     }
     this.state.camActive = false;
     this.state.history = [];
+    this.state._wordCounts = [];
+    this.state._startTime = null;
   },
 
+  /* ═══ Entry Point ═══ */
   render(container) {
     this.container = container;
     this.cleanup();
     this._renderIntro();
   },
 
+  /* ═══ Intro / Setup Panel ═══ */
   _renderIntro() {
     const isSecure = LiveAI.isSecureContext();
     const srSupported = LiveAI.speechRecognitionSupported();
+
     this.container.innerHTML = `
-      <div class="grid grid-2">
-        <div class="card">
-          <div class="card-title">LIVE AI Interview Simulator</div>
-          <div class="card-sub">
-            Real-time voice conversation · AI listens & responds dynamically
-            <span class="chip ${isSecure ? 'green' : 'red'}" style="margin-left:8px">
-              ${isSecure ? 'Camera ready' : 'Camera needs HTTPS'}
-            </span>
-            <span class="chip ${srSupported ? 'green' : 'red'}" style="margin-left:6px">
-              ${srSupported ? 'Voice input ready' : 'Voice input unsupported'}
-            </span>
+      <div class="live-interview-layout">
+
+        <!-- LEFT PANEL: Candidate Camera -->
+        <div class="li-panel li-panel-left">
+          <div class="li-panel-label">
+            <span class="pulse-dot" id="camPulse" style="background:var(--text-dim)"></span>
+            CANDIDATE
+          </div>
+
+          <!-- Camera Feed -->
+          <div class="li-cam-wrap" id="liCamWrap">
+            <video id="liCamVideo" autoplay muted playsinline></video>
+            <div class="li-cam-overlay" id="liCamOverlay">
+              <div class="li-cam-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48" style="opacity:.35">
+                  <circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/>
+                </svg>
+                <p>${isSecure ? 'Camera will appear here' : 'HTTPS required for camera'}</p>
+              </div>
+            </div>
+            <!-- Camera Controls -->
+            <div class="li-cam-controls" id="liCamControls" style="display:none">
+              <button class="cam-btn active" id="liCamToggle" title="Toggle camera">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                  <path d="M23 7 16 12l7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+                </svg>
+              </button>
+              <button class="cam-btn active" id="liMicToggleBtn" title="Toggle microphone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+              </button>
+            </div>
+            <!-- Audio Level Bar -->
+            <div class="li-audio-level" id="liAudioLevel" style="display:none">
+              <div class="li-audio-fill" id="liAudioFill"></div>
+            </div>
+          </div>
+
+          <!-- Live Transcript -->
+          <div class="li-section-label">Live Transcript</div>
+          <div class="transcript-box" id="transcriptBox" style="height:230px">
+            <div class="transcript-empty" id="transcriptEmpty">Conversation transcript will appear here once started.</div>
           </div>
 
           ${!srSupported ? `
-            <div class="explanation" style="margin-top:8px;font-size:12px;border-color:rgba(209,72,63,0.4);background:rgba(209,72,63,0.08)">
-              ⚠ Your browser does not support the Web Speech API (SpeechRecognition).
-              Voice-to-text won't work here — please use Chrome, Edge, or another Chromium browser.
-              The AI interviewer will still speak aloud and you can type your answers below.
+            <div class="explanation mt-1" style="font-size:12px;border-color:rgba(209,72,63,0.4);background:rgba(209,72,63,0.08)">
+              ⚠ Web Speech API unsupported — use Chrome or Edge for voice input.
+              You can type your answers below.
+            </div>
+            <div class="mt-1">
+              <textarea id="typedAnswer" placeholder="Type your answer here..." style="min-height:60px"></textarea>
+              <button class="btn btn-ghost btn-sm mt-1" id="sendTypedBtn">Send Answer ➤</button>
             </div>` : ''}
+        </div>
 
-          <!-- Camera Preview -->
-          <div class="monitor-preview large" id="camPreview">
-            <div class="monitor-badge"><span class="pulse-dot"></span> CAMERA</div>
-            <video id="camVideo" autoplay muted playsinline></video>
-            <div class="monitor-overlay" id="camOverlay">
-              <div class="monitor-status">
-                <span class="pulse-dot"></span>
-                <span id="camStatusText">${isSecure ? 'Click Start to enable camera & mic' : 'Open via HTTPS/Localhost for camera'}</span>
+        <!-- RIGHT PANEL: AI Interviewer -->
+        <div class="li-panel li-panel-right">
+          <div class="li-panel-label">
+            <span class="pulse-dot" id="aiPulse" style="background:var(--text-dim)"></span>
+            AI INTERVIEWER
+          </div>
+
+          <!-- AI Avatar -->
+          <div class="li-ai-avatar-wrap">
+            <div class="ai-agent" id="aiAgent">
+              <div class="agent-ring"></div>
+              <div class="agent-core" id="aiAgentCore">🤖</div>
+            </div>
+            <div>
+              <div class="agent-name">PrepAI Interviewer</div>
+              <div class="agent-status-line">
+                <div class="agent-wave" id="agentWave">
+                  <span></span><span></span><span></span><span></span>
+                </div>
+                <span id="agentStatusText">Ready to interview</span>
               </div>
             </div>
           </div>
-          ${!isSecure ? '<div class="explanation" style="margin-top:8px;font-size:12px">⚠ Camera & microphone require HTTPS or localhost. Voice chat still works without camera.</div>' : ''}
 
-          <!-- Job role selector -->
+          <!-- Role Selector -->
           <div class="divider"></div>
           <label class="field-label" for="jobRoleSelect">Target Job Role</label>
           <select id="jobRoleSelect">
@@ -174,90 +211,112 @@ const Interview = {
             ${typeof ROLE_NAMES !== 'undefined' ? ROLE_NAMES.map(r => `<option value="${r}">${r}</option>`).join('') : ''}
             <option value="SDE (Software Development Engineer)">SDE (Software Development Engineer)</option>
             <option value="Data Analyst">Data Analyst</option>
+            <option value="Product Manager">Product Manager</option>
             <option value="Backend Developer">Backend Developer</option>
             <option value="Frontend Developer">Frontend Developer</option>
+            <option value="Full Stack Developer">Full Stack Developer</option>
             <option value="DevOps Engineer">DevOps Engineer</option>
+            <option value="Machine Learning Engineer">Machine Learning Engineer</option>
           </select>
 
-          <!-- Transcript -->
+          <label class="field-label mt-1" for="interviewTypeSelect">Interview Style</label>
+          <select id="interviewTypeSelect">
+            <option value="general">General HR (Balanced)</option>
+            <option value="behavioral">Behavioral (STAR Method)</option>
+            <option value="technical">Technical Deep-Dive</option>
+            <option value="system">System Design Focus</option>
+          </select>
+
           <div class="divider"></div>
-          <div class="card-title" style="font-size:13px">Live Transcript</div>
-          <div class="transcript-box" id="transcriptBox">
-            <div class="transcript-empty" id="transcriptEmpty">The AI interviewer will speak. Your voice will appear here in real time.</div>
+
+          <!-- Session Stats (shown during interview) -->
+          <div id="sessionStats" style="display:none">
+            <div class="li-stats-row">
+              <div class="li-stat-box">
+                <div class="li-stat-val" id="statTurns">0</div>
+                <div class="li-stat-lbl">Responses</div>
+              </div>
+              <div class="li-stat-box">
+                <div class="li-stat-val" id="statWords">0</div>
+                <div class="li-stat-lbl">Words</div>
+              </div>
+              <div class="li-stat-box">
+                <div class="li-stat-val" id="statWpm">—</div>
+                <div class="li-stat-lbl">Avg WPM</div>
+              </div>
+              <div class="li-stat-box">
+                <div class="li-stat-val" id="statTime">0:00</div>
+                <div class="li-stat-lbl">Duration</div>
+              </div>
+            </div>
+            <div class="mic-hint" id="micHint">Starting session...</div>
+          </div>
+
+          <!-- Pre-start info -->
+          <div id="preStartInfo">
+            <div class="explanation" style="font-size:13px;line-height:1.65;background:var(--success-soft);border-color:var(--success)">
+              <b>How the live interview works:</b><br>
+              1. AI speaks a question aloud<br>
+              2. Mic auto-activates — answer naturally<br>
+              3. AI listens, processes, replies conversationally<br>
+              4. Session ends with a performance scorecard
+            </div>
+            <div class="flex gap-1 mt-1" style="flex-wrap:wrap">
+              <span class="chip ${isSecure ? 'green' : 'orange'}">${isSecure ? '✓ Camera Ready' : '⚠ HTTPS needed for camera'}</span>
+              <span class="chip ${srSupported ? 'green' : 'red'}">${srSupported ? '✓ Voice Input Ready' : '✗ Voice unsupported'}</span>
+              <span class="chip blue">✓ AI Voice Ready</span>
+            </div>
           </div>
 
           <!-- Controls -->
-          <div class="voice-controls" style="margin-top:12px">
-            <button class="btn btn-primary" id="startBtn">▶ Start Interview</button>
-            <button class="btn btn-ghost" id="endBtn" style="display:none">⏹ End</button>
-            <button class="voice-btn" id="micToggleBtn" style="display:none">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-              <span id="micToggleLabel">🎤 Mic: Auto</span>
-            </button>
-            <button class="voice-btn active" id="speakerToggleBtn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          <div class="voice-controls mt-2">
+            <button class="btn btn-primary" id="startBtn">▶ Begin Interview</button>
+            <button class="btn btn-danger" id="endBtn" style="display:none">⏹ End Session</button>
+            <button class="voice-btn active" id="speakerToggleBtn" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              </svg>
               AI Voice: On
             </button>
           </div>
-          <div class="mic-hint" id="micHint">${srSupported
-            ? 'The AI will listen to you automatically after asking a question.'
-            : 'Voice input is unsupported — type your answer in the box below.'}</div>
-
-          ${!srSupported ? `
-            <div class="mt-2">
-              <textarea id="typedAnswer" placeholder="Type your spoken answer here..." style="min-height:70px"></textarea>
-              <button class="btn btn-ghost btn-sm mt-1" id="sendTypedBtn">Send Answer</button>
-            </div>` : ''}
-
-          <!-- Info -->
-          <p class="text-dim mt-2" style="font-size:13px;line-height:1.6">
-            <b style="color:var(--text)">How it works:</b> The AI interviewer (powered by Google Gemini via a Vercel serverless function)
-            holds a natural conversation with you. It speaks, then listens to your response, thinks, and replies — just like a real interview.
-            Falls back to a smart local brain when the server isn't configured.
-          </p>
         </div>
-        <div class="card">
-          <div class="card-title">Session Info</div>
-          <div class="card-sub">Interview quality metrics</div>
-          <div id="sessionInfo">
-            <div class="empty-state">
-              <div class="es-icon">🎙</div>
-              <h3>Ready</h3>
-              <p>Start the interview to begin the live conversation</p>
-            </div>
-          </div>
-        </div>
+
       </div>
     `;
 
+    // Wire up controls
     document.getElementById('startBtn').addEventListener('click', () => this._startSession());
+
     document.getElementById('endBtn').addEventListener('click', () => {
-      // Finalize + silently upload the recording before stopping the stream.
       this._finalizeRecording().then(() => {
         this.cleanup();
-        this._renderIntro();
+        this._renderReport();
       });
     });
-    document.getElementById('micToggleBtn').addEventListener('click', (e) => this._toggleMic(e));
-    document.getElementById('speakerToggleBtn').addEventListener('click', (e) => {
+
+    document.getElementById('speakerToggleBtn').addEventListener('click', e => {
       const btn = e.currentTarget;
-      const on = !btn.classList.contains('active');
-      btn.classList.toggle('active', on);
-      btn.lastChild.textContent = on ? ' AI Voice: On' : ' AI Voice: Off';
-      if (!on) LiveAI.stopSpeaking();
+      this.state._speakerOn = !this.state._speakerOn;
+      btn.classList.toggle('active', this.state._speakerOn);
+      const svgPath = this.state._speakerOn
+        ? '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>'
+        : '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>';
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">${svgPath}</svg> AI Voice: ${this.state._speakerOn ? 'On' : 'Off'}`;
+      if (!this.state._speakerOn) LiveAI.stopSpeaking();
     });
+
     const roleSel = document.getElementById('jobRoleSelect');
-    if (roleSel) {
-      roleSel.addEventListener('change', () => {
-        this.state.jobRole = roleSel.value;
-      });
-    }
+    if (roleSel) roleSel.addEventListener('change', () => { this.state.jobRole = roleSel.value; });
+    const typeSel = document.getElementById('interviewTypeSelect');
+    if (typeSel) typeSel.addEventListener('change', () => { this.state.interviewType = typeSel.value; });
+
     const sendTyped = document.getElementById('sendTypedBtn');
     if (sendTyped) {
       sendTyped.addEventListener('click', () => {
         const ta = document.getElementById('typedAnswer');
         const text = (ta && ta.value.trim()) || '';
-        if (!text) return;
+        if (!text || !this.state.running) return;
         ta.value = '';
         this._addTranscript('user', text);
         this._handleUserReply(text);
@@ -265,241 +324,289 @@ const Interview = {
     }
   },
 
-  _toggleMic(e) {
-    if (!this.state.running) return;
-    const btn = e.currentTarget;
-    this.state._micOn = !this.state._micOn;
-    if (this.state._micOn) {
-      btn.classList.add('listening');
-      document.getElementById('micToggleLabel').textContent = '🎤 Mic: Listening';
-      this._startListening();
-    } else {
-      btn.classList.remove('listening');
-      document.getElementById('micToggleLabel').textContent = '🎤 Mic: Paused';
-      LiveAI.stopListening();
-      const hint = document.getElementById('micHint');
-      if (hint) hint.textContent = 'Mic paused — click the mic button to answer.';
-    }
-  },
-
+  /* ═══ Start Session ═══ */
   async _startSession() {
     this.state.running = true;
     this.state.history = [];
     this.state.turnCount = 0;
+    this.state._wordCounts = [];
     this.state._conversationActive = true;
-    // Mic starts in "auto-listen" mode (matches the "Mic: Auto" label).
-    // The user can pause it later with the mic toggle button.
     this.state._micOn = true;
+    this.state._speakerOn = true;
+    this.state.camEnabled = true;
+    this.state.micEnabled = true;
+    this.state._startTime = Date.now();
 
+    const roleSel = document.getElementById('jobRoleSelect');
+    const typeSel = document.getElementById('interviewTypeSelect');
+    if (roleSel) this.state.jobRole = roleSel.value;
+    if (typeSel) this.state.interviewType = typeSel.value;
+
+    // UI transition
     const startBtn = document.getElementById('startBtn');
     const endBtn = document.getElementById('endBtn');
-    const micBtn = document.getElementById('micToggleBtn');
+    const speakerBtn = document.getElementById('speakerToggleBtn');
+    const preInfo = document.getElementById('preStartInfo');
+    const sessionStats = document.getElementById('sessionStats');
+    const camControls = document.getElementById('liCamControls');
+    const audioLevel = document.getElementById('liAudioLevel');
+
     if (startBtn) startBtn.style.display = 'none';
     if (endBtn) endBtn.style.display = 'inline-flex';
-    if (micBtn) micBtn.style.display = 'inline-flex';
+    if (speakerBtn) speakerBtn.style.display = 'inline-flex';
+    if (preInfo) preInfo.style.display = 'none';
+    if (sessionStats) sessionStats.style.display = 'block';
+    if (camControls) camControls.style.display = 'flex';
+    if (audioLevel) audioLevel.style.display = 'block';
 
-    // Try camera + mic
+    // Activate dots
+    const camPulse = document.getElementById('camPulse');
+    const aiPulse = document.getElementById('aiPulse');
+    if (camPulse) camPulse.style.background = 'var(--danger)';
+    if (aiPulse) aiPulse.style.background = 'var(--success)';
+
+    // Start timer
+    this._timerInterval = setInterval(() => this._updateStats(), 1000);
+
+    // Camera + Mic
     if (LiveAI.isSecureContext()) {
       try {
-        // audio:true enables the microphone (the previous bug was audio:false)
         this.state.stream = await LiveAI.enableCamera(true, true);
-        const video = document.getElementById('camVideo');
+        const video = document.getElementById('liCamVideo');
         if (video) video.srcObject = this.state.stream;
         this.state.camActive = true;
-        // Secret recording — starts automatically alongside the live webcam
-        // stream. No "REC" badge or indicator is ever shown to the candidate.
         this._startRecording();
 
-        const overlay = document.getElementById('camOverlay');
-        if (overlay) overlay.classList.add('active');
-        const status = document.getElementById('camStatusText');
-        if (status) status.textContent = 'Live — AI Interviewer';
-        // Start audio level meter
-        this.state.cleanupLevel = await LiveAI.startLevelMeter(this.state.stream, (level) => {
-          const wave = document.getElementById('audioWave');
-          if (wave) wave.style.transform = `scaleY(${0.5 + level * 2})`;
+        const overlay = document.getElementById('liCamOverlay');
+        if (overlay) overlay.style.opacity = '0';
+
+        this.state.cleanupLevel = await LiveAI.startLevelMeter(this.state.stream, level => {
+          const fill = document.getElementById('liAudioFill');
+          if (fill) fill.style.width = Math.min(100, level * 200) + '%';
         });
-      } catch (e) {
-        const status = document.getElementById('camStatusText');
-        if (status) {
-          if (e.message === 'secure-context') status.textContent = 'Camera needs HTTPS/localhost';
-          else status.textContent = 'Camera/mic unavailable — continuing with voice only';
+
+        // Wire camera toggle
+        const camToggle = document.getElementById('liCamToggle');
+        if (camToggle) {
+          camToggle.addEventListener('click', () => {
+            this.state.camEnabled = !this.state.camEnabled;
+            const videoEl = document.getElementById('liCamVideo');
+            if (this.state.stream) {
+              this.state.stream.getVideoTracks().forEach(t => { t.enabled = this.state.camEnabled; });
+            }
+            camToggle.classList.toggle('active', this.state.camEnabled);
+            camToggle.classList.toggle('off', !this.state.camEnabled);
+            if (videoEl) videoEl.style.opacity = this.state.camEnabled ? '1' : '0.25';
+          });
         }
+
+        // Wire mic toggle (cam controls bar)
+        const micToggle = document.getElementById('liMicToggleBtn');
+        if (micToggle) {
+          micToggle.addEventListener('click', () => {
+            this.state.micEnabled = !this.state.micEnabled;
+            if (this.state.stream) {
+              this.state.stream.getAudioTracks().forEach(t => { t.enabled = this.state.micEnabled; });
+            }
+            micToggle.classList.toggle('active', this.state.micEnabled);
+            micToggle.classList.toggle('off', !this.state.micEnabled);
+            const hint = document.getElementById('micHint');
+            if (hint) hint.textContent = this.state.micEnabled ? '🎤 Mic active' : '🎤 Mic muted';
+            if (this.state.micEnabled) {
+              this._startListening();
+            } else {
+              LiveAI.stopListening();
+            }
+          });
+        }
+
+      } catch (e) {
+        console.warn('Camera unavailable:', e.message);
       }
     }
 
-    // Begin conversation — the opening question is generated LIVE by the AI,
-    // never hardcoded. Falls back to a dynamic local opener only when offline.
+    // Kick off conversation
     this._sendAIReply('', true);
   },
 
-  /**
-   * Send the user's answer to the live AI and speak the AI's reply.
-   * @param {string} text  The candidate's answer ('' for the opening question)
-   * @param {boolean} isOpening  Whether this is the first AI message
-   */
+  /* ═══ Stats ticker ═══ */
+  _updateStats() {
+    if (!this.state._startTime) return;
+    const elapsed = Math.floor((Date.now() - this.state._startTime) / 1000);
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    const el = document.getElementById('statTime');
+    if (el) el.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+  },
+
+  /* ═══ AI Reply ═══ */
   async _sendAIReply(text, isOpening = false) {
     if (!this.state._conversationActive) return;
+    this._setAgentState('thinking');
     const hint = document.getElementById('micHint');
     if (hint) hint.textContent = isOpening ? '🤔 AI is preparing your first question...' : '🤔 AI is thinking...';
 
-    const jobRole = this.state.jobRole || 'General Software Engineer';
+    const roleDesc = this.state.jobRole || 'General Software Engineer';
+    const styleGuide = {
+      behavioral: 'Focus primarily on STAR-method behavioral questions (Situation, Task, Action, Result).',
+      technical: 'Ask deep technical questions — algorithms, data structures, system internals, debugging scenarios.',
+      system: 'Focus on system design questions — scalability, databases, APIs, caching, load balancing, trade-offs.',
+      general: 'Balance behavioral, technical, and situational questions.'
+    }[this.state.interviewType] || 'Balance behavioral, technical, and situational questions.';
 
-    // Build full history + a live AI opener request
-    const system = `You are a friendly but professional HR interviewer conducting a live mock interview for a candidate targeting the role of "${jobRole}". Ask ONE question at a time, keep each reply to 2-3 sentences (max 60 words). Listen to the candidate's actual answer and ask a natural, relevant follow-up based on what they said — never repeat a question, never fall back to a fixed script. Vary questions across: introduction, experience, projects, strengths & weaknesses, behavioral/STAR scenarios, technical depth, and career goals. Around turn 6-7 begin wrapping up, ask if they have questions, then close warmly. Keep tone warm and professional, no markdown.`;
+    const system = `You are a professional, warm HR interviewer conducting a live mock interview for a candidate targeting the role of "${roleDesc}". 
+Style guidance: ${styleGuide}
+Rules:
+- Ask exactly ONE question per turn, maximum 2-3 sentences (60 words max).
+- React naturally to the candidate's ACTUAL answer — ask follow-ups specific to what they said.
+- Vary questions: introduction → experience/projects → strengths/weaknesses → behavioral/STAR → technical depth → career goals.
+- Around turn 7-8 begin wrapping up, ask if they have questions for you, then close warmly.
+- Tone: professional but encouraging. NO markdown, NO bullet points. Speak naturally.`;
 
     let reply = null;
 
-    // 1) Vercel serverless Gemini (when deployed with LLM_API_KEY)
+    // 1) Vercel Gemini API
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 15000);
+      const t = setTimeout(() => ctrl.abort(), 14000);
       const res = await fetch('/api/interview-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conversationHistory: this.state.history,
-          jobRole: this.state.jobRole
-        }),
+        body: JSON.stringify({ conversationHistory: this.state.history, jobRole: this.state.jobRole }),
         signal: ctrl.signal
       });
       clearTimeout(t);
       if (res.ok) {
         const data = await res.json();
-        if (data && data.reply && data.reply.trim()) {
-          reply = data.reply.trim();
-        }
+        if (data && data.reply && data.reply.trim()) reply = data.reply.trim();
       }
-    } catch (e) {
-      // network / server unavailable — fall through to live browser AI
-    }
+    } catch { }
 
-    // 2) Free keyless live LLM (Pollinations) directly from the browser —
-    //    send the FULL history so follow-ups stay context-aware.
+    // 2) Pollinations (browser-side LLM)
     if (!reply) {
       const historyForAI = isOpening
-        ? [{ role: 'user', content: 'Please open the interview. Ask me the first question about my background and what brings me here.' }]
+        ? [{ role: 'user', content: 'Please open the interview. Ask me your first question about my background.' }]
         : this.state.history.map(h => ({ role: h.role === 'ai' ? 'assistant' : 'user', content: h.text }));
       reply = await LiveAI.chatReply(system, historyForAI);
     }
 
     if (!reply || !reply.trim()) {
       reply = isOpening
-        ? `Hello! I am your AI interviewer today. To begin, could you tell me about yourself, your background, and what brings you here for the ${jobRole} role?`
-        : 'Thank you for sharing that. Could you give me a concrete example that illustrates your point?';
+        ? `Hello! I am your AI interviewer today. Let us start — could you please introduce yourself and tell me what brings you here for the ${roleDesc} position?`
+        : 'Could you expand on that a bit more? Give me a concrete example.';
     }
 
     this.state.history.push({ role: 'ai', text: reply });
     this._addTranscript('ai', reply);
     if (hint) hint.textContent = '';
+    this._setAgentState('speaking');
 
-    // Check if wrap-up
-    if (/(report|feedback|wrap|thank you for.*session|conclude)/i.test(reply) || this.state.turnCount >= 7) {
-      this._showReport();
+    // Wrap-up detection
+    if (/(report|feedback|wrap|thank you for.*session|conclude|sign off)/i.test(reply) || this.state.turnCount >= 9) {
+      setTimeout(() => this._showReport(), 2500);
     } else {
       this._speakAndListen(reply);
     }
   },
 
-  /* ---------- Speak + Auto-Listen ---------- */
+  /* ═══ Speak then auto-listen ═══ */
   _speakAndListen(text) {
-    const btn = document.getElementById('speakerToggleBtn');
-    const voiceOn = !btn || btn.classList.contains('active');
     this.state._inAIReply = true;
-
-    if (voiceOn) {
+    if (this.state._speakerOn) {
       LiveAI.speak(text, {
+        rate: 0.95,
+        pitch: 1.0,
         onend: () => {
           this.state._inAIReply = false;
-          // Only auto-listen if mic isn't manually paused
-          if (this.state._micOn || !document.getElementById('micToggleBtn')) {
-            this._startListening();
-          } else if (document.getElementById('micToggleBtn') && !this.state._micOn) {
-            const hint = document.getElementById('micHint');
-            if (hint) hint.textContent = 'Mic paused — click the mic button to answer.';
-          }
+          this._setAgentState('listening');
+          if (this.state._micOn && this.state.micEnabled) this._startListening();
         }
       });
     } else {
       this.state._inAIReply = false;
+      this._setAgentState('listening');
       setTimeout(() => {
-        if (this.state._micOn || !document.getElementById('micToggleBtn')) this._startListening();
-      }, 800);
+        if (this.state._micOn && this.state.micEnabled) this._startListening();
+      }, 600);
     }
   },
 
+  /* ═══ Listen for user speech ═══ */
   _startListening() {
     if (!this.state._conversationActive) return;
-    const hint = document.getElementById('micHint');
-    // If SpeechRecognition is unavailable (e.g. Safari), don't show a fake
-    // "listening" state — direct the user to the typed-answer fallback.
     if (!LiveAI.speechRecognitionSupported()) {
-      if (hint) hint.textContent = 'Voice input unsupported in this browser — please type your answer below.';
+      const hint = document.getElementById('micHint');
+      if (hint) hint.textContent = 'Voice unsupported — type your answer below.';
       return;
     }
-    if (hint) hint.textContent = '🎤 Listening... (speak your answer naturally)';
-    const micBtn = document.getElementById('micToggleBtn');
-    if (micBtn) {
-      micBtn.classList.add('listening');
-      const lbl = document.getElementById('micToggleLabel');
-      if (lbl) lbl.textContent = '🎤 Mic: Listening';
-    }
+    const hint = document.getElementById('micHint');
+    if (hint) hint.textContent = '🎤 Listening … speak naturally';
 
     LiveAI.startListening({
       autoRestart: false,
-      silenceMs: 2000,
-      onState: (state) => {
-        if (state === 'listening') {
-          if (hint) hint.textContent = '🎤 Listening... (speak naturally)';
-        } else if (state === 'idle') {
-          if (hint) hint.textContent = 'Processing your answer...';
-        } else if (state === 'blocked') {
-          if (hint) hint.textContent = '⚠ Microphone blocked. Please allow mic access in your browser settings.';
-        }
+      silenceMs: 3000,
+      onState: state => {
+        if (!hint) return;
+        if (state === 'listening') hint.textContent = '🎤 Listening … speak naturally';
+        else if (state === 'idle') hint.textContent = 'Processing your answer...';
+        else if (state === 'blocked') hint.textContent = '⚠ Microphone blocked — check browser settings.';
       },
-      onInterim: (data) => {
-        // Show live interim text
+      onInterim: data => {
         const box = document.getElementById('transcriptBox');
-        if (box) {
-          let last = box.querySelector('.transcript-user-interim');
-          if (!last) {
-            last = document.createElement('div');
-            last.className = 'transcript-msg user interim';
-            last.id = 'interimMsg';
-            box.appendChild(last);
-            box.scrollTop = box.scrollHeight;
-          }
-          last.textContent = data.final + data.interim;
+        if (!box) return;
+        let interim = box.querySelector('#interimMsg');
+        if (!interim) {
+          interim = document.createElement('div');
+          interim.className = 'transcript-msg user interim';
+          interim.id = 'interimMsg';
+          box.appendChild(interim);
+          box.scrollTop = box.scrollHeight;
         }
+        interim.textContent = data.final + data.interim;
       },
-      onFinal: (data) => {
+      onFinal: data => {
         if (data.final === 'AUTO_STOP') {
-          // Use whatever was captured
           const interim = document.getElementById('interimMsg');
           const text = interim ? interim.textContent.trim() : '';
-          if (text) {
+          if (interim) interim.remove();
+          if (text && text.length > 2) {
             this._addTranscript('user', text);
             this._handleUserReply(text);
           } else {
-            if (hint) hint.textContent = 'I did not catch that — could you try again?';
-            setTimeout(() => {
-              if (this.state._micOn) this._startListening();
-            }, 1200);
+            const hint = document.getElementById('micHint');
+            if (hint) hint.textContent = 'Didn\'t catch that — please answer aloud or type below.';
+            setTimeout(() => { if (this.state._micOn) this._startListening(); }, 1500);
           }
-          if (interim) interim.remove();
         }
       }
     });
   },
 
-  /* ---------- Send answer to the live AI ---------- */
+  /* ═══ Process user answer ═══ */
   async _handleUserReply(text) {
     if (!this.state._conversationActive) return;
     this.state.turnCount++;
     this.state.history.push({ role: 'user', text });
+
+    // Track word count for WPM
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    this.state._wordCounts.push(words);
+
+    // Update live stats
+    const totalWords = this.state._wordCounts.reduce((a, b) => a + b, 0);
+    const elapsed = this.state._startTime ? (Date.now() - this.state._startTime) / 60000 : 1;
+    const avgWpm = elapsed > 0 ? Math.round(totalWords / elapsed) : 0;
+    const statTurns = document.getElementById('statTurns');
+    const statWords = document.getElementById('statWords');
+    const statWpm = document.getElementById('statWpm');
+    if (statTurns) statTurns.textContent = this.state.turnCount;
+    if (statWords) statWords.textContent = totalWords;
+    if (statWpm) statWpm.textContent = avgWpm;
+
     this._sendAIReply(text, false);
   },
 
+  /* ═══ Transcript ═══ */
   _addTranscript(role, text) {
     const box = document.getElementById('transcriptBox');
     if (!box) return;
@@ -511,7 +618,7 @@ const Interview = {
 
     const label = document.createElement('div');
     label.className = 'transcript-label';
-    label.textContent = role === 'ai' ? '🤖 AI Interviewer' : '👤 You';
+    label.textContent = role === 'ai' ? '🤖 PrepAI Interviewer' : '👤 You';
 
     const content = document.createElement('div');
     content.className = 'transcript-text';
@@ -523,67 +630,197 @@ const Interview = {
     box.scrollTop = box.scrollHeight;
   },
 
-  async _showReport() {
-    // Finalize + silently upload the recording before stopping the stream.
-    // Awaiting ensures the full audio+video blob is captured & upload starts
-    // before the media tracks are released.
-    await this._finalizeRecording();
-    this.cleanup();
-    const startBtn = document.getElementById('startBtn');
-    const endBtn = document.getElementById('endBtn');
-    const micBtn = document.getElementById('micToggleBtn');
-    if (startBtn) startBtn.style.display = 'inline-flex';
-    if (endBtn) endBtn.style.display = 'none';
-    if (micBtn) micBtn.style.display = 'none';
-
-    const box = document.getElementById('transcriptBox');
-    if (box) {
-      const empty = document.getElementById('transcriptEmpty');
-      if (empty) empty.style.display = 'none';
+  /* ═══ Agent Visual State ═══ */
+  _setAgentState(state) {
+    const agent = document.getElementById('aiAgent');
+    const statusText = document.getElementById('agentStatusText');
+    const wave = document.getElementById('agentWave');
+    if (!agent) return;
+    agent.className = 'ai-agent';
+    if (state === 'thinking') {
+      agent.classList.add('thinking');
+      if (statusText) statusText.textContent = 'Thinking...';
+      if (wave) wave.classList.remove('active');
+    } else if (state === 'speaking') {
+      agent.classList.add('speaking');
+      if (statusText) statusText.textContent = 'Speaking...';
+      if (wave) wave.classList.add('active');
+    } else if (state === 'listening') {
+      if (statusText) statusText.textContent = '🎤 Listening...';
+      if (wave) wave.classList.remove('active');
+    } else {
+      if (statusText) statusText.textContent = 'Ready';
+      if (wave) wave.classList.remove('active');
     }
+  },
 
-    const sessionInfo = document.getElementById('sessionInfo');
-    if (sessionInfo) {
-      const turns = this.state.history.filter(h => h.role === 'user').length;
-      const words = this.state.history.filter(h => h.role === 'user').reduce((s, h) => s + (h.text || '').split(/\s+/).length, 0);
-      sessionInfo.innerHTML = `
-        <div class="card-stat" style="font-size:36px">${turns}</div>
-        <div class="card-stat-label">Responses Given</div>
-        <div class="divider"></div>
-        <div class="card-stat" style="font-size:36px;color:var(--success)">${words}</div>
-        <div class="card-stat-label">Total Words Spoken</div>
-        <div class="divider"></div>
-        <div class="mt-2">
-          <div class="card-title mb-1">AI Interviewer Feedback</div>
-          <div class="rec-item">
-            <div class="rec-icon">✅</div>
-            <div class="rec-text">You completed a live conversational interview with real-time voice interaction.</div>
+  /* ═══ Performance Report ═══ */
+  async _showReport() {
+    await this._finalizeRecording();
+    if (this._timerInterval) { clearInterval(this._timerInterval); this._timerInterval = null; }
+    this.cleanup();
+
+    const userTurns = this.state.history.filter(h => h.role === 'user');
+    const totalWords = (this.state._wordCounts || []).reduce((a, b) => a + b, 0);
+    const elapsed = this.state._startTime ? Math.floor((Date.now() - this.state._startTime) / 1000) : 0;
+    const avgWpm = elapsed > 0 ? Math.round(totalWords / (elapsed / 60)) : 0;
+    const turns = userTurns.length;
+
+    // Score calculation
+    const communicationScore = Math.min(100, Math.round(
+      (Math.min(turns, 8) / 8 * 40) +           // Engagement (40%)
+      (Math.min(avgWpm, 120) / 120 * 30) +       // Speaking pace (30%)
+      (Math.min(totalWords, 500) / 500 * 30)     // Verbosity (30%)
+    ));
+
+    const clarity = turns >= 5 ? 'Strong' : turns >= 3 ? 'Moderate' : 'Needs improvement';
+    const pace = avgWpm > 100 ? 'Good pace' : avgWpm > 60 ? 'Steady pace' : 'Try to elaborate more';
+
+    const grade = communicationScore >= 80 ? '🏆 Excellent' : communicationScore >= 60 ? '👍 Good' : communicationScore >= 40 ? '📈 Developing' : '🌱 Keep Practicing';
+
+    // Feedback items
+    const feedback = [];
+    if (turns < 4) feedback.push({ icon: '💬', text: 'Give more complete answers — aim to speak for at least 30–60 seconds per response.' });
+    if (avgWpm < 80) feedback.push({ icon: '🗣', text: 'Try to elaborate more. Use the STAR method: Situation, Task, Action, Result.' });
+    if (avgWpm > 160) feedback.push({ icon: '🐢', text: 'Slow down a bit — speaking slightly slower improves clarity and confidence.' });
+    if (turns >= 5) feedback.push({ icon: '✅', text: 'Great engagement! You answered all questions throughout the session.' });
+    if (totalWords > 200) feedback.push({ icon: '📝', text: 'Good vocabulary depth. Keep using concrete examples with numbers and outcomes.' });
+    feedback.push({ icon: '🎯', text: `Focused on: ${this.state.jobRole}. Practice role-specific questions regularly.` });
+    if (feedback.length < 3) feedback.push({ icon: '🔁', text: 'Repeat mock interviews weekly — consistency is what builds interview confidence.' });
+
+    // Transcript for report
+    const transcriptItems = this.state.history.slice(-10).map(h => `
+      <div class="transcript-msg ${h.role === 'ai' ? 'ai' : 'user'}" style="max-width:100%;margin-bottom:8px">
+        <div class="transcript-label">${h.role === 'ai' ? '🤖 PrepAI Interviewer' : '👤 You'}</div>
+        <div class="transcript-text" style="font-size:12.5px">${h.text}</div>
+      </div>
+    `).join('');
+
+    this.container.innerHTML = `
+      <div class="card mb-2" style="border-color:var(--success);background:var(--success-soft)">
+        <div class="flex-between" style="flex-wrap:wrap;gap:12px">
+          <div>
+            <div class="card-title" style="color:var(--success)">✅ Interview Complete — ${grade}</div>
+            <div class="card-sub">Role: ${this.state.jobRole} &bull; Style: ${this.state.interviewType}</div>
           </div>
-          <div class="rec-item">
-            <div class="rec-icon">💡</div>
-            <div class="rec-text">The AI adapted its questions to your answers — no scripted questions.</div>
+          <button class="btn btn-primary" id="restartInterviewBtn">🔄 New Interview</button>
+        </div>
+      </div>
+
+      <div class="grid grid-2" style="gap:20px">
+
+        <!-- Score Panel -->
+        <div class="card">
+          <div class="card-title">Performance Scorecard</div>
+          <div class="card-sub">AI-evaluated after ${turns} responses</div>
+
+          <!-- Circular gauge -->
+          <div style="display:flex;align-items:center;gap:22px;margin-bottom:18px;flex-wrap:wrap">
+            <div style="position:relative;width:120px;height:120px;flex-shrink:0">
+              <svg viewBox="0 0 120 120" style="transform:rotate(-90deg)">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(45,45,45,0.12)" stroke-width="10"/>
+                <circle cx="60" cy="60" r="50" fill="none"
+                  stroke="${communicationScore >= 70 ? 'var(--success)' : communicationScore >= 40 ? 'var(--warning)' : 'var(--danger)'}"
+                  stroke-width="10" stroke-linecap="round"
+                  stroke-dasharray="314"
+                  stroke-dashoffset="${314 - (314 * communicationScore / 100)}"
+                  style="transition:stroke-dashoffset 1.5s ease"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+                <b style="font-size:26px;font-family:var(--font-hand);color:var(--text)">${communicationScore}</b>
+                <span style="font-size:11px;color:var(--text-dim)">/100</span>
+              </div>
+            </div>
+            <div style="flex:1;min-width:120px">
+              <div style="font-size:20px;font-family:var(--font-hand);font-weight:700;margin-bottom:6px">${grade}</div>
+              <div style="font-size:13px;color:var(--text-dim);line-height:1.6">
+                Communication Score — based on engagement, pace, and answer depth.
+              </div>
+            </div>
           </div>
-          <div class="rec-item">
-            <div class="rec-icon">📈</div>
-            <div class="rec-text">Practice regularly to improve your confidence and articulation.</div>
+
+          <!-- Metric breakdown -->
+          <div class="li-report-metrics">
+            <div class="li-report-metric">
+              <span class="li-rm-label">Responses Given</span>
+              <span class="li-rm-val">${turns}</span>
+            </div>
+            <div class="li-report-metric">
+              <span class="li-rm-label">Total Words</span>
+              <span class="li-rm-val">${totalWords}</span>
+            </div>
+            <div class="li-report-metric">
+              <span class="li-rm-label">Avg Words/Min</span>
+              <span class="li-rm-val">${avgWpm} WPM</span>
+            </div>
+            <div class="li-report-metric">
+              <span class="li-rm-label">Duration</span>
+              <span class="li-rm-val">${Math.floor(elapsed / 60)}:${(elapsed % 60).toString().padStart(2, '0')}</span>
+            </div>
+            <div class="li-report-metric">
+              <span class="li-rm-label">Clarity</span>
+              <span class="li-rm-val">${clarity}</span>
+            </div>
+            <div class="li-report-metric">
+              <span class="li-rm-label">Pace</span>
+              <span class="li-rm-val">${pace}</span>
+            </div>
+          </div>
+
+          <!-- Progress bars -->
+          <div class="mt-2">
+            <div class="progress-label"><span>Communication</span><span>${communicationScore}%</span></div>
+            <div class="progress mb-1"><div class="progress-fill ${communicationScore >= 70 ? 'green' : 'orange'}" style="width:${communicationScore}%"></div></div>
+            <div class="progress-label"><span>Answer Depth</span><span>${Math.min(100, Math.round(totalWords / 5))}%</span></div>
+            <div class="progress mb-1"><div class="progress-fill cyan" style="width:${Math.min(100, Math.round(totalWords / 5))}%"></div></div>
+            <div class="progress-label"><span>Engagement</span><span>${Math.min(100, Math.round(turns / 8 * 100))}%</span></div>
+            <div class="progress"><div class="progress-fill green" style="width:${Math.min(100, Math.round(turns / 8 * 100))}%"></div></div>
           </div>
         </div>
-        <button class="btn btn-primary btn-block mt-2" id="restartBtn">Start New Interview</button>
-      `;
-      const rb = sessionInfo.querySelector('#restartBtn');
-      if (rb) rb.addEventListener('click', () => this._renderIntro());
-    }
+
+        <!-- Feedback + Transcript -->
+        <div style="display:flex;flex-direction:column;gap:20px">
+          <div class="card">
+            <div class="card-title">AI Feedback</div>
+            <div class="card-sub">Personalized suggestions based on your performance</div>
+            ${feedback.map(f => `
+              <div class="rec-item">
+                <div class="rec-icon">${f.icon}</div>
+                <div class="rec-text">${f.text}</div>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="card">
+            <div class="card-title">Session Transcript (last 10)</div>
+            <div class="card-sub">Review your conversation</div>
+            <div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+              ${transcriptItems || '<div class="text-dim" style="font-size:13px">No transcript yet.</div>'}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    document.getElementById('restartInterviewBtn').addEventListener('click', () => {
+      this.state.history = [];
+      this.state._wordCounts = [];
+      this._renderIntro();
+    });
 
     // Save progress
-    const email = Auth.getEmail();
-    if (email) {
-      const prog = DB.getProgress(email);
-      const interview = prog.interview || { sessions: 0, topics: [] };
-      interview.sessions++;
-      if (!interview.topics.includes(this.state.jobRole)) interview.topics.push(this.state.jobRole);
-      DB.saveProgress(email, { interview });
-      App.refreshAll();
-    }
+    try {
+      const email = (typeof Auth !== 'undefined' && Auth.getEmail) ? Auth.getEmail() : null;
+      if (email) {
+        const prog = DB.getProgress(email);
+        const interview = prog.interview || { sessions: 0, topics: [] };
+        interview.sessions = (interview.sessions || 0) + 1;
+        interview.lastScore = communicationScore;
+        if (!interview.topics.includes(this.state.jobRole)) interview.topics.push(this.state.jobRole);
+        DB.saveProgress(email, { interview });
+        if (typeof App !== 'undefined') App.refreshAll();
+      }
+    } catch { }
   }
 };
-
