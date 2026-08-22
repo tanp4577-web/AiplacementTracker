@@ -144,7 +144,7 @@ const Chatbot = {
     let geminiError = null;
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 12000);
+      const t = setTimeout(() => ctrl.abort(), 25000);
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -166,8 +166,8 @@ const Chatbot = {
     }
 
     if (geminiError && !reply) {
-      // Instead of silently falling back, let's temporarily return the error exactly to the UI so the user can debug their Vercel setup
-      return `[DEBUG] Gemini API failed: ${geminiError}`;
+      // Silently fall through to Pollinations live LLM
+      console.warn('[Chatbot] Gemini failed, using fallback:', geminiError);
     }
 
     // 2) Free keyless live LLM (Pollinations) directly from the browser

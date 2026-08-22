@@ -534,73 +534,76 @@ const Interview = {
 
   /* ═══ Push to Talk Handlers ═══ */
   _onKeyDown(e) {
-    if (e.code === 'Space' && !e.repeat && this.state._conversationActive && !this.state._spaceDown) {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      e.preventDefault();
-      this.state._spaceDown = true;
-      LiveAI.stopSpeaking(); // Interrupt AI
+    if (e.code !== 'Space' || e.repeat || !this.state._conversationActive || this.state._spaceDown) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    e.preventDefault();
+    this.state._spaceDown = true;
+    this.state._pttTranscript = '';
 
-      const hint = document.getElementById('micHint');
-      if (hint) hint.textContent = '🎙 Recording... (release space to send)';
+    // Interrupt AI speech instantly (no API call)
+    window.speechSynthesis && window.speechSynthesis.cancel();
+    this.state._inAIReply = false;
 
+    const hint = document.getElementById('micHint');
+    if (hint) hint.textContent = '� Listening… speak now (release to send)';
+
+    // Start SpeechRecognition NOW so text is ready the moment spacebar is released
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SR) {
       try {
-        this.state._audioSnippetChunks = [];
-        this.state._audioSnippetRecorder = new MediaRecorder(this.state.stream, { mimeType: 'audio/webm' });
-        this.state._audioSnippetRecorder.ondataavailable = ev => {
-          if (ev.data.size > 0) this.state._audioSnippetChunks.push(ev.data);
+        if (this.state._pttSR) { try { this.state._pttSR.stop(); } catch { } }
+        const sr = new SR();
+        sr.lang = 'en-US';
+        sr.interimResults = true;
+        sr.continuous = true;
+        sr.maxAlternatives = 1;
+        sr.onresult = ev => {
+          let final = '', interim = '';
+          for (let i = ev.resultIndex; i < ev.results.length; i++) {
+            if (ev.results[i].isFinal) final += ev.results[i][0].transcript + ' ';
+            else interim += ev.results[i][0].transcript;
+          }
+          if (final) this.state._pttTranscript = (this.state._pttTranscript || '') + final;
+          const box = document.getElementById('transcriptBox');
+          if (box) {
+            let el = box.querySelector('#pttInterim');
+            if (!el) { el = document.createElement('div'); el.id = 'pttInterim'; el.className = 'transcript-msg user interim'; box.appendChild(el); }
+            el.textContent = ((this.state._pttTranscript || '') + interim).trim();
+            box.scrollTop = box.scrollHeight;
+          }
         };
-        this.state._audioSnippetRecorder.start();
-      } catch (err) {
-        console.warn('Audio snippet failed', err);
-      }
+        sr.onerror = () => { };
+        sr.start();
+        this.state._pttSR = sr;
+      } catch (err) { console.warn('PTT SR error', err); }
     }
   },
 
   _onKeyUp(e) {
-    if (e.code === 'Space' && this.state._spaceDown) {
-      e.preventDefault();
-      this.state._spaceDown = false;
-      const hint = document.getElementById('micHint');
-      if (hint) hint.textContent = 'Processing ...';
+    if (e.code !== 'Space' || !this.state._spaceDown) return;
+    e.preventDefault();
+    this.state._spaceDown = false;
 
-      if (this.state._audioSnippetRecorder && this.state._audioSnippetRecorder.state !== 'inactive') {
-        this.state._audioSnippetRecorder.onstop = async () => {
-          const blob = new Blob(this.state._audioSnippetChunks, { type: 'audio/webm' });
-          if (blob.size > 0) {
-            await this._processAudioSnippet(blob);
-          }
-        };
-        this.state._audioSnippetRecorder.stop();
-      }
-    }
-  },
+    // Stop recognition
+    if (this.state._pttSR) { try { this.state._pttSR.stop(); } catch { } this.state._pttSR = null; }
 
-  async _processAudioSnippet(blob) {
+    // Remove live interim element
+    const box = document.getElementById('transcriptBox');
+    const interimEl = box && box.querySelector('#pttInterim');
+    if (interimEl) interimEl.remove();
+
+    const text = (this.state._pttTranscript || '').trim();
+    this.state._pttTranscript = '';
     const hint = document.getElementById('micHint');
-    if (hint) hint.textContent = 'Transcribing voice...';
-    const form = new FormData();
-    form.append('audio', blob, 'snippet.webm');
-    try {
-      const res = await fetch('/api/stt', { method: 'POST', body: form });
-      if (res.ok) {
-        const data = await res.json();
-        const text = (data.text || '').trim();
-        if (text.length > 2) {
-          this._addTranscript('user', text);
-          this._handleUserReply(text);
-        } else {
-          if (hint) hint.textContent = 'Could not hear clearly. Hold space to try again.';
-          setTimeout(() => this._startListening(), 2000);
-        }
-      } else {
-        if (hint) hint.textContent = 'Transcription failed.';
-        setTimeout(() => this._startListening(), 2000);
-      }
-    } catch (err) {
-      if (hint) hint.textContent = 'Transcription error.';
-      setTimeout(() => this._startListening(), 2000);
+
+    if (text.length > 2) {
+      this._addTranscript('user', text);
+      this._handleUserReply(text);
+    } else {
+      if (hint) hint.textContent = 'Nothing captured. Hold [Spacebar] and try again.';
     }
   },
+
 
   /* ═══ Process user answer ═══ */
   async _handleUserReply(text) {
