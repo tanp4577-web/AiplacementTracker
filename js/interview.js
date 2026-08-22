@@ -513,13 +513,14 @@ Rules:
   _speakAndListen(text) {
     this.state._inAIReply = true;
     if (this.state._speakerOn) {
-      LiveAI.speak(text, {
-        rate: 0.95,
-        pitch: 1.0,
-        onend: () => {
-          this.state._inAIReply = false;
-          this._setAgentState('listening');
-          if (this.state._micOn && this.state.micEnabled) this._startListening();
+      const onend = () => {
+        this.state._inAIReply = false;
+        this._setAgentState('listening');
+        if (this.state._micOn && this.state.micEnabled) this._startListening();
+      };
+      LiveAI.speakWithEdge(text, { onend }).then(usedEdgeTts => {
+        if (!usedEdgeTts && this.state._conversationActive) {
+          LiveAI.speak(text, { rate: 0.95, pitch: 1.0, onend });
         }
       });
     } else {

@@ -10,6 +10,7 @@
    ========================================================================== */
 const LiveAI = {
   _sr: null,
+  _edgeAudio: null,
   _listening: false,
   _silenceTimer: null,
   _autoRestart: true,
@@ -148,6 +149,36 @@ let finalText = '';
   },
 
   /* ----------------------------- Text to speech ---------------------------- */
+  async speakWithEdge(text, opts = {}) {
+    const endpoint = window.EDGE_TTS_URL || 'http://localhost:5000/tts';
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          voice: opts.voice || 'en-US-AriaNeural',
+          rate: opts.ratePercent || '+0%'
+        })
+      });
+      if (!response.ok) return false;
+      const audio = new Audio(URL.createObjectURL(await response.blob()));
+      this._edgeAudio = audio;
+      audio.onended = () => {
+        this._edgeAudio = null;
+        if (opts.onend) opts.onend();
+      };
+      audio.onerror = () => {
+        this._edgeAudio = null;
+        if (opts.onend) opts.onend();
+      };
+      await audio.play();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
   speak(text, opts = {}) {
     if (!('speechSynthesis' in window)) {
       if (opts.onend) setTimeout(opts.onend, 200);
@@ -174,6 +205,11 @@ let finalText = '';
 
   stopSpeaking() {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (this._edgeAudio) {
+      this._edgeAudio.pause();
+      this._edgeAudio.src = '';
+      this._edgeAudio = null;
+    }
   },
 
   /* --------------------------- Live audio level ---------------------------- */
