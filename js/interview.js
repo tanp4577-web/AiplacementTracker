@@ -111,7 +111,6 @@ const Interview = {
     if (this._keydownHandler) {
       document.removeEventListener('keydown', this._keydownHandler);
       document.removeEventListener('keyup', this._keyupHandler);
-      this._keydownHandler = null;
     }
   },
 

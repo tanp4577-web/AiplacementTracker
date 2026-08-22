@@ -67,10 +67,10 @@ function buildMessages({ messages, context }) {
     '- Answer in the same language the user writes in.'
   ].join('\n');
 
-  const msgs = [{ role: 'system', content: system }];
+  const msgs = [{ role: 'user', parts: [{ text: system }] }, { role: 'model', parts: [{ text: 'Understood.' }] }];
 
   if (context) {
-    msgs.push({ role: 'system', content: `User context: ${context}` });
+    msgs.push({ role: 'user', parts: [{ text: `User context: ${context}` }] }, { role: 'model', parts: [{ text: 'Noted.' }] });
   }
 
   // Always seed at least one message
@@ -80,8 +80,8 @@ function buildMessages({ messages, context }) {
 
   safe.forEach((m) => {
     const role = m && (m.role === 'assistant' || m.role === 'ai') ? 'model' : 'user';
-    const content = m && m.content ? String(m.content) : (m && m.text ? String(m.text) : '');
-    if (content.trim()) msgs.push({ role, content });
+    const contentText = m && m.content ? String(m.content) : (m && m.text ? String(m.text) : '');
+    if (contentText.trim()) msgs.push({ role, parts: [{ text: contentText }] });
   });
 
   // Gemini requires alternating roles; collapse consecutive same-role turns.
@@ -89,9 +89,9 @@ function buildMessages({ messages, context }) {
   msgs.forEach((m) => {
     const last = collapsed[collapsed.length - 1];
     if (last && last.role === m.role) {
-      last.content += '\n' + m.content;
+      last.parts[0].text += '\n' + m.parts[0].text;
     } else {
-      collapsed.push({ role: m.role, content: m.content });
+      collapsed.push({ role: m.role, parts: [{ text: m.parts[0].text }] });
     }
   });
   return collapsed;
@@ -102,7 +102,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   // --- Abuse protection: rate limit + body size cap ---
@@ -171,11 +171,11 @@ if (req.method === 'OPTIONS') return res.status(204).end();
     const data = await response.json();
     const reply =
       data && data.candidates && data.candidates[0] && data.candidates[0].content &&
-      data.candidates[0].content.parts
+        data.candidates[0].content.parts
         ? data.candidates[0].content.parts
-            .filter((p) => p && typeof p.text === 'string' && p.text.trim())
-            .map((p) => p.text.trim())
-            .join('\n')
+          .filter((p) => p && typeof p.text === 'string' && p.text.trim())
+          .map((p) => p.text.trim())
+          .join('\n')
         : '';
 
     if (!reply) return res.status(502).json({ error: 'Empty Gemini response', fallback: true });
