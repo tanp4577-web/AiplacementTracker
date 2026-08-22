@@ -108,11 +108,18 @@ const Interview = {
     this.state.history = [];
     this.state._wordCounts = [];
     this.state._startTime = null;
+    if (this._keydownHandler) {
+      document.removeEventListener('keydown', this._keydownHandler);
+      document.removeEventListener('keyup', this._keyupHandler);
+      this._keydownHandler = null;
+    }
   },
 
   /* ═══ Entry Point ═══ */
   render(container) {
     this.container = container;
+    this._keydownHandler = this._onKeyDown.bind(this);
+    this._keyupHandler = this._onKeyUp.bind(this);
     this.cleanup();
     this._renderIntro();
   },
@@ -343,6 +350,9 @@ const Interview = {
     if (roleSel) this.state.jobRole = roleSel.value;
     if (typeSel) this.state.interviewType = typeSel.value;
 
+    document.addEventListener('keydown', this._keydownHandler);
+    document.addEventListener('keyup', this._keyupHandler);
+
     // UI transition
     const startBtn = document.getElementById('startBtn');
     const endBtn = document.getElementById('endBtn');
@@ -539,47 +549,78 @@ Rules:
   /* ═══ Listen for user speech ═══ */
   _startListening() {
     if (!this.state._conversationActive) return;
-    if (!LiveAI.speechRecognitionSupported()) {
-      const hint = document.getElementById('micHint');
-      if (hint) hint.textContent = 'Voice unsupported — type your answer below.';
-      return;
-    }
     const hint = document.getElementById('micHint');
-    if (hint) hint.textContent = '🎤 Listening … speak naturally';
+    if (hint) hint.textContent = 'Hold [Spacebar] to record and speak naturally';
+  },
 
-    LiveAI.startListening({
-      autoRestart: false,
-      onState: state => {
-        if (!hint) return;
-        if (state === 'listening') hint.textContent = '🎤 Listening … speak naturally';
-        else if (state === 'idle') hint.textContent = 'Processing your answer...';
-        else if (state === 'blocked') hint.textContent = '⚠ Microphone blocked — check browser settings.';
-      },
-      onInterim: data => {
-        const box = document.getElementById('transcriptBox');
-        if (!box) return;
-        let interim = box.querySelector('#interimMsg');
-        if (!interim) {
-          interim = document.createElement('div');
-          interim.className = 'transcript-msg user interim';
-          interim.id = 'interimMsg';
-          box.appendChild(interim);
-          box.scrollTop = box.scrollHeight;
-        }
-        interim.textContent = data.final + data.interim;
-      },
-      onFinal: data => {
-        const text = (data.final || '').trim();
+  /* ═══ Push to Talk Handlers ═══ */
+  _onKeyDown(e) {
+    if (e.code === 'Space' && !e.repeat && this.state._conversationActive && !this.state._spaceDown) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      e.preventDefault();
+      this.state._spaceDown = true;
+      LiveAI.stopSpeaking(); // Interrupt AI
+
+      const hint = document.getElementById('micHint');
+      if (hint) hint.textContent = '🎙 Recording... (release space to send)';
+
+      try {
+        this.state._audioSnippetChunks = [];
+        this.state._audioSnippetRecorder = new MediaRecorder(this.state.stream, { mimeType: 'audio/webm' });
+        this.state._audioSnippetRecorder.ondataavailable = ev => {
+          if (ev.data.size > 0) this.state._audioSnippetChunks.push(ev.data);
+        };
+        this.state._audioSnippetRecorder.start();
+      } catch (err) {
+        console.warn('Audio snippet failed', err);
+      }
+    }
+  },
+
+  _onKeyUp(e) {
+    if (e.code === 'Space' && this.state._spaceDown) {
+      e.preventDefault();
+      this.state._spaceDown = false;
+      const hint = document.getElementById('micHint');
+      if (hint) hint.textContent = 'Processing ...';
+
+      if (this.state._audioSnippetRecorder && this.state._audioSnippetRecorder.state !== 'inactive') {
+        this.state._audioSnippetRecorder.onstop = async () => {
+          const blob = new Blob(this.state._audioSnippetChunks, { type: 'audio/webm' });
+          if (blob.size > 0) {
+            await this._processAudioSnippet(blob);
+          }
+        };
+        this.state._audioSnippetRecorder.stop();
+      }
+    }
+  },
+
+  async _processAudioSnippet(blob) {
+    const hint = document.getElementById('micHint');
+    if (hint) hint.textContent = 'Transcribing voice...';
+    const form = new FormData();
+    form.append('audio', blob, 'snippet.webm');
+    try {
+      const res = await fetch('/api/stt', { method: 'POST', body: form });
+      if (res.ok) {
+        const data = await res.json();
+        const text = (data.text || '').trim();
         if (text.length > 2) {
           this._addTranscript('user', text);
           this._handleUserReply(text);
         } else {
-          const hint = document.getElementById('micHint');
-          if (hint) hint.textContent = 'Didn\'t catch that — please answer aloud or type below.';
-          setTimeout(() => { if (this.state._micOn) this._startListening(); }, 1500);
+          if (hint) hint.textContent = 'Could not hear clearly. Hold space to try again.';
+          setTimeout(() => this._startListening(), 2000);
         }
+      } else {
+        if (hint) hint.textContent = 'Transcription failed.';
+        setTimeout(() => this._startListening(), 2000);
       }
-    });
+    } catch (err) {
+      if (hint) hint.textContent = 'Transcription error.';
+      setTimeout(() => this._startListening(), 2000);
+    }
   },
 
   /* ═══ Process user answer ═══ */
