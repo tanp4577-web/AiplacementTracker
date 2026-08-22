@@ -17,6 +17,12 @@ GEMINI_MODEL=gemini-2.5-flash
 
 Use HTTPS, or `http://localhost`, for camera and microphone permissions.
 
+## Hiring Hub
+
+The Hiring Hub provides national and regional demo openings. Regional mode uses browser geolocation and shows roles within 600 km when permission is available. Select **Analyze resume** on a listing, upload a PDF, DOCX, TXT, or RTF resume, and the Gemini ATS worker returns a match score, matched skills, missing skills, and three targeted interview questions. **Start targeted interview** sends those questions into the HR Simulator.
+
+The ATS endpoint uses the same server-side Gemini configuration shown above. Resume text is extracted in the browser before it is sent to `/api/job-apply`; the original file is not uploaded or stored by that endpoint.
+
 ## Local recording collector
 
 The Flask service in `app.py` provides both Edge-TTS at `http://localhost:5000/tts` and interview recording uploads at `http://localhost:5000/upload-proof`.

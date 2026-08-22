@@ -54,7 +54,7 @@ function getClientIp(req) {
   ).toString().split(',')[0].trim() || 'unknown';
 }
 
-function buildPrompt({ jobRole, history }) {
+function buildPrompt({ jobRole, interviewType, targetedQuestions, history }) {
   const lines = [];
   lines.push(`You are a friendly but professional HR interview coach conducting a live mock interview for a candidate targeting the role of "${jobRole}".`);
   lines.push('');
@@ -64,6 +64,10 @@ function buildPrompt({ jobRole, history }) {
   lines.push('- Vary your questions across: introduction, experience, projects, strengths & weaknesses, behavioral/STAR scenarios, technical depth (if the candidate mentions skills), and career goals.');
   lines.push('- Around turn 6-7, begin wrapping up by asking the candidate if they have any questions for you, then you may say the session is concluding.');
   lines.push('- Keep the tone warm, encouraging and professional. Do not use markdown or bullet lists.');
+  if (interviewType) lines.push(`- Interview style: ${interviewType}.`);
+  if (Array.isArray(targetedQuestions) && targetedQuestions.length) {
+    lines.push(`- Tailor the interview toward these resume-gap questions: ${targetedQuestions.slice(0, 3).join(' | ')}`);
+  }
   lines.push('');
   lines.push('--- Interview transcript so far ---');
   if (!history || !history.length) {
@@ -122,10 +126,12 @@ export default async function handler(req, res) {
   const jobRole = typeof body.jobRole === 'string' && body.jobRole.trim()
     ? body.jobRole.trim()
     : 'General Software Engineer';
+  const interviewType = typeof body.interviewType === 'string' ? body.interviewType.trim() : 'general';
+  const targetedQuestions = Array.isArray(body.targetedQuestions) ? body.targetedQuestions : [];
 
   const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
   const baseUrl = (process.env.GEMINI_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
-  const prompt = buildPrompt({ jobRole, history: conversationHistory });
+  const prompt = buildPrompt({ jobRole, interviewType, targetedQuestions, history: conversationHistory });
 
   try {
     const controller = new AbortController();

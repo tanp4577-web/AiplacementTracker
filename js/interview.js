@@ -17,6 +17,7 @@ const Interview = {
     turnCount: 0,
     interviewType: 'general',
     jobRole: 'General Software Engineer',
+    customQuestions: [],
     _conversationActive: false,
     _inAIReply: false,
     _micOn: false,
@@ -462,6 +463,10 @@ Rules:
 - Vary questions: introduction → experience/projects → strengths/weaknesses → behavioral/STAR → technical depth → career goals.
 - Around turn 7-8 begin wrapping up, ask if they have questions for you, then close warmly.
 - Tone: professional but encouraging. NO markdown, NO bullet points. Speak naturally.`;
+    const targetedQuestions = Array.isArray(this.state.customQuestions) && this.state.customQuestions.length
+      ? `Prioritize these resume-gap questions during this session: ${this.state.customQuestions.join(' | ')}`
+      : '';
+    const interviewSystem = `${system}\n${targetedQuestions}`;
 
     let reply = null;
 
@@ -472,7 +477,12 @@ Rules:
       const res = await fetch('/api/interview-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationHistory: this.state.history, jobRole: this.state.jobRole }),
+        body: JSON.stringify({
+          conversationHistory: this.state.history,
+          jobRole: this.state.jobRole,
+          interviewType: this.state.interviewType,
+          targetedQuestions: this.state.customQuestions
+        }),
         signal: ctrl.signal
       });
       clearTimeout(t);
@@ -487,7 +497,7 @@ Rules:
       const historyForAI = isOpening
         ? [{ role: 'user', content: 'Please open the interview. Ask me your first question about my background.' }]
         : this.state.history.map(h => ({ role: h.role === 'ai' ? 'assistant' : 'user', content: h.text }));
-      reply = await LiveAI.chatReply(system, historyForAI);
+      reply = await LiveAI.chatReply(interviewSystem, historyForAI);
     }
 
     if (!reply || !reply.trim()) {
