@@ -264,7 +264,7 @@ const Interview = {
             <div class="flex gap-1 mt-1" style="flex-wrap:wrap">
               <span class="chip ${isSecure ? 'green' : 'orange'}">${isSecure ? '✓ Camera Ready' : '⚠ HTTPS needed for camera'}</span>
               <span class="chip ${srSupported ? 'green' : 'red'}">${srSupported ? '✓ Voice Input Ready' : '✗ Voice unsupported'}</span>
-              <span class="chip blue">✓ AI Voice Ready</span>
+              <span class="chip blue">✓ Browser Voice Ready</span>
             </div>
           </div>
 
@@ -457,7 +457,7 @@ const Interview = {
     const system = `You are a professional, warm HR interviewer conducting a live mock interview for a candidate targeting the role of "${roleDesc}". 
 Style guidance: ${styleGuide}
 Rules:
-- Ask exactly ONE question per turn, maximum 2-3 sentences (60 words max).
+- Ask exactly ONE question per turn and keep the response natural and focused.
 - React naturally to the candidate's ACTUAL answer — ask follow-ups specific to what they said.
 - Vary questions: introduction → experience/projects → strengths/weaknesses → behavioral/STAR → technical depth → career goals.
 - Around turn 7-8 begin wrapping up, ask if they have questions for you, then close warmly.

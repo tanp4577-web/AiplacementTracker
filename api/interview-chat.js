@@ -59,7 +59,7 @@ function buildPrompt({ jobRole, history }) {
   lines.push(`You are a friendly but professional HR interview coach conducting a live mock interview for a candidate targeting the role of "${jobRole}".`);
   lines.push('');
   lines.push('Rules:');
-  lines.push('- Ask ONE question at a time and keep each reply to 2-3 sentences (max 60 words).');
+  lines.push('- Ask ONE question at a time and keep each reply natural and focused.');
   lines.push("- Listen to the candidate's actual answer and ask a natural, relevant follow-up based on what they just said — never repeat a question and never fall back to a fixed script.");
   lines.push('- Vary your questions across: introduction, experience, projects, strengths & weaknesses, behavioral/STAR scenarios, technical depth (if the candidate mentions skills), and career goals.');
   lines.push('- Around turn 6-7, begin wrapping up by asking the candidate if they have any questions for you, then you may say the session is concluding.');
