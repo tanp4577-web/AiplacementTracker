@@ -564,6 +564,8 @@ const Interview = {
             else interim += ev.results[i][0].transcript;
           }
           if (final) this.state._pttTranscript = (this.state._pttTranscript || '') + final;
+          // Always save latest interim so keyup can grab it
+          this.state._pttInterim = interim;
           const box = document.getElementById('transcriptBox');
           if (box) {
             let el = box.querySelector('#pttInterim');
@@ -584,23 +586,25 @@ const Interview = {
     e.preventDefault();
     this.state._spaceDown = false;
 
-    // Stop recognition
-    if (this.state._pttSR) { try { this.state._pttSR.stop(); } catch { } this.state._pttSR = null; }
+    // Use abort() to stop immediately without waiting for a final flush
+    if (this.state._pttSR) { try { this.state._pttSR.abort(); } catch { } this.state._pttSR = null; }
 
     // Remove live interim element
     const box = document.getElementById('transcriptBox');
     const interimEl = box && box.querySelector('#pttInterim');
     if (interimEl) interimEl.remove();
 
-    const text = (this.state._pttTranscript || '').trim();
+    // Combine final + interim (crucial: Chrome won't finalize the last utterance until a pause)
+    const text = ((this.state._pttTranscript || '') + ' ' + (this.state._pttInterim || '')).trim();
     this.state._pttTranscript = '';
+    this.state._pttInterim = '';
     const hint = document.getElementById('micHint');
 
     if (text.length > 2) {
       this._addTranscript('user', text);
       this._handleUserReply(text);
     } else {
-      if (hint) hint.textContent = 'Nothing captured. Hold [Spacebar] and try again.';
+      if (hint) hint.textContent = 'Nothing captured. Try speaking louder or hold [Spacebar] longer.';
     }
   },
 
