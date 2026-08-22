@@ -478,18 +478,15 @@ Rules:
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          answer: text,
-          conversationHistory: this.state.history,
-          jobRole: this.state.jobRole,
-          interviewType: this.state.interviewType,
-          targetedQuestions: this.state.customQuestions
+          history: this.state.history,
+          answer: text
         }),
         signal: ctrl.signal
       });
       clearTimeout(t);
       if (res.ok) {
         const data = await res.json();
-        if (data && data.reply && data.reply.trim()) reply = data.reply.trim();
+        if (data && data.spoken_response && data.spoken_response.trim()) reply = data.spoken_response.trim();
       }
     } catch { }
 

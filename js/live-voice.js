@@ -10,6 +10,12 @@
    ========================================================================== */
 const LiveAI = {
   _sr: null,
+  _mediaRecorder: null,
+  _recordingStream: null,
+  _recordingChunks: [],
+  _recordingPromise: null,
+  _edgeAudio: null,
+  _edgeAudioUrl: null,
   _listening: false,
   _silenceTimer: null,
   _autoRestart: true,
@@ -51,6 +57,106 @@ const LiveAI = {
       throw new Error('secure-context');
     }
     return navigator.mediaDevices.getUserMedia({ video, audio });
+  },
+
+  /* ----------------------- Recorded voice interaction ---------------------- */
+  async startRecording(opts = {}) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+      return { ok: false, error: 'recording-unsupported' };
+    }
+    if (this._mediaRecorder && this._mediaRecorder.state !== 'inactive') {
+      return { ok: false, error: 'already-recording' };
+    }
+    try {
+      this._recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredMime = opts.mimeType || (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : 'audio/webm');
+      this._mediaRecorder = new MediaRecorder(this._recordingStream, { mimeType: preferredMime });
+      this._recordingChunks = [];
+      this._recordingPromise = new Promise((resolve, reject) => {
+        this._mediaRecorder.ondataavailable = event => {
+          if (event.data && event.data.size) this._recordingChunks.push(event.data);
+        };
+        this._mediaRecorder.onerror = event => reject(event.error || new Error('Audio recording failed.'));
+        this._mediaRecorder.onstop = () => {
+          const type = this._mediaRecorder.mimeType || preferredMime || 'audio/webm';
+          resolve(new Blob(this._recordingChunks, { type }));
+        };
+      });
+      this._mediaRecorder.start(opts.timeslice || 250);
+      return { ok: true, mode: opts.mode || 'push-to-talk' };
+    } catch (error) {
+      this._stopRecordingStream();
+      this._mediaRecorder = null;
+      return { ok: false, error: error.name === 'NotAllowedError' ? 'microphone-denied' : 'recording-failed' };
+    }
+  },
+
+  async stopRecording() {
+    const recorder = this._mediaRecorder;
+    if (!recorder || recorder.state === 'inactive') return null;
+    recorder.stop();
+    try {
+      return await this._recordingPromise;
+    } finally {
+      this._stopRecordingStream();
+      this._mediaRecorder = null;
+      this._recordingPromise = null;
+    }
+  },
+
+  _stopRecordingStream() {
+    if (this._recordingStream) {
+      this._recordingStream.getTracks().forEach(track => track.stop());
+      this._recordingStream = null;
+    }
+  },
+
+  async runRecordedInteraction(history = [], opts = {}) {
+    const onState = opts.onState || (() => {});
+    const onError = opts.onError || (() => {});
+    try {
+      onState('recording');
+      const audioBlob = opts.audioBlob || await this.stopRecording();
+      if (!audioBlob || !audioBlob.size) throw new Error('No recorded audio was captured.');
+
+      onState('transcribing');
+      const form = new FormData();
+      const extension = audioBlob.type.includes('wav') ? 'wav' : 'webm';
+      form.append('audio', audioBlob, `candidate-answer.${extension}`);
+      const sttResponse = await fetch('/api/stt', { method: 'POST', body: form });
+      const sttData = await sttResponse.json();
+      if (!sttResponse.ok || !sttData.text || !sttData.text.trim()) {
+        throw new Error(sttData.error || 'Speech transcription failed.');
+      }
+
+      onState('thinking');
+      const llmResponse = await fetch('/api/interview-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ history, answer: sttData.text.trim() })
+      });
+      const llmData = await llmResponse.json();
+      if (!llmResponse.ok || !llmData.spoken_response) {
+        throw new Error(llmData.error || 'Interview response failed.');
+      }
+
+      onState('speaking');
+      await this.speakResponse(llmData.spoken_response, { onend: () => onState('idle') });
+      const result = {
+        text: sttData.text.trim(),
+        evaluation: llmData.evaluation || '',
+        score: llmData.score,
+        spoken_response: llmData.spoken_response
+      };
+      if (opts.onResult) opts.onResult(result);
+      return result;
+    } catch (error) {
+      onState('error');
+      onError(error.message || 'Voice interaction failed.');
+      return { error: error.message || 'Voice interaction failed.' };
+    }
   },
 
   /* ----------------------------- Speech to text ---------------------------- */
@@ -123,7 +229,35 @@ const LiveAI = {
   },
 
   /* ----------------------------- Text to speech ---------------------------- */
-  speakResponse(text, opts = {}) {
+  async speakResponse(text, opts = {}) {
+    try {
+      const response = await fetch(window.EDGE_TTS_URL || '/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice: opts.voice || 'en-US-AriaNeural' })
+      });
+      if (response.ok) {
+        const audioBuffer = await response.arrayBuffer();
+        const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        this._edgeAudio = audio;
+        this._edgeAudioUrl = audioUrl;
+        const finish = () => {
+          if (this._edgeAudioUrl === audioUrl) {
+            URL.revokeObjectURL(audioUrl);
+            this._edgeAudio = null;
+            this._edgeAudioUrl = null;
+          }
+          if (opts.onend) opts.onend();
+        };
+        audio.onended = finish;
+        audio.onerror = finish;
+        await audio.play();
+        return true;
+      }
+    } catch (e) { }
+
     if (!('speechSynthesis' in window)) {
       if (opts.onend) setTimeout(opts.onend, 200);
       return false;
@@ -154,6 +288,15 @@ const LiveAI = {
 
   stopSpeaking() {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (this._edgeAudio) {
+      this._edgeAudio.pause();
+      this._edgeAudio.src = '';
+      this._edgeAudio = null;
+    }
+    if (this._edgeAudioUrl) {
+      URL.revokeObjectURL(this._edgeAudioUrl);
+      this._edgeAudioUrl = null;
+    }
   },
 
   /* --------------------------- Live audio level ---------------------------- */
