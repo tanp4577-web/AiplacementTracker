@@ -453,43 +453,22 @@ const Interview = {
   async _sendAIReply(text, isOpening = false) {
     if (!this.state._conversationActive) return;
     this._setAgentState('thinking');
+    this.state._inAIReply = true;
     const hint = document.getElementById('micHint');
-    if (hint) hint.textContent = isOpening ? '🤔 AI is preparing your first question...' : '🤔 AI is thinking...';
+    if (hint) hint.textContent = isOpening ? ' AI is preparing your first question...' : '🤔 AI is thinking...';
 
     const roleDesc = this.state.jobRole || 'General Software Engineer';
-    const styleGuide = {
-      behavioral: 'Focus primarily on STAR-method behavioral questions (Situation, Task, Action, Result).',
-      technical: 'Ask deep technical questions — algorithms, data structures, system internals, debugging scenarios.',
-      system: 'Focus on system design questions — scalability, databases, APIs, caching, load balancing, trade-offs.',
-      general: 'Balance behavioral, technical, and situational questions.'
-    }[this.state.interviewType] || 'Balance behavioral, technical, and situational questions.';
-
-    const system = `You are a professional, warm HR interviewer conducting a live mock interview for a candidate targeting the role of "${roleDesc}". 
-Style guidance: ${styleGuide}
-Rules:
-- Ask exactly ONE question per turn and keep the response natural and focused.
-- React naturally to the candidate's ACTUAL answer — ask follow-ups specific to what they said.
-- Vary questions: introduction → experience/projects → strengths/weaknesses → behavioral/STAR → technical depth → career goals.
-- Around turn 7-8 begin wrapping up, ask if they have questions for you, then close warmly.
-- Tone: professional but encouraging. NO markdown, NO bullet points. Speak naturally.`;
-    const targetedQuestions = Array.isArray(this.state.customQuestions) && this.state.customQuestions.length
-      ? `Prioritize these resume-gap questions during this session: ${this.state.customQuestions.join(' | ')}`
-      : '';
-    const interviewSystem = `${system}\n${targetedQuestions}`;
 
     let reply = null;
 
-    // 1) Vercel Gemini API
+    // Groq LLaMA — fast, ~1s response time
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 14000);
+      const t = setTimeout(() => ctrl.abort(), 8000);
       const res = await fetch('/api/interview-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          history: this.state.history,
-          answer: text
-        }),
+        body: JSON.stringify({ history: this.state.history, answer: text }),
         signal: ctrl.signal
       });
       clearTimeout(t);
@@ -499,18 +478,11 @@ Rules:
       }
     } catch { }
 
-    // 2) Pollinations (browser-side LLM)
-    if (!reply) {
-      const historyForAI = isOpening
-        ? [{ role: 'user', content: 'Please open the interview. Ask me your first question about my background.' }]
-        : this.state.history.map(h => ({ role: h.role === 'ai' ? 'assistant' : 'user', content: h.text }));
-      reply = await LiveAI.chatReply(interviewSystem, historyForAI);
-    }
-
+    // Fast local fallback (no network call)
     if (!reply || !reply.trim()) {
       reply = isOpening
         ? `Hello! I am your AI interviewer today. Let us start — could you please introduce yourself and tell me what brings you here for the ${roleDesc} position?`
-        : 'Could you expand on that a bit more? Give me a concrete example.';
+        : 'That is interesting. Could you expand on that a bit more? Give me a concrete example from your experience.';
     }
 
     this.state.history.push({ role: 'ai', text: reply });
@@ -518,7 +490,6 @@ Rules:
     if (hint) hint.textContent = '';
     this._setAgentState('speaking');
 
-    // Wrap-up detection
     if (/(report|feedback|wrap|thank you for.*session|conclude|sign off)/i.test(reply) || this.state.turnCount >= 9) {
       setTimeout(() => this._showReport(), 2500);
     } else {
@@ -526,22 +497,31 @@ Rules:
     }
   },
 
-  /* ═══ Speak then auto-listen ═══ */
+  /* ═══ Speak using native browser TTS (zero latency) then invite recording ═══ */
   _speakAndListen(text) {
-    this.state._inAIReply = true;
-    if (this.state._speakerOn) {
-      const onend = () => {
-        this.state._inAIReply = false;
-        this._setAgentState('listening');
-        if (this.state._micOn && this.state.micEnabled) this._startListening();
-      };
-      LiveAI.speakResponse(text, { onend });
-    } else {
+    if (!this.state._conversationActive) return;
+    const hint = document.getElementById('micHint');
+    const afterSpeak = () => {
       this.state._inAIReply = false;
       this._setAgentState('listening');
-      setTimeout(() => {
-        if (this.state._micOn && this.state.micEnabled) this._startListening();
-      }, 600);
+      if (hint) hint.textContent = 'Hold [Spacebar] to record your answer';
+    };
+    if (this.state._speakerOn && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US';
+      u.rate = 1.05;
+      // Pick a natural-sounding voice
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(v => /en(-|_)(US|GB)/i.test(v.lang) && /female|samantha|google us english|zira/i.test(v.name))
+        || voices.find(v => /en(-|_)?(US|GB)/i.test(v.lang));
+      if (preferred) u.voice = preferred;
+      u.onend = afterSpeak;
+      u.onerror = afterSpeak;
+      window.speechSynthesis.speak(u);
+    } else {
+      this.state._inAIReply = false;
+      afterSpeak();
     }
   },
 
