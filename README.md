@@ -4,7 +4,7 @@ PlacementPrep is a browser-based placement preparation portal with a live HR int
 
 ## Interview voice
 
-The interviewer uses browser Web Speech API recognition and the local Flask service's Edge-TTS voice for spoken replies. Edge-TTS has no application-level character quota. If the Flask service is unavailable, the browser falls back to SpeechSynthesis. Chrome or Edge is recommended.
+The interviewer uses the browser Web Speech API for speech recognition and browser SpeechSynthesis for spoken replies. This is fully client-side and has no application-level character quota. Chrome or Edge is recommended.
 
 The Gemini interview route is configured with:
 
@@ -25,7 +25,7 @@ The ATS endpoint uses the same server-side Gemini configuration shown above. Res
 
 ## Local recording collector
 
-The Flask service in `app.py` provides both Edge-TTS at `http://localhost:5000/tts` and interview recording uploads at `http://localhost:5000/upload-proof`.
+The optional Flask service in `app.py` receives interview recordings at `http://localhost:5000/upload-proof`.
 
 ```powershell
 python -m venv .venv

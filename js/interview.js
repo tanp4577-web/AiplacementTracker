@@ -478,6 +478,7 @@ Rules:
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          answer: text,
           conversationHistory: this.state.history,
           jobRole: this.state.jobRole,
           interviewType: this.state.interviewType,
@@ -528,11 +529,7 @@ Rules:
         this._setAgentState('listening');
         if (this.state._micOn && this.state.micEnabled) this._startListening();
       };
-      LiveAI.speakWithEdge(text, { onend }).then(usedEdgeTts => {
-        if (!usedEdgeTts && this.state._conversationActive) {
-          LiveAI.speak(text, { rate: 0.95, pitch: 1.0, onend });
-        }
-      });
+      LiveAI.speakResponse(text, { onend });
     } else {
       this.state._inAIReply = false;
       this._setAgentState('listening');
@@ -555,7 +552,6 @@ Rules:
 
     LiveAI.startListening({
       autoRestart: false,
-      silenceMs: 3000,
       onState: state => {
         if (!hint) return;
         if (state === 'listening') hint.textContent = '🎤 Listening … speak naturally';
@@ -576,18 +572,14 @@ Rules:
         interim.textContent = data.final + data.interim;
       },
       onFinal: data => {
-        if (data.final === 'AUTO_STOP') {
-          const interim = document.getElementById('interimMsg');
-          const text = interim ? interim.textContent.trim() : '';
-          if (interim) interim.remove();
-          if (text && text.length > 2) {
-            this._addTranscript('user', text);
-            this._handleUserReply(text);
-          } else {
-            const hint = document.getElementById('micHint');
-            if (hint) hint.textContent = 'Didn\'t catch that — please answer aloud or type below.';
-            setTimeout(() => { if (this.state._micOn) this._startListening(); }, 1500);
-          }
+        const text = (data.final || '').trim();
+        if (text.length > 2) {
+          this._addTranscript('user', text);
+          this._handleUserReply(text);
+        } else {
+          const hint = document.getElementById('micHint');
+          if (hint) hint.textContent = 'Didn\'t catch that — please answer aloud or type below.';
+          setTimeout(() => { if (this.state._micOn) this._startListening(); }, 1500);
         }
       }
     });

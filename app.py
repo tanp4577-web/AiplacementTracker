@@ -12,19 +12,13 @@ Privacy note: this is a "proctoring" style capture. Ensure you have the
 candidate's explicit consent before using it in a real deployment.
 """
 
-import asyncio
 import os
 import re
 import uuid
 from datetime import datetime
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, jsonify, request
 from flask_cors import CORS
-
-try:
-    import edge_tts
-except ImportError:
-    edge_tts = None
 
 app = Flask(__name__)
 CORS(app)  # allow the browser page (potentially different origin) to POST
@@ -83,36 +77,6 @@ def upload_proof():
         "user_id": user_id,
         "size": os.path.getsize(save_path),
     }), 201
-
-
-@app.route("/tts", methods=["POST"])
-def text_to_speech():
-    """Generate an Edge-TTS MP3 for the browser interview voice."""
-    if edge_tts is None:
-        return jsonify({"error": "Install the edge-tts dependency first."}), 503
-
-    payload = request.get_json(silent=True) or {}
-    text = str(payload.get("text", "")).strip()
-    if not text:
-        return jsonify({"error": "Text is required."}), 400
-
-    voice = str(payload.get("voice", "en-US-AriaNeural"))
-    rate = str(payload.get("rate", "+0%"))
-
-    async def synthesize():
-        communicate = edge_tts.Communicate(text, voice=voice, rate=rate)
-        audio = bytearray()
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                audio.extend(chunk["data"])
-        return bytes(audio)
-
-    try:
-        audio = asyncio.run(synthesize())
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"error": f"TTS generation failed: {exc}"}), 502
-
-    return Response(audio, mimetype="audio/mpeg", headers={"Cache-Control": "no-store"})
 
 
 @app.route("/", methods=["GET"])

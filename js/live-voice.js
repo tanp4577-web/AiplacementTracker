@@ -2,15 +2,14 @@
    Live Voice + AI Engine
    Shared module powering the LIVE conversational interviewer and the LIVE
    AI resume analyzer. Uses:
-     - SpeechRecognition / webkitSpeechRecognition  (continuous, live interim)
-     - speechSynthesis (TTS) with natural voice selection
+    - SpeechRecognition / webkitSpeechRecognition  (single utterance)
+    - speechSynthesis (native browser TTS)
      - getUserMedia ({video,audio}) for camera + mic with secure-context checks
      - Pollinations.ai free text/voice AI when online (no API key)
      - Smart offline fallbacks so everything still works without internet
    ========================================================================== */
 const LiveAI = {
   _sr: null,
-  _edgeAudio: null,
   _listening: false,
   _silenceTimer: null,
   _autoRestart: true,
@@ -65,37 +64,24 @@ const LiveAI = {
     }
     const rec = new SR();
     rec.lang = opts.lang || 'en-US';
-    rec.interimResults = true;
-    rec.continuous = true;
+    rec.interimResults = false;
+    rec.continuous = false;
     rec.maxAlternatives = 1;
 
-let finalText = '';
     this._listening = true;
-    this._autoRestart = opts.autoRestart !== false;
+    this._autoRestart = false;
     this._onFinal = opts.onFinal || (() => {});
     this._onInterim = opts.onInterim || (() => {});
     this._onState = opts.onState || (() => {});
     this._onError = opts.onError || (() => {});
-    // Use a longer default silence so we don't cut users off mid-sentence.
-    this._silenceMs = opts.silenceMs || 4000;
 
     rec.onstart = () => {
       this._onState('listening');
-      this._resetSilenceTimer(this._silenceMs);
     };
     rec.onresult = (event) => {
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const t = event.results[i][0].transcript;
-        if (event.results[i].isFinal) finalText += (finalText ? ' ' : '') + t;
-        else interim += t;
-      }
-      // Always push a fresh silence timer so speech is never cut off early.
-      if (interim || finalText) this._resetSilenceTimer(this._silenceMs);
-      this._onInterim({ final: finalText, interim });
-      // Only fire onFinal on a real pause (handled by the silence timer) OR
-      // when the user explicitly requests a final result. Firing on every
-      // interim result would split the answer into fragments.
+      const result = event.results && event.results[0];
+      const transcript = result ? result[0].transcript.trim() : '';
+      if (transcript) this._onFinal({ final: transcript, interim: '' });
     };
     rec.onerror = (event) => {
       this._onError(event.error || 'error');
@@ -106,14 +92,13 @@ let finalText = '';
       }
     };
     rec.onend = () => {
-      if (this._listening && this._autoRestart) {
-        try { rec.start(); } catch (e) {}
-      } else {
-        this._onState('idle');
-      }
+      this._listening = false;
+      this._onState('idle');
     };
 
     try { rec.start(); } catch (e) {
+      this._listening = false;
+      this._onState('error');
       return { ok: false, error: 'start-failed' };
     }
     this._sr = rec;
@@ -130,17 +115,6 @@ let finalText = '';
     }
   },
 
-  _resetSilenceTimer(ms) {
-    this._clearSilenceTimer();
-    this._silenceTimer = setTimeout(() => {
-      this._onFinal && this._onFinal({ final: 'AUTO_STOP', interim: '' });
-      this._listening = false;
-      this._autoRestart = false;
-      if (this._sr) { try { this._sr.stop(); } catch (e) {} }
-      this._onState('idle');
-    }, ms);
-  },
-
   _clearSilenceTimer() {
     if (this._silenceTimer) {
       clearTimeout(this._silenceTimer);
@@ -149,44 +123,15 @@ let finalText = '';
   },
 
   /* ----------------------------- Text to speech ---------------------------- */
-  async speakWithEdge(text, opts = {}) {
-    const endpoint = window.EDGE_TTS_URL || 'http://localhost:5000/tts';
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text,
-          voice: opts.voice || 'en-US-AriaNeural',
-          rate: opts.ratePercent || '+0%'
-        })
-      });
-      if (!response.ok) return false;
-      const audio = new Audio(URL.createObjectURL(await response.blob()));
-      this._edgeAudio = audio;
-      audio.onended = () => {
-        this._edgeAudio = null;
-        if (opts.onend) opts.onend();
-      };
-      audio.onerror = () => {
-        this._edgeAudio = null;
-        if (opts.onend) opts.onend();
-      };
-      await audio.play();
-      return true;
-    } catch (e) {
-      return false;
-    }
-  },
-
-  speak(text, opts = {}) {
+  speakResponse(text, opts = {}) {
     if (!('speechSynthesis' in window)) {
       if (opts.onend) setTimeout(opts.onend, 200);
       return false;
     }
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.rate = opts.rate || 1;
+    u.lang = 'en-US';
+    u.rate = 1.0;
     u.pitch = opts.pitch || 1.02;
     u.volume = opts.volume || 1;
     const voices = window.speechSynthesis.getVoices();
@@ -203,13 +148,12 @@ let finalText = '';
     return true;
   },
 
+  speak(text, opts = {}) {
+    return this.speakResponse(text, opts);
+  },
+
   stopSpeaking() {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    if (this._edgeAudio) {
-      this._edgeAudio.pause();
-      this._edgeAudio.src = '';
-      this._edgeAudio = null;
-    }
   },
 
   /* --------------------------- Live audio level ---------------------------- */
