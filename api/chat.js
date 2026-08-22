@@ -19,7 +19,7 @@
    LLM) is used automatically, so the bot is ALWAYS live.
    ========================================================================== */
 
-const DEFAULT_MODEL = 'gemini-2.0-flash';
+const DEFAULT_MODEL = 'gemini-3.6-flash';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 /* ============================================================================
