@@ -141,6 +141,7 @@ const Chatbot = {
     let reply = null;
 
     // 1) Serverless Gemini endpoint (deployed with LLM_API_KEY)
+    let geminiError = null;
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 12000);
@@ -156,9 +157,17 @@ const Chatbot = {
         if (data && data.reply && data.reply.trim()) {
           reply = data.reply.trim();
         }
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        geminiError = `Chat API Error (${res.status}): ${errorData.error || 'Unknown'}. Detail: ${errorData.detail || 'None'}`;
       }
     } catch (e) {
-      // server unavailable / 503 fallback flag — continue to live browser AI
+      geminiError = `Network or timeout error trying to reach /api/chat: ${e.message}`;
+    }
+
+    if (geminiError && !reply) {
+      // Instead of silently falling back, let's temporarily return the error exactly to the UI so the user can debug their Vercel setup
+      return `[DEBUG] Gemini API failed: ${geminiError}`;
     }
 
     // 2) Free keyless live LLM (Pollinations) directly from the browser
