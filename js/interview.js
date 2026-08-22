@@ -435,6 +435,9 @@ const Interview = {
       }
     }
 
+    // Ensure continuous STT is hot and ready before they ever press spacebar
+    this._ensureContinuousSpeechRecognition();
+
     // Kick off conversation
     this._sendAIReply('', true);
   },
