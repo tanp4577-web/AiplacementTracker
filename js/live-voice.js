@@ -31,7 +31,7 @@ const LiveAI = {
     if (window.isSecureContext === true) { this._isSecure = true; return this._isSecure; }
     // http://localhost / http://127.0.0.1 counts as a secure context too
     if (/^https?:$/.test(location.protocol) &&
-        (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+      (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
       this._isSecure = true;
     }
     return this._isSecure;
@@ -114,8 +114,8 @@ const LiveAI = {
   },
 
   async runRecordedInteraction(history = [], opts = {}) {
-    const onState = opts.onState || (() => {});
-    const onError = opts.onError || (() => {});
+    const onState = opts.onState || (() => { });
+    const onError = opts.onError || (() => { });
     try {
       onState('recording');
       const audioBlob = opts.audioBlob || await this.stopRecording();
@@ -165,29 +165,44 @@ const LiveAI = {
     if (!SR) return { ok: false, error: 'unsupported' };
 
     if (this._sr) {
-      try { this._sr.stop(); } catch (e) {}
+      try { this._sr.stop(); } catch (e) { }
       this._sr = null;
     }
     const rec = new SR();
     rec.lang = opts.lang || 'en-US';
-    rec.interimResults = false;
-    rec.continuous = false;
+    rec.interimResults = opts.interimResults !== false; // Try changing to true by default for better UX
+    rec.continuous = false; // Must be false for turn-based conversation, otherwise it listens to AI output
     rec.maxAlternatives = 1;
 
     this._listening = true;
     this._autoRestart = false;
-    this._onFinal = opts.onFinal || (() => {});
-    this._onInterim = opts.onInterim || (() => {});
-    this._onState = opts.onState || (() => {});
-    this._onError = opts.onError || (() => {});
+    this._onFinal = opts.onFinal || (() => { });
+    this._onInterim = opts.onInterim || (() => { });
+    this._onState = opts.onState || (() => { });
+    this._onError = opts.onError || (() => { });
 
     rec.onstart = () => {
       this._onState('listening');
     };
     rec.onresult = (event) => {
-      const result = event.results && event.results[0];
-      const transcript = result ? result[0].transcript.trim() : '';
-      if (transcript) this._onFinal({ final: transcript, interim: '' });
+      let finalTranscript = '';
+      let interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + ' ';
+        } else {
+          interimTranscript += event.results[i][0].transcript + ' ';
+        }
+      }
+      finalTranscript = finalTranscript.trim();
+      interimTranscript = interimTranscript.trim();
+
+      if (interimTranscript && !finalTranscript) {
+        this._onInterim({ final: '', interim: interimTranscript });
+      }
+      if (finalTranscript) {
+        this._onFinal({ final: finalTranscript, interim: interimTranscript });
+      }
     };
     rec.onerror = (event) => {
       this._onError(event.error || 'error');
@@ -216,7 +231,7 @@ const LiveAI = {
     this._autoRestart = false;
     this._clearSilenceTimer();
     if (this._sr) {
-      try { this._sr.stop(); } catch (e) {}
+      try { this._sr.stop(); } catch (e) { }
       this._sr = null;
     }
   },
@@ -325,18 +340,18 @@ const LiveAI = {
         ctx.close();
       };
     } catch (e) {
-      return () => {};
+      return () => { };
     }
   },
 
-/* ------------------------------ Pollinations (GET) -----------------------
-   * The anonymous Pollinations tier uses a simple GET endpoint:
-   *   GET https://text.pollinations.ai/{prompt}
-   * The POST /openai endpoint (OpenAI-compatible) is behind Cloudflare and
-   * returns 402/502 for anonymous multi-turn requests. The GET endpoint is
-   * the only reliable anonymous path — we embed the system instruction and
-   * conversation history into the prompt text itself.
-   * ----------------------------------------------------------------------- */
+  /* ------------------------------ Pollinations (GET) -----------------------
+     * The anonymous Pollinations tier uses a simple GET endpoint:
+     *   GET https://text.pollinations.ai/{prompt}
+     * The POST /openai endpoint (OpenAI-compatible) is behind Cloudflare and
+     * returns 402/502 for anonymous multi-turn requests. The GET endpoint is
+     * the only reliable anonymous path — we embed the system instruction and
+     * conversation history into the prompt text itself.
+     * ----------------------------------------------------------------------- */
   async _probePollinations() {
     if (this._pollinationsTried) return this._pollinationsOnline;
     this._pollinationsTried = true;
@@ -534,7 +549,7 @@ const LiveAI = {
     if (account) {
       return 'Use the account button in the top-right corner to sign in or create a free account. Your progress is saved locally per account — resume scores, quiz history, coding stats, and interview sessions all sync to your dashboard.';
     }
-if (/(help|what can you|features|modules)/.test(u)) {
+    if (/(help|what can you|features|modules)/.test(u)) {
       return 'Here is what I can help with: Resume Analyzer (ATS score + line-by-line fixes), Aptitude Quiz (fresh questions), Coding Practice (LeetCode/HackerRank style), HR Simulator (live AI voice interview), Skill Gap Analysis, and Company Patterns. Ask me about any of these or your readiness progress!';
     }
 
@@ -698,16 +713,16 @@ const LiveResumeAI = {
 
     // ================= SKILLS =================
     const skillDict = [
-      'javascript','js','typescript','python','java','c','c++','c#','go','golang','rust','ruby','php','swift','kotlin','scala','r',
-      'react','react native','angular','vue','svelte','node','node.js','express','django','flask','spring','spring boot','next.js','nextjs','nuxt',
-      'html','css','sass','tailwind','bootstrap',
-      'sql','mysql','postgresql','postgres','sqlite','mongodb','redis','firebase','supabase','graphql','rest','rest api','grpc',
-      'aws','azure','gcp','google cloud','docker','kubernetes','k8s','terraform','jenkins','ci/cd','linux','bash','git','github','gitlab',
-      'tensorflow','pytorch','keras','scikit-learn','pandas','numpy','machine learning','ml','deep learning','nlp','data science','data analysis','opencv',
-      'oop','data structures','algorithms','dsa','system design','microservices','agile','scrum','kanban','tdd','devops','django rest',
-      'android','ios','flutter','react native','selenium','cypress','jest','mocha','junit','pytest',
-      'excel','power bi','tableau','figma','photoshop','word','powerpoint','canva',
-      'communication','leadership','teamwork','problem solving','critical thinking','time management','public speaking','adaptability'
+      'javascript', 'js', 'typescript', 'python', 'java', 'c', 'c++', 'c#', 'go', 'golang', 'rust', 'ruby', 'php', 'swift', 'kotlin', 'scala', 'r',
+      'react', 'react native', 'angular', 'vue', 'svelte', 'node', 'node.js', 'express', 'django', 'flask', 'spring', 'spring boot', 'next.js', 'nextjs', 'nuxt',
+      'html', 'css', 'sass', 'tailwind', 'bootstrap',
+      'sql', 'mysql', 'postgresql', 'postgres', 'sqlite', 'mongodb', 'redis', 'firebase', 'supabase', 'graphql', 'rest', 'rest api', 'grpc',
+      'aws', 'azure', 'gcp', 'google cloud', 'docker', 'kubernetes', 'k8s', 'terraform', 'jenkins', 'ci/cd', 'linux', 'bash', 'git', 'github', 'gitlab',
+      'tensorflow', 'pytorch', 'keras', 'scikit-learn', 'pandas', 'numpy', 'machine learning', 'ml', 'deep learning', 'nlp', 'data science', 'data analysis', 'opencv',
+      'oop', 'data structures', 'algorithms', 'dsa', 'system design', 'microservices', 'agile', 'scrum', 'kanban', 'tdd', 'devops', 'django rest',
+      'android', 'ios', 'flutter', 'react native', 'selenium', 'cypress', 'jest', 'mocha', 'junit', 'pytest',
+      'excel', 'power bi', 'tableau', 'figma', 'photoshop', 'word', 'powerpoint', 'canva',
+      'communication', 'leadership', 'teamwork', 'problem solving', 'critical thinking', 'time management', 'public speaking', 'adaptability'
     ];
     const found = [];
     const seen = new Set();
@@ -723,10 +738,10 @@ const LiveResumeAI = {
 
     // ================= ACTION VERBS =================
     const actionVerbs = [
-      'built','developed','designed','created','implemented','led','managed','improved','increased',
-      'reduced','launched','delivered','spearheaded','optimized','engineered','architected','achieved',
-      'grew','mentored','automated','streamlined','collaborated','drove','established','initiated',
-      'negotiated','resolved','analyzed','researched','deployed','migrated','integrated','shipped'
+      'built', 'developed', 'designed', 'created', 'implemented', 'led', 'managed', 'improved', 'increased',
+      'reduced', 'launched', 'delivered', 'spearheaded', 'optimized', 'engineered', 'architected', 'achieved',
+      'grew', 'mentored', 'automated', 'streamlined', 'collaborated', 'drove', 'established', 'initiated',
+      'negotiated', 'resolved', 'analyzed', 'researched', 'deployed', 'migrated', 'integrated', 'shipped'
     ];
     const foundVerbs = actionVerbs.filter(v => new RegExp('\\b' + v + '\\b', 'i').test(tl));
 

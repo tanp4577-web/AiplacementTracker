@@ -52,14 +52,16 @@ export default async function handler(req, res) {
       response_format: { type: 'json_object' }
     });
     const content = completion.choices?.[0]?.message?.content;
-    const parsedJson = JSON.parse(content || '{}');
+    let cleanContent = (content || '').trim();
+    if (cleanContent.startsWith('```json')) {
+      cleanContent = cleanContent.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
+    }
+    const parsedJson = JSON.parse(cleanContent || '{}');
     if (typeof parsedJson.evaluation !== 'string' ||
-        !parsedJson.evaluation.trim() ||
-        !Number.isInteger(parsedJson.score) ||
-        parsedJson.score < 1 ||
-        parsedJson.score > 10 ||
-        typeof parsedJson.spoken_response !== 'string' ||
-        !parsedJson.spoken_response.trim()) {
+      !parsedJson.evaluation.trim() ||
+      typeof parsedJson.score !== 'number' ||
+      typeof parsedJson.spoken_response !== 'string' ||
+      !parsedJson.spoken_response.trim()) {
       throw new Error('Groq response did not contain spoken_response.');
     }
     return res.status(200).json({
