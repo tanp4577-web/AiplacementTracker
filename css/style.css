@@ -2728,7 +2728,8 @@ canvas.bar-canvas {
   background: #000;
 }
 
-.yt-player-frame iframe {
+.yt-player-frame iframe,
+.yt-player-frame > #ytApiPlayer {
   position: absolute;
   inset: 0;
   width: 100%;

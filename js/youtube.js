@@ -7,7 +7,44 @@ const Youtube = {
   state: {
     category: 'all',
     search: '',
-    completedSet: null   // Set of completed playlist IDs (loaded from storage)
+    completedSet: null,
+    watchProgress: {},
+    player: null,
+    progressTimer: null
+  },
+
+  _loadWatchProgress() {
+    try {
+      return JSON.parse(localStorage.getItem('prepportal_yt_progress') || '{}');
+    } catch { return {}; }
+  },
+
+  _saveWatchProgress(id, seconds, duration) {
+    if (!duration || !Number.isFinite(seconds)) return;
+    const percent = Math.min(100, Math.round((seconds / duration) * 100));
+    this.state.watchProgress[id] = { seconds: Math.floor(seconds), duration: Math.floor(duration), percent };
+    try { localStorage.setItem('prepportal_yt_progress', JSON.stringify(this.state.watchProgress)); } catch {}
+    if (percent >= 90 && !this.state.completedSet.has(id)) this._toggleComplete(id);
+    const progress = document.getElementById(`ytWatchProgress_${id}`);
+    if (progress) progress.style.width = `${percent}%`;
+  },
+
+  _loadYouTubeApi() {
+    if (window.YT && window.YT.Player) return Promise.resolve();
+    if (this._ytApiPromise) return this._ytApiPromise;
+    this._ytApiPromise = new Promise((resolve, reject) => {
+      const previous = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (typeof previous === 'function') previous();
+        resolve();
+      };
+      const script = document.createElement('script');
+      script.src = 'https://www.youtube.com/iframe_api';
+      script.async = true;
+      script.onerror = () => reject(new Error('YouTube Player API failed to load'));
+      document.head.appendChild(script);
+    });
+    return this._ytApiPromise;
   },
 
   /* ─── Persistent completion tracking ─── */
@@ -75,7 +112,18 @@ const Youtube = {
     this.state.category = 'all';
     this.state.search = '';
     this.state.completedSet = this._loadCompleted();
+    this.state.watchProgress = this._loadWatchProgress();
+    this._stopPlayer();
     this._renderHome();
+  },
+
+  _stopPlayer() {
+    if (this.state.progressTimer) clearInterval(this.state.progressTimer);
+    this.state.progressTimer = null;
+    if (this.state.player && this.state.player.destroy) {
+      try { this.state.player.destroy(); } catch {}
+    }
+    this.state.player = null;
   },
 
   /* ─── Home / Grid View ─── */
@@ -207,6 +255,7 @@ const Youtube = {
   /* ─── Card Template ─── */
   _card(p) {
     const done = this.state.completedSet.has(p.id);
+    const progress = this.state.watchProgress[p.id];
     const embedUrl = this._buildEmbedUrl(p.url);
     const videoId = this._parseVideoId(p.url);
     const thumbSrc = videoId
@@ -238,6 +287,7 @@ const Youtube = {
             <span class="chip ${p.category === 'coding' ? 'blue' : p.category === 'ai' ? 'purple' : p.category === 'devops' ? 'orange' : p.category === 'data' ? 'cyan' : 'green'}" style="font-size:10px;padding:2px 7px;margin-left:4px">${p.category.toUpperCase()}</span>
           </div>
           <div class="yt-desc">${p.desc}</div>
+          <div class="progress" style="height:4px;margin-top:8px"><div class="progress-fill green" id="ytWatchProgress_${p.id}" style="width:${progress ? progress.percent : 0}%"></div></div>
           <div class="yt-card-actions">
             <button class="yt-check-btn${done ? ' done' : ''}" data-id="${p.id}" title="${done ? 'Mark as not watched' : 'Mark as watched'}" aria-label="Toggle watched status">
               ${done
@@ -255,6 +305,7 @@ const Youtube = {
     const p = YOUTUBE_DATA.playlists.find(x => x.id === id);
     if (!p) return;
 
+    this._stopPlayer();
     const embedUrl = this._buildEmbedUrl(p.url, true);
     const watchUrl = this._buildWatchUrl(p.url);
     const videoId = this._parseVideoId(p.url);
@@ -280,14 +331,7 @@ const Youtube = {
         </div>
         <div class="yt-player-frame" id="ytPlayerFrame">
           ${embedUrl
-            ? `<iframe
-                src="${embedUrl}"
-                title="${p.title}"
-                frameborder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowfullscreen
-                loading="lazy">
-               </iframe>
+            ? `<div id="ytApiPlayer" data-video-id="${videoId}" aria-label="${p.title}"></div>
                <div class="yt-embed-error hidden" id="ytEmbedError">
                  <div class="yt-embed-error-inner">
                    <div style="font-size:32px;margin-bottom:10px">⚠️</div>
@@ -336,17 +380,7 @@ const Youtube = {
     document.body.appendChild(overlay);
     requestAnimationFrame(() => overlay.classList.add('show'));
 
-    // Detect embed blocked via iframe error
-    if (embedUrl) {
-      const iframe = overlay.querySelector('iframe');
-      const errDiv = overlay.querySelector('#ytEmbedError');
-      if (iframe && errDiv) {
-        iframe.addEventListener('error', () => {
-          iframe.style.display = 'none';
-          errDiv.classList.remove('hidden');
-        });
-      }
-    }
+    if (embedUrl) this._createApiPlayer(videoId, p.id, overlay);
 
     // Mark/unmark done
     const markBtn = overlay.querySelector('#ytMarkDoneBtn');
@@ -387,6 +421,7 @@ const Youtube = {
     }
 
     const close = () => {
+      this._stopPlayer();
       overlay.classList.remove('show');
       setTimeout(() => overlay.remove(), 300);
     };
@@ -394,5 +429,43 @@ const Youtube = {
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
     const escHandler = e => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', escHandler); } };
     document.addEventListener('keydown', escHandler);
+  },
+
+  async _createApiPlayer(videoId, playlistId, overlay) {
+    try {
+      await this._loadYouTubeApi();
+      if (!document.body.contains(overlay)) return;
+      const saved = this.state.watchProgress[playlistId];
+      this.state.player = new window.YT.Player('ytApiPlayer', {
+        videoId,
+        playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
+        events: {
+          onReady: event => {
+            if (saved && saved.seconds > 0) event.target.seekTo(saved.seconds, true);
+            this.state.progressTimer = setInterval(() => {
+              const player = this.state.player;
+              if (player && player.getCurrentTime && player.getDuration) {
+                this._saveWatchProgress(playlistId, player.getCurrentTime(), player.getDuration());
+              }
+            }, 1000);
+          },
+          onStateChange: event => {
+            if (event.data === window.YT.PlayerState.ENDED) {
+              this._toggleComplete(playlistId);
+              this._saveWatchProgress(playlistId, event.target.getDuration(), event.target.getDuration());
+            }
+          },
+          onError: () => {
+            const error = overlay.querySelector('#ytEmbedError');
+            const player = overlay.querySelector('#ytApiPlayer');
+            if (player) player.style.display = 'none';
+            if (error) error.classList.remove('hidden');
+          }
+        }
+      });
+    } catch {
+      const error = overlay.querySelector('#ytEmbedError');
+      if (error) error.classList.remove('hidden');
+    }
   }
 };
