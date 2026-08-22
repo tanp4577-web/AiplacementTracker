@@ -532,31 +532,69 @@ const Interview = {
     if (hint) hint.textContent = 'Hold [Spacebar] to record and speak naturally';
   },
 
-  /* ═══ Push to Talk Handlers (MediaRecorder = instant audio capture) ═══ */
+  /* ═══ Continuous Push-to-Talk (Zero Latency) ═══ */
+  _ensureContinuousSpeechRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR || this.state._continuousSR) return;
+
+    try {
+      const sr = new SR();
+      sr.lang = 'en-US';
+      sr.continuous = true;
+      sr.interimResults = true;
+      sr.maxAlternatives = 1;
+
+      sr.onresult = ev => {
+        let final = '', interim = '';
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          if (ev.results[i].isFinal) final += ev.results[i][0].transcript + ' ';
+          else interim += ev.results[i][0].transcript;
+        }
+
+        // Only save words spoken WHILE spacebar is actively held down
+        if (this.state._spaceDown) {
+          if (final) this.state._pttTranscript = (this.state._pttTranscript || '') + final;
+          this.state._pttInterim = interim;
+
+          const box = document.getElementById('transcriptBox');
+          if (box) {
+            let el = box.querySelector('#pttInterim');
+            if (!el) { el = document.createElement('div'); el.id = 'pttInterim'; el.className = 'transcript-msg user interim'; box.appendChild(el); }
+            el.textContent = ((this.state._pttTranscript || '') + interim).trim();
+            box.scrollTop = box.scrollHeight;
+          }
+        }
+      };
+
+      sr.onerror = () => { };
+      // Restart if it stops automatically (continuous sometimes drops after silence)
+      sr.onend = () => {
+        if (this.state._conversationActive && this.state.micEnabled) {
+          try { sr.start(); } catch (e) { }
+        }
+      };
+
+      sr.start();
+      this.state._continuousSR = sr;
+    } catch (e) { }
+  },
+
   _onKeyDown(e) {
     if (e.code !== 'Space' || e.repeat || !this.state._conversationActive || this.state._spaceDown) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     e.preventDefault();
     this.state._spaceDown = true;
+    this.state._pttTranscript = '';
+    this.state._pttInterim = '';
 
     // Interrupt AI speech instantly
     window.speechSynthesis && window.speechSynthesis.cancel();
     this.state._inAIReply = false;
 
     const hint = document.getElementById('micHint');
-    if (hint) hint.textContent = '🎤 Recording... speak now (release to send)';
+    if (hint) hint.textContent = '🎤 Listening… speak now (release to send)';
 
-    // Start MediaRecorder instantly to ensure we never miss fast speech (unlike SR cold boots)
-    try {
-      this.state._audioSnippetChunks = [];
-      this.state._audioSnippetRecorder = new MediaRecorder(this.state.stream, { mimeType: 'audio/webm' });
-      this.state._audioSnippetRecorder.ondataavailable = ev => {
-        if (ev.data.size > 0) this.state._audioSnippetChunks.push(ev.data);
-      };
-      this.state._audioSnippetRecorder.start(250);
-    } catch (err) {
-      console.warn('Audio snippet failed', err);
-    }
+    this._ensureContinuousSpeechRecognition();
   },
 
   _onKeyUp(e) {
@@ -564,48 +602,21 @@ const Interview = {
     e.preventDefault();
     this.state._spaceDown = false;
     const hint = document.getElementById('micHint');
-    if (hint) hint.textContent = 'Processing ...';
 
-    if (this.state._audioSnippetRecorder && this.state._audioSnippetRecorder.state !== 'inactive') {
-      this.state._audioSnippetRecorder.onstop = async () => {
-        const blob = new Blob(this.state._audioSnippetChunks, { type: 'audio/webm' });
-        if (blob.size > 0) {
-          await this._processAudioSnippet(blob);
-        } else if (hint) {
-          hint.textContent = 'Hold [Spacebar] to record and speak naturally';
-        }
-      };
-      // Calling stop triggers onstop immediately
-      try { this.state._audioSnippetRecorder.stop(); } catch (e) { }
-    }
-  },
+    const box = document.getElementById('transcriptBox');
+    const interimEl = box && box.querySelector('#pttInterim');
+    if (interimEl) interimEl.remove();
 
-  async _processAudioSnippet(blob) {
-    const hint = document.getElementById('micHint');
-    if (hint) hint.textContent = 'Transcribing voice...';
-    try {
-      const form = new FormData();
-      form.append('audio', blob, 'snippet.webm');
+    const text = ((this.state._pttTranscript || '') + ' ' + (this.state._pttInterim || '')).trim();
+    this.state._pttTranscript = '';
+    this.state._pttInterim = '';
 
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 12000);
-      const res = await fetch('/api/stt', { method: 'POST', body: form, signal: ctrl.signal });
-      clearTimeout(t);
-
-      if (res.ok) {
-        const data = await res.json();
-        const text = (data.text || '').trim();
-        if (text.length > 2) {
-          this._addTranscript('user', text);
-          this._handleUserReply(text);
-        } else {
-          if (hint) hint.textContent = 'Could not hear clearly (too short). Try speaking louder and holding [Spacebar].';
-        }
-      } else {
-        if (hint) hint.textContent = 'Transcription failed. Hold space to try again.';
-      }
-    } catch (err) {
-      if (hint) hint.textContent = 'Transcription error. Hold space to try again.';
+    if (text.length > 2) {
+      if (hint) hint.textContent = 'Processing ...';
+      this._addTranscript('user', text);
+      this._handleUserReply(text);
+    } else {
+      if (hint) hint.textContent = 'Nothing captured. Hold [Spacebar], speak clearly, then release.';
     }
   },
 
