@@ -222,18 +222,31 @@ const LectureQuestions = {
     `;
 
     try {
-      const res = await fetch('https://wandbox.org/api/compile.json', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          compiler: 'gcc-head',
-          code: code,
-          options: 'warning,gnu++17',
-          stdin: ''
-        })
-      });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
+      let data = null;
+      try {
+        const res = await fetch('/api/compile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ compiler: 'gcc-head', code, stdin: '' })
+        });
+        if (res.ok) data = await res.json();
+      } catch (err) {}
+
+      if (!data) {
+        const res = await fetch('https://wandbox.org/api/compile.json', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            compiler: 'gcc-head',
+            code: code,
+            options: 'warning,gnu++17',
+            stdin: ''
+          })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        data = await res.json();
+      }
+
       const program = data.program || '';
       const errors = data.compiler_error || data.stderr || '';
       this._renderRunResult(out, program, errors);

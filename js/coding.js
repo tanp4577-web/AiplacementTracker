@@ -425,18 +425,31 @@ using namespace std;
       const tc = cppQ.cppTestCases[i];
       const harness = this._cppHarness(cppQ, bodyCode);
       try {
-        const res = await fetch('https://wandbox.org/api/compile.json', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            compiler: 'gcc-head',
-            code: harness,
-            options: 'warning,gnu++17',
-            stdin: tc.input || ''
-          })
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
+        let data = null;
+        try {
+          const res = await fetch('/api/compile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ compiler: 'gcc-head', code: harness, stdin: tc.input || '' })
+          });
+          if (res.ok) data = await res.json();
+        } catch (err) {}
+
+        if (!data) {
+          const res = await fetch('https://wandbox.org/api/compile.json', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              compiler: 'gcc-head',
+              code: harness,
+              options: 'warning,gnu++17',
+              stdin: tc.input || ''
+            })
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          data = await res.json();
+        }
+
         const program = (data.program || '').trim();
         const errors = data.compiler_error || data.stderr || '';
         if (errors) {

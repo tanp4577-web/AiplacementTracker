@@ -331,23 +331,14 @@ const Youtube = {
         </div>
         <div class="yt-player-frame" id="ytPlayerFrame">
           ${embedUrl
-            ? `<div id="ytApiPlayer" data-video-id="${videoId}" aria-label="${p.title}"></div>
-               <div class="yt-embed-error hidden" id="ytEmbedError">
+            ? `<iframe id="ytVideoIframe" src="${embedUrl}" title="${p.title}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;position:absolute;top:0;left:0"></iframe>`
+            : `<div class="yt-embed-error" style="display:flex;align-items:center;justify-content:center;height:100%;text-align:center;padding:24px;background:#0f172a;color:#fff">
                  <div class="yt-embed-error-inner">
-                   <div style="font-size:32px;margin-bottom:10px"><i class="bi bi-exclamation-triangle-fill text-warning"></i></div>
-                   <p style="margin-bottom:12px">This video cannot be embedded (the uploader has restricted embedding).</p>
+                   <div style="font-size:32px;margin-bottom:10px"><i class="bi bi-youtube text-danger"></i></div>
+                   <p style="margin-bottom:6px;font-weight:700">Watch Directly on YouTube</p>
+                   <p style="font-size:13px;color:#94a3b8;margin-bottom:16px">This lecture can be viewed directly on YouTube.</p>
                    <a href="${watchUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
-                     <i class="bi bi-youtube" style="margin-right:4px"></i>Watch on YouTube
-                   </a>
-                 </div>
-               </div>`
-            : `<div class="yt-embed-error">
-                 <div class="yt-embed-error-inner">
-                   <div style="font-size:32px;margin-bottom:10px"><i class="bi bi-exclamation-triangle-fill text-warning"></i></div>
-                   <p style="margin-bottom:4px;font-weight:700">Video cannot be embedded</p>
-                   <p style="font-size:13px;color:var(--text-dim);margin-bottom:14px">The uploader has disabled embedding for this video.</p>
-                   <a href="${watchUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
-                     <i class="bi bi-youtube" style="margin-right:4px"></i>Watch on YouTube
+                     <i class="bi bi-play-circle-fill" style="margin-right:4px"></i>Open YouTube Lecture
                    </a>
                  </div>
                </div>`
