@@ -1,9 +1,7 @@
 /* ============================================================================
-   LIVE AI Resume Analyzer
-   Replaces the old keyword-matching analyzer with a true structural + semantic
-   analysis that works on ANY pasted text or uploaded file. No fixed keyword
-   bank, no "must match X" requirements. Provides real scores, sections,
-   skills, action verbs, quantified achievements, and actionable recommendations.
+   LIVE AI Resume Analyzer  —  PlacementPrep (GitHub Primer UI)
+   Comprehensive semantic analysis with clean section breakdown, ATS score gauge,
+   and actionable line-by-line recommendations.
    ========================================================================== */
 const Resume = {
   _debounceTimer: null,
@@ -13,48 +11,59 @@ const Resume = {
     const prog = email ? DB.getProgress(email) : { resumeScore: 0 };
 
     container.innerHTML = `
-      <div class="grid grid-2">
+      <div class="grid grid-2" style="align-items:start">
+        <!-- Left: Upload & Input Panel -->
         <div class="card">
           <div class="card-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--accent)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <i class="bi bi-file-earmark-arrow-up text-accent" style="font-size:16px"></i>
             Upload Resume
           </div>
-          <div class="card-sub">Paste your resume text or upload a file — we analyze any paragraph</div>
+          <div class="card-sub">Paste your resume content or upload a document (.txt, .pdf, .docx)</div>
 
-          <label class="field-label" for="targetRole">Target Role (optional — improves skill relevance)</label>
+          <label class="field-label" for="targetRole">Target Role</label>
           <select id="targetRole">
-            <option value="">-- No specific role --</option>
+            <option value="">-- General Software Engineering --</option>
             ${typeof ROLE_NAMES !== 'undefined' ? ROLE_NAMES.map(r => `<option value="${r}">${r}</option>`).join('') : ''}
           </select>
 
-          <div class="divider"></div>
-          <div class="drop-zone" id="dropZone">
+          <div class="drop-zone mt-3" id="dropZone">
             <div class="dz-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:42px;height:42px;color:var(--accent)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <i class="bi bi-cloud-arrow-up text-accent" style="font-size:36px"></i>
             </div>
-            <p>Drag & drop your resume here, or <strong>browse</strong></p>
-            <p class="text-dim" style="font-size:12px;margin-top:6px">Supports .txt, .pdf, .docx</p>
+            <p style="font-weight:500">Drag & drop your resume file here, or <span class="text-accent" style="cursor:pointer;font-weight:600">Browse Files</span></p>
+            <p class="text-faint" style="font-size:11.5px;margin-top:4px">Supports PDF, DOCX, and TXT files</p>
           </div>
           <input type="file" id="fileInput" accept=".txt,.pdf,.docx" style="display:none" />
+
           <div class="divider"></div>
-          <label class="field-label" for="resumeText">Or paste any text to analyze</label>
-          <textarea id="resumeText" placeholder="Paste your resume content, a paragraph, or any text here...">${DB.getGlobal('lastResumeText') || ''}</textarea>
-          <button class="btn btn-primary mt-2" id="analyzeBtn">Analyze</button>
-          <span class="text-dim" style="font-size:11.5px;margin-left:10px">Live analysis updates as you type</span>
+
+          <div class="flex-between">
+            <label class="field-label" for="resumeText" style="margin:0">Resume Text Content</label>
+            <span class="text-faint" id="resumeWordCounter" style="font-size:11.5px">0 words</span>
+          </div>
+          <textarea id="resumeText" class="mt-2" placeholder="Paste your resume summary, experience bullets, or full profile text here..." style="min-height:160px">${DB.getGlobal('lastResumeText') || ''}</textarea>
+
+          <div class="flex gap-2 mt-3 items-center">
+            <button class="btn btn-primary" id="analyzeBtn"><i class="bi bi-lightning-charge-fill" style="margin-right:4px"></i>Analyze Resume</button>
+            <span class="text-dim" style="font-size:12px">Real-time analysis updates automatically</span>
+          </div>
         </div>
+
+        <!-- Right: Real-time Analysis Report -->
         <div class="card" id="resultCard">
           <div class="card-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--accent)"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="8"/></svg>
-            Analysis Report
+            <i class="bi bi-file-earmark-check text-accent" style="font-size:16px"></i>
+            ATS Analysis Report
           </div>
-          <div class="card-sub">Real AI analysis — no fixed keywords, works on any text</div>
+          <div class="card-sub">Automated structural & semantic resume score</div>
+          
           <div id="resumeResult">
-            <div class="empty-state">
-              <div class="es-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:46px;height:46px;color:var(--text-dim)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <div class="empty-state" style="padding:48px 16px;text-align:center">
+              <div style="color:var(--text-faint);margin-bottom:10px">
+                <i class="bi bi-file-earmark-text" style="font-size:42px"></i>
               </div>
-              <h3>No analysis yet</h3>
-              <p>Paste or upload any text — the AI will detect sections, skills, and provide a score with actionable feedback</p>
+              <h4 style="font-size:14.5px;margin-bottom:4px">No Resume Analyzed Yet</h4>
+              <p class="text-dim" style="font-size:12.5px;max-width:320px;margin:0 auto">Upload a file or paste your resume text to generate an instant ATS score, skill match breakdown, and feedback.</p>
             </div>
           </div>
         </div>
@@ -70,6 +79,13 @@ const Resume = {
     const textarea = document.getElementById('resumeText');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const resultDiv = document.getElementById('resumeResult');
+    const wordCounter = document.getElementById('resumeWordCounter');
+
+    const updateWordCount = () => {
+      const words = textarea.value.trim().split(/\s+/).filter(Boolean).length;
+      if (wordCounter) wordCounter.textContent = `${words} words`;
+    };
+    updateWordCount();
 
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
@@ -87,7 +103,7 @@ const Resume = {
     analyzeBtn.addEventListener('click', () => {
       const text = textarea.value.trim();
       if (!text) {
-        App.showToast('Please enter or upload text first', 'error');
+        App.showToast('Please enter or upload resume text first', 'error');
         return;
       }
       this._analyze(text, resultDiv);
@@ -104,13 +120,14 @@ const Resume = {
 
     // Live analysis as you type (debounced)
     textarea.addEventListener('input', () => {
+      updateWordCount();
       clearTimeout(this._debounceTimer);
       this._debounceTimer = setTimeout(() => {
         const text = textarea.value.trim();
         if (text.length > 20) {
           this._analyze(text, resultDiv);
         }
-      }, 600);
+      }, 500);
     });
 
     // Auto-analyze if there's existing text
@@ -123,6 +140,11 @@ const Resume = {
     ResumeParser.parseFile(file)
       .then((text) => {
         textarea.value = text;
+        const wordCounter = document.getElementById('resumeWordCounter');
+        if (wordCounter) {
+          const words = text.trim().split(/\s+/).filter(Boolean).length;
+          wordCounter.textContent = `${words} words`;
+        }
         App.showToast('File loaded successfully', 'success');
         if (text && text.trim().length > 20) {
           const resultDiv = document.getElementById('resumeResult');
@@ -134,7 +156,7 @@ const Resume = {
         const reader = new FileReader();
         reader.onload = (e) => {
           textarea.value = e.target.result;
-          App.showToast('File loaded (raw text)', 'info');
+          App.showToast('File loaded (text)', 'info');
         };
         reader.readAsText(file);
       });
@@ -153,169 +175,132 @@ const Resume = {
       App.refreshAll();
     }
 
-    // Render
+    // Render Score Ring
     const circumference = 2 * Math.PI * 45;
     const offset = circumference - (result.score / 100) * circumference;
-    const scoreColor = result.scoreColor;
+    const scoreColor = result.score >= 75 ? 'var(--success)' : result.score >= 50 ? 'var(--warning)' : 'var(--danger)';
+    const scoreRating = result.score >= 75 ? 'Strong Resume' : result.score >= 50 ? 'Good Potential' : 'Needs Optimization';
 
-    // ---- Warning banner for fake/placeholder content ----
+    // Warning banner if flagged
     const warnHTML = result.flagged ? `
-      <div class="resume-warn-banner">
-        <div class="rw-icon">⚠</div>
-        <div class="rw-body">
-          <b>This content looks auto-generated or low-quality.</b>
-          <ul>${(result.flagReasons || []).map(r => `<li>${r}</li>`).join('')}</ul>
-          <div class="rw-fix">Rewrite it with genuine, specific details about your real experience — the score below reflects this warning.</div>
+      <div class="card mb-3" style="background:rgba(210,153,34,0.1);border-color:rgba(210,153,34,0.3)">
+        <div class="flex gap-2 items-center">
+          <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size:18px"></i>
+          <b style="color:var(--warning)">Quality Alert</b>
         </div>
+        <ul class="text-dim mt-2" style="font-size:12px;padding-left:18px">
+          ${(result.flagReasons || []).map(r => `<li>${r}</li>`).join('')}
+        </ul>
       </div>
-      <div class="divider"></div>
     ` : '';
 
-    // ---- 5-part breakdown ----
+    // 5-part breakdown
     const parts = result.parts || { content: 0, skills: 0, structure: 0, quantified: 0, grammar: 0 };
     const partDefs = [
-      { key: 'content', label: 'Content Quality', hint: 'Real sentences, coherence, no filler' },
-      { key: 'skills', label: 'Skills Relevance', hint: result.roleMatched ? `Matched against ${result.roleMatched.role} (${result.roleMatched.matchPct}% role overlap)` : 'Technical keyword coverage' },
-      { key: 'structure', label: 'Structure', hint: 'Sections & completeness' },
-      { key: 'quantified', label: 'Quantified Impact', hint: 'Numbers, %, metrics in achievements' },
-      { key: 'grammar', label: 'Grammar & Spelling', hint: 'Errors detected below' }
+      { key: 'content', label: 'Content Depth', hint: 'Coherence, details, no filler' },
+      { key: 'skills', label: 'Skills Coverage', hint: result.roleMatched ? `${result.roleMatched.role} (${result.roleMatched.matchPct}% match)` : 'Core technical keywords' },
+      { key: 'structure', label: 'Section Structure', hint: 'Standard headings & layout completeness' },
+      { key: 'quantified', label: 'Impact & Metrics', hint: 'Percentages, metrics, measurable results' },
+      { key: 'grammar', label: 'Grammar & Clarity', hint: 'Spelling and syntax correctness' }
     ];
+
     const partsHTML = partDefs.map(p => {
       const v = Math.round(parts[p.key] || 0);
       const col = v >= 70 ? 'var(--success)' : v >= 45 ? 'var(--warning)' : 'var(--danger)';
       return `
-        <div class="resume-part">
-          <div class="rp-label">
+        <div class="resume-part" style="background:var(--bg-2);border:1px solid var(--border);padding:10px 12px;border-radius:var(--radius-sm);margin-bottom:8px">
+          <div class="flex-between" style="font-size:12.5px;margin-bottom:4px">
             <b>${p.label}</b>
-            <span style="color:${col}">${v}%</span>
+            <span style="color:${col};font-weight:600;font-family:var(--font-mono)">${v}%</span>
           </div>
-          <div class="progress"><div class="progress-fill" style="width:${v}%;background:${col}"></div></div>
-          <div class="rp-hint">${p.hint}</div>
+          <div class="progress" style="height:5px;background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden">
+            <div class="progress-fill" style="width:${v}%;background:${col};height:100%"></div>
+          </div>
+          <div class="text-faint mt-1" style="font-size:11px">${p.hint}</div>
         </div>
       `;
     }).join('');
 
-    // ---- Grammar issues ----
+    // Grammar items
     const grammarHTML = (result.grammarIssues && result.grammarIssues.length)
       ? result.grammarIssues.map(g => `
-          <div class="grammar-issue">
-            <span class="gi-icon">✗</span>
+          <div class="flex gap-2 items-center" style="background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.25);border-radius:4px;padding:6px 10px;font-size:12px;margin-bottom:6px">
+            <i class="bi bi-x-circle-fill text-danger"></i>
             <span>${g}</span>
           </div>`).join('')
-      : '<div class="text-dim" style="font-size:12.5px">No obvious grammar/spelling issues detected.</div>';
+      : '<div class="text-success" style="font-size:12px"><i class="bi bi-check-circle-fill" style="margin-right:5px"></i>No major spelling or grammar issues found.</div>';
 
-    // ---- Line-by-line suggestions ----
-    const suggHTML = (result.suggestions && result.suggestions.length)
-      ? result.suggestions.map(s => `
-          <div class="resume-sugg">
-            <div class="rs-line">${s.line}</div>
-            <div class="rs-fix">→ ${s.fix}</div>
-          </div>`).join('')
-      : '';
-
+    // Section Checklist
     const sectionHTML = result.sections.map(s => `
-      <div class="section-check">
-        <div class="check-icon ${s.present ? 'ok' : 'no'}">
-          ${s.present
-            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="20 6 9 17 4 12"/></svg>'
-            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'}
-        </div>
-        <span>${s.name}</span>
+      <div class="flex gap-2 items-center" style="font-size:12px">
+        <i class="bi ${s.present ? 'bi-check-circle-fill text-success' : 'bi-dash-circle text-faint'}"></i>
+        <span style="color:${s.present ? 'var(--text)' : 'var(--text-faint)'}">${s.name}</span>
       </div>
     `).join('');
 
+    // Skills & Action Verbs
     const skillsHTML = result.foundSkills.length > 0
-      ? result.foundSkills.slice(0, 12).map(sk => `<span class="chip">${sk}</span>`).join(' ')
-      : '<span class="text-dim">No specific skills detected — add more technical keywords</span>';
+      ? result.foundSkills.slice(0, 10).map(sk => `<span class="chip blue">${sk}</span>`).join(' ')
+      : '<span class="text-dim" style="font-size:12px">No specific technical keywords detected.</span>';
 
     const verbsHTML = result.foundVerbs.length > 0
-      ? result.foundVerbs.map(v => `<span class="chip green">${v}</span>`).join(' ')
-      : '<span class="text-dim">No action verbs detected — use words like "built", "improved", "led"</span>';
-
-    const quantHTML = result.quantified.length > 0
-      ? result.quantified.map(q => `<span class="chip blue">${q}</span>`).join(' ')
-      : '<span class="text-dim">No quantified results — add numbers, percentages, or metrics</span>';
+      ? result.foundVerbs.slice(0, 8).map(v => `<span class="chip green">${v}</span>`).join(' ')
+      : '<span class="text-dim" style="font-size:12px">Add action verbs (e.g. Architected, Built, Optimized).</span>';
 
     const recsHTML = result.recommendations.map(r => `
-      <div class="rec-item">
-        <div class="rec-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--accent)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        </div>
-        <div class="rec-text">${r}</div>
+      <div class="flex gap-2 items-start" style="background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:8px 10px;font-size:12px;margin-bottom:6px">
+        <i class="bi bi-lightbulb-fill text-warning" style="margin-top:2px;flex-shrink:0"></i>
+        <div style="line-height:1.4">${r}</div>
       </div>
     `).join('');
 
     resultDiv.innerHTML = `
       ${warnHTML}
-      <div class="ats-score-ring">
-        <svg viewBox="0 0 100 100">
-          <circle class="ats-ring-bg" cx="50" cy="50" r="45"/>
-          <circle class="ats-ring-val" cx="50" cy="50" r="45"
-            stroke="${scoreColor}"
-            stroke-dasharray="${circumference}"
-            stroke-dashoffset="${offset}"
-          />
-        </svg>
-        <div class="ats-score-num">
-          <b style="color:${scoreColor}">${result.score}%</b>
-          <span>Quality Score</span>
+      <div class="card mb-3 text-center" style="background:var(--bg-2);border:1px solid var(--border);padding:18px">
+        <div class="flex items-center justify-center gap-4 flex-wrap">
+          <div class="hero-ring" style="width:84px;height:84px">
+            <svg viewBox="0 0 100 100">
+              <circle class="bg" cx="50" cy="50" r="42" stroke-width="8" fill="none" stroke="var(--surface)"/>
+              <circle class="fg" cx="50" cy="50" r="42" stroke-width="8" fill="none"
+                stroke="${scoreColor}"
+                stroke-dasharray="${circumference}"
+                stroke-dashoffset="${offset}"
+                stroke-linecap="round"
+              />
+            </svg>
+            <div class="hero-num">
+              <b style="font-size:18px;font-family:var(--font-mono)">${result.score}%</b>
+            </div>
+          </div>
+          <div class="text-left" style="text-align:left">
+            <div style="font-size:15px;font-weight:600;color:var(--text)">${scoreRating}</div>
+            <div class="text-dim" style="font-size:12px;margin-top:2px">${result.wordCount} words analyzed · ${result.sectionPct}% structure completeness</div>
+            <div class="mt-2">
+              <span class="chip ${result.score >= 75 ? 'green' : result.score >= 50 ? 'orange' : 'red'}">${result.score >= 75 ? 'Ready to Apply' : 'Revisions Recommended'}</span>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="text-dim text-center" style="font-size:12px;margin-top:4px">${result.wordCount} words detected</div>
 
-      <div class="divider"></div>
-      <div class="card-title mb-1">Detailed Breakdown</div>
-      <div class="card-sub">Five-part quality analysis</div>
-      ${partsHTML}
+      <div class="card-title mb-2" style="font-size:13px"><i class="bi bi-bar-chart-line text-accent" style="margin-right:4px"></i>Score Breakdown</div>
+      <div class="mb-3">${partsHTML}</div>
 
-      <div class="divider"></div>
-      <div class="card-title mb-1">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--accent)"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-        Grammar & Spelling
+      <div class="card-title mb-2" style="font-size:13px"><i class="bi bi-layout-text-sidebar text-accent" style="margin-right:4px"></i>Section Coverage</div>
+      <div class="grid grid-2 mb-3" style="background:var(--bg-2);border:1px solid var(--border);padding:10px 12px;border-radius:4px;gap:8px">
+        ${sectionHTML}
       </div>
-      ${grammarHTML}
 
-      ${suggHTML ? `<div class="divider"></div>
-      <div class="card-title mb-1">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--accent)"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="8"/></svg>
-        Line-by-Line Suggestions
-      </div>
-      ${suggHTML}` : ''}
+      <div class="card-title mb-2" style="font-size:13px"><i class="bi bi-code-square text-accent" style="margin-right:4px"></i>Detected Skills</div>
+      <div class="tag-row mb-3">${skillsHTML}</div>
 
-      <div class="divider"></div>
-      <div class="card-title mb-1">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--accent)"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-        Section Completeness (${result.sectionPct}%)
-      </div>
-      ${sectionHTML}
+      <div class="card-title mb-2" style="font-size:13px"><i class="bi bi-lightning-fill text-accent" style="margin-right:4px"></i>Action Verbs</div>
+      <div class="tag-row mb-3">${verbsHTML}</div>
 
-      <div class="divider"></div>
-      <div class="card-title mb-1">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--accent)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        Skills Detected
-      </div>
-      <div class="tag-row">${skillsHTML}</div>
+      <div class="card-title mb-2" style="font-size:13px"><i class="bi bi-spellcheck text-accent" style="margin-right:4px"></i>Grammar & Readability</div>
+      <div class="mb-3">${grammarHTML}</div>
 
-      <div class="divider"></div>
-      <div class="card-title mb-1">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--accent)"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-        Action Verbs
-      </div>
-      <div class="tag-row">${verbsHTML}</div>
-
-      <div class="divider"></div>
-      <div class="card-title mb-1">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--accent)"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-        Quantified Results
-      </div>
-      <div class="tag-row">${quantHTML}</div>
-
-      <div class="divider"></div>
-      <div class="card-title mb-1">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--accent)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        Recommendations (${result.recommendations.length})
-      </div>
-      ${recsHTML}
+      <div class="card-title mb-2" style="font-size:13px"><i class="bi bi-stars text-accent" style="margin-right:4px"></i>Actionable Recommendations</div>
+      <div>${recsHTML}</div>
     `;
   }
 };

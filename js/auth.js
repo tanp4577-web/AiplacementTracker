@@ -27,7 +27,14 @@ const Auth = {
     }
 
     // Show date
-    document.getElementById('dateBadge').textContent = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    const dateText = document.getElementById('dateText');
+    const formattedDate = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (dateText) {
+      dateText.textContent = formattedDate;
+    } else {
+      const badge = document.getElementById('dateBadge');
+      if (badge) badge.textContent = formattedDate;
+    }
   },
 
   _bindEvents() {
@@ -65,7 +72,7 @@ const Auth = {
     this.tabSignup.classList.toggle('active', isSignup);
     this.nameField.classList.toggle('hidden', !isSignup);
     this.nameInput.required = isSignup;
-    this.title.textContent = isSignup ? 'Create Your Account' : 'Welcome to PlacementPrep';
+    this.title.textContent = isSignup ? 'Create Your Account' : 'Sign in to PlacementPrep';
     this.subtitle.textContent = isSignup ? 'Join to start tracking your placement journey' : 'Sign in to track your placement readiness';
     this.submitBtn.textContent = isSignup ? 'Create Account' : 'Sign In';
   },
@@ -142,16 +149,14 @@ const Auth = {
     const user = DB.getUser(email);
     if (!user) return;
     const initial = (user.name || email[0]).charAt(0).toUpperCase();
-    const firstName = (user.name || email.split('@')[0]).split(' ')[0];
+    const displayName = user.name ? user.name.split(' ')[0] : email.split('@')[0];
     this.authArea.innerHTML = `
-      <div class="auth-btn-group">
-        <div class="user-badge">
-          <div class="user-avatar">${this._escapeHtml(initial)}</div>
-          <span class="user-name">${this._escapeHtml(firstName)}</span>
-          <button class="user-logout" id="logoutBtn" title="Sign out" aria-label="Sign out">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          </button>
-        </div>
+      <div class="user-badge" id="userBadge">
+        <span class="user-avatar">${this._escapeHtml(initial)}</span>
+        <span class="user-name">${this._escapeHtml(displayName)}</span>
+        <button class="btn btn-ghost btn-sm user-logout" id="logoutBtn" title="Sign out" aria-label="Sign out">
+          <i class="bi bi-box-arrow-right"></i>
+        </button>
       </div>
     `;
     document.getElementById('logoutBtn').addEventListener('click', () => this._logout());

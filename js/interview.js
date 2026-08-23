@@ -268,17 +268,17 @@ const Interview = {
               3. AI listens, processes, replies conversationally<br>
               4. Session ends with a performance scorecard
             </div>
-            <div class="flex gap-1 mt-1" style="flex-wrap:wrap">
-              <span class="chip ${isSecure ? 'green' : 'orange'}">${isSecure ? '✓ Camera Ready' : '⚠ HTTPS needed for camera'}</span>
-              <span class="chip ${srSupported ? 'green' : 'red'}">${srSupported ? '✓ Voice Input Ready' : '✗ Voice unsupported'}</span>
-              <span class="chip blue">✓ Browser Voice Ready</span>
+            <div class="flex gap-2 mt-2" style="flex-wrap:wrap">
+              <span class="chip ${isSecure ? 'green' : 'orange'}"><i class="bi ${isSecure ? 'bi-camera-video-fill' : 'bi-exclamation-triangle-fill'}"></i> ${isSecure ? 'Camera Ready' : 'HTTPS required for camera'}</span>
+              <span class="chip ${srSupported ? 'green' : 'red'}"><i class="bi ${srSupported ? 'bi-mic-fill' : 'bi-mic-mute-fill'}"></i> ${srSupported ? 'Voice Input Ready' : 'Voice unsupported'}</span>
+              <span class="chip blue"><i class="bi bi-volume-up-fill"></i> Audio Synthesis Ready</span>
             </div>
           </div>
 
           <!-- Controls -->
-          <div class="voice-controls mt-2">
-            <button class="btn btn-primary" id="startBtn">▶ Begin Interview</button>
-            <button class="btn btn-danger" id="endBtn" style="display:none">⏹ End Session</button>
+          <div class="voice-controls mt-3">
+            <button class="btn btn-primary" id="startBtn"><i class="bi bi-play-fill" style="margin-right:4px"></i>Begin Interview</button>
+            <button class="btn btn-danger" id="endBtn" style="display:none"><i class="bi bi-stop-fill" style="margin-right:4px"></i>End Session</button>
             <button class="voice-btn active" id="speakerToggleBtn" style="display:none">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
@@ -421,7 +421,7 @@ const Interview = {
             micToggle.classList.toggle('active', this.state.micEnabled);
             micToggle.classList.toggle('off', !this.state.micEnabled);
             const hint = document.getElementById('micHint');
-            if (hint) hint.textContent = this.state.micEnabled ? '🎤 Mic active' : '🎤 Mic muted';
+            if (hint) hint.innerHTML = this.state.micEnabled ? '<i class="bi bi-mic-fill text-success"></i> Mic active' : '<i class="bi bi-mic-mute-fill text-danger"></i> Mic muted';
             if (this.state.micEnabled) {
               this._startListening();
             } else {
@@ -599,7 +599,7 @@ const Interview = {
     this.state._inAIReply = false;
 
     const hint = document.getElementById('micHint');
-    if (hint) hint.textContent = '🎤 Listening… speak now (release to send)';
+    if (hint) hint.innerHTML = '<i class="bi bi-mic-fill text-success"></i> Listening… speak now (release to send)';
 
     this._ensureContinuousSpeechRecognition();
   },
@@ -692,7 +692,7 @@ const Interview = {
       if (statusText) statusText.textContent = 'Speaking...';
       if (wave) wave.classList.add('active');
     } else if (state === 'listening') {
-      if (statusText) statusText.textContent = '🎤 Listening...';
+      if (statusText) statusText.innerHTML = '<i class="bi bi-mic-fill text-success"></i> Listening...';
       if (wave) wave.classList.remove('active');
     } else {
       if (statusText) statusText.textContent = 'Ready';
@@ -722,22 +722,22 @@ const Interview = {
     const clarity = turns >= 5 ? 'Strong' : turns >= 3 ? 'Moderate' : 'Needs improvement';
     const pace = avgWpm > 100 ? 'Good pace' : avgWpm > 60 ? 'Steady pace' : 'Try to elaborate more';
 
-    const grade = communicationScore >= 80 ? '🏆 Excellent' : communicationScore >= 60 ? '👍 Good' : communicationScore >= 40 ? '📈 Developing' : '🌱 Keep Practicing';
+    const grade = communicationScore >= 80 ? 'Excellent' : communicationScore >= 60 ? 'Good' : communicationScore >= 40 ? 'Developing' : 'Keep Practicing';
 
     // Feedback items
     const feedback = [];
-    if (turns < 4) feedback.push({ icon: '💬', text: 'Give more complete answers — aim to speak for at least 30–60 seconds per response.' });
-    if (avgWpm < 80) feedback.push({ icon: '🗣', text: 'Try to elaborate more. Use the STAR method: Situation, Task, Action, Result.' });
-    if (avgWpm > 160) feedback.push({ icon: '🐢', text: 'Slow down a bit — speaking slightly slower improves clarity and confidence.' });
-    if (turns >= 5) feedback.push({ icon: '✅', text: 'Great engagement! You answered all questions throughout the session.' });
-    if (totalWords > 200) feedback.push({ icon: '📝', text: 'Good vocabulary depth. Keep using concrete examples with numbers and outcomes.' });
-    feedback.push({ icon: '🎯', text: `Focused on: ${this.state.jobRole}. Practice role-specific questions regularly.` });
-    if (feedback.length < 3) feedback.push({ icon: '🔁', text: 'Repeat mock interviews weekly — consistency is what builds interview confidence.' });
+    if (turns < 4) feedback.push({ icon: '<i class="bi bi-chat-left-dots"></i>', text: 'Give more complete answers — aim to speak for at least 30–60 seconds per response.' });
+    if (avgWpm < 80) feedback.push({ icon: '<i class="bi bi-mic"></i>', text: 'Try to elaborate more. Use the STAR method: Situation, Task, Action, Result.' });
+    if (avgWpm > 160) feedback.push({ icon: '<i class="bi bi-speedometer2"></i>', text: 'Slow down a bit — speaking slightly slower improves clarity and confidence.' });
+    if (turns >= 5) feedback.push({ icon: '<i class="bi bi-check-circle"></i>', text: 'Great engagement! You answered all questions throughout the session.' });
+    if (totalWords > 200) feedback.push({ icon: '<i class="bi bi-file-text"></i>', text: 'Good vocabulary depth. Keep using concrete examples with numbers and outcomes.' });
+    feedback.push({ icon: '<i class="bi bi-bullseye"></i>', text: `Focused on: ${this.state.jobRole}. Practice role-specific questions regularly.` });
+    if (feedback.length < 3) feedback.push({ icon: '<i class="bi bi-arrow-repeat"></i>', text: 'Repeat mock interviews weekly — consistency is what builds interview confidence.' });
 
     // Transcript for report
     const transcriptItems = this.state.history.slice(-10).map(h => `
       <div class="transcript-msg ${h.role === 'ai' ? 'ai' : 'user'}" style="max-width:100%;margin-bottom:8px">
-        <div class="transcript-label">${h.role === 'ai' ? '🤖 PrepAI Interviewer' : '👤 You'}</div>
+        <div class="transcript-label">${h.role === 'ai' ? 'PrepAI Interviewer' : 'You'}</div>
         <div class="transcript-text" style="font-size:12.5px">${h.text}</div>
       </div>
     `).join('');

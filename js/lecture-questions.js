@@ -54,11 +54,11 @@ const LectureQuestions = {
                   <div>
                     <b style="font-size:14px">${i + 1}. ${q.question}</b>
                     <div class="tag-row" style="margin-top:8px">
-                      <span class="chip blue">⏱ ${q.timestamp}</span>
+                      <span class="chip blue"><i class="bi bi-clock"></i> ${q.timestamp}</span>
                       <span class="chip purple">C++</span>
                     </div>
                   </div>
-                  <span class="chip green">Open →</span>
+                  <span class="chip green">Open <i class="bi bi-arrow-right"></i></span>
                 </div>
               </div>
             `).join('') || '<div class="empty-state"><h3>No questions</h3><p>No questions for this subject yet.</p></div>'}
@@ -108,7 +108,7 @@ const LectureQuestions = {
 
     this.container.innerHTML = `
       <div class="mb-2 flex-between" style="flex-wrap:wrap;gap:10px">
-        <button class="btn btn-ghost btn-sm" id="lqBack"><- Back to Questions</button>
+        <button class="btn btn-ghost btn-sm" id="lqBack"><i class="bi bi-arrow-left"></i> Back to Questions</button>
         <span class="chip blue">${sub.label}</span>
       </div>
 
@@ -119,7 +119,7 @@ const LectureQuestions = {
             <div class="card-sub">Lecture timestamp: <b style="color:var(--accent)">${q.timestamp}</b></div>
           </div>
           <a class="btn btn-outline btn-sm" href="https://www.youtube.com/${this._findYoutubeRef()}?t=${q.timestampSec}" target="_blank" rel="noopener">
-            ▶ Watch at ${q.timestamp}
+            <i class="bi bi-play-circle" style="margin-right:4px"></i>Watch at ${q.timestamp}
           </a>
         </div>
 
@@ -132,7 +132,7 @@ const LectureQuestions = {
         </div>
 
         <div class="flex gap-2 mt-2">
-          <button class="btn btn-primary" id="lqRunBtn">▶ Run C++</button>
+          <button class="btn btn-primary" id="lqRunBtn"><i class="bi bi-play-fill" style="margin-right:4px"></i>Run C++</button>
           <button class="btn btn-ghost" id="lqResetBtn">Reset</button>
         </div>
       </div>
@@ -155,7 +155,7 @@ const LectureQuestions = {
           <div class="card-sub">Live compilation & execution result</div>
           <div id="lqRunOutput">
             <div class="empty-state">
-              <div class="es-icon">⚙</div>
+              <div class="es-icon"><i class="bi bi-gear" style="font-size:26px"></i></div>
               <h3>Run the code to see output</h3>
               <p>Click "Run C++" to compile the snippet</p>
             </div>
@@ -203,9 +203,9 @@ const LectureQuestions = {
     });
     const fb = document.getElementById('lqAnswerFeedback');
     if (idx === q.answerIndex) {
-      fb.innerHTML = `<div class="explanation" style="border-color:rgba(63,174,111,0.4);background:rgba(63,174,111,0.1)"><b style="color:var(--success)">✓ Correct!</b> ${q.explanation}</div>`;
+      fb.innerHTML = `<div class="explanation" style="border-color:rgba(63,174,111,0.4);background:rgba(63,174,111,0.1)"><b style="color:var(--success)"><i class="bi bi-check-circle-fill"></i> Correct!</b> ${q.explanation}</div>`;
     } else {
-      fb.innerHTML = `<div class="explanation" style="border-color:rgba(209,72,63,0.4);background:rgba(209,72,63,0.1)"><b style="color:var(--danger)">✗ Not quite.</b> ${q.explanation}</div>`;
+      fb.innerHTML = `<div class="explanation" style="border-color:rgba(209,72,63,0.4);background:rgba(209,72,63,0.1)"><b style="color:var(--danger)"><i class="bi bi-x-circle-fill"></i> Not quite.</b> ${q.explanation}</div>`;
     }
   },
 
@@ -241,7 +241,7 @@ const LectureQuestions = {
       // Fallback: show expected output if we can't reach the compiler.
       out.innerHTML = `
         <div class="card test-case" style="background:rgba(230,162,60,0.08);border-color:rgba(230,162,60,0.4)">
-          <div class="test-title"><span>⚠ Offline mode</span><span class="text-warning">Network unavailable</span></div>
+          <div class="test-title"><span><i class="bi bi-exclamation-triangle"></i> Offline mode</span><span class="text-warning">Network unavailable</span></div>
           <div class="test-io">
             <div style="color:var(--text)">Could not reach the online C++ compiler (${e.message}).</div>
             <div style="margin-top:4px">Expected output: <code style="color:var(--success)">${this.state.active.expectedOutput}</code></div>
