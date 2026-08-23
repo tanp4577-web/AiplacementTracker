@@ -1,5 +1,25 @@
 /* ============ Online Question Fetcher ============ */
 const API = {
+  /* ---------- Generate subject-specific aptitude questions ---------- */
+  async generateAptitudeQuestions(amount = 10, category = 'mixed', difficulty = 'medium') {
+    try {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 20000);
+      const res = await fetch('/api/aptitude', {
+        method: 'POST',
+        signal: ctrl.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, category, difficulty })
+      });
+      clearTimeout(timeout);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data.questions) ? data.questions : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
   /* ---------- Fetch Aptitude Questions from OpenTriviaDB ---------- */
   async fetchAptitudeQuestions(amount = 10, category = 18) {
     // categories: 18=CompSci, 9=General, 17=Science, 19=Maths

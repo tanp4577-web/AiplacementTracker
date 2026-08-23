@@ -105,28 +105,37 @@ const Aptitude = {
     this.container.innerHTML = `
       <div class="loading-screen">
         <div class="spinner"></div>
-        <p>Fetching fresh questions from online bank...</p>
+        <p>Generating subject-specific questions...</p>
       </div>
     `;
 
-    let questions = null;
-    // Fetch online first
-    if (category === 'mixed') {
+    // Generate subject-specific questions through the server-side AI API first.
+    let questions = await API.generateAptitudeQuestions(count, category, difficulty);
+
+    // Keep the public question bank as a subject-aware fallback.
+    if (!questions || questions.length < count) questions = null;
+    if (!questions && category === 'mixed') {
       // Fetch a mix
       const cats = ['18', '9', '19'];
       const per = Math.ceil(count / cats.length);
       const results = await Promise.all(cats.map(c => API.fetchAptitudeQuestions(per, c)));
       const valid = results.filter(r => r && r.length);
       questions = valid.flat().slice(0, count);
-    } else {
+    } else if (!questions) {
       questions = await API.fetchAptitudeQuestions(count, category);
     }
 
     if (!questions || questions.length === 0) {
-      // Fallback: merge the offline bank + lightweight fallback pool
-      const offlineBank = this._offlineQuestionBank();
+      // Use only a matching local bank as the final fallback.
+      const offlineBank = this._offlineQuestionBank(category);
       questions = this._shuffle(offlineBank).slice(0, count);
-      App.showToast('Online fetch failed — using offline questions', 'info');
+      if (questions.length) {
+        App.showToast('Online generation failed — using matching offline questions', 'info');
+      } else {
+        App.showToast('Could not load questions for this subject. Please try again.', 'error');
+        this._renderSetup();
+        return;
+      }
     } else {
       App.showToast('Fresh questions loaded from online bank', 'success');
     }
@@ -322,11 +331,12 @@ const Aptitude = {
     document.getElementById('backBtn').addEventListener('click', () => this._renderResults());
   },
 
-  _offlineQuestionBank() {
+  _offlineQuestionBank(category = 'mixed') {
     const bank = [];
-    // Rich offline bank: quantitative / logical / verbal
+    const allowedCategories = category === '19' ? ['quantitative'] : category === 'mixed' ? null : [];
     if (typeof APTITUDE_QUESTIONS !== 'undefined') {
-      Object.values(APTITUDE_QUESTIONS).forEach(cat => {
+      Object.entries(APTITUDE_QUESTIONS).forEach(([name, cat]) => {
+        if (allowedCategories && !allowedCategories.includes(name)) return;
         (cat || []).forEach(q => {
           bank.push({
             category: q.category || 'General',
@@ -338,17 +348,13 @@ const Aptitude = {
         });
       });
     }
-    // Lightweight fallback pool (added second so bank questions take priority)
-    if (typeof FALLBACK_APTITUDE !== 'undefined') {
+    // The generic pool is safe only for mixed or quantitative quizzes.
+    if (allowedCategories === null || allowedCategories.includes('quantitative')) {
+      if (typeof FALLBACK_APTITUDE !== 'undefined') {
       bank.push(...FALLBACK_APTITUDE);
+      }
     }
-    return bank.length ? bank : [{
-      category: 'General',
-      question: 'What is 15% of 240?',
-      options: ['30', '34', '36', '40'],
-      correct: 2,
-      explanation: '15% of 240 = 240 × 0.15 = 36.'
-    }];
+    return bank;
   },
 
   _shuffle(arr) {

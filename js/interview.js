@@ -471,7 +471,11 @@ const Interview = {
       const res = await fetch('/api/interview-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ history: this.state.history, answer: text }),
+        body: JSON.stringify({
+          history: this.state.history,
+          answer: text,
+          role: roleDesc
+        }),
         signal: ctrl.signal
       });
       clearTimeout(t);

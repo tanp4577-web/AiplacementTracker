@@ -10,8 +10,9 @@ Output strictly in JSON format with keys:
 'score': integer 1-10,
 'spoken_response': 'what you will say to the candidate'`;
 
-function buildMessages(history, answer) {
-  const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+function buildMessages(history, answer, targetRole) {
+  const roleContext = targetRole ? `\nThe candidate is interviewing for: ${targetRole}.` : '';
+  const messages = [{ role: 'system', content: SYSTEM_PROMPT + roleContext }];
   if (Array.isArray(history)) {
     history.forEach(item => {
       const content = item && (item.content || item.text);
@@ -45,9 +46,10 @@ export default async function handler(req, res) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     const history = Array.isArray(body.history) ? body.history : [];
     const answer = typeof body.answer === 'string' ? body.answer.trim() : '';
+    const targetRole = typeof body.role === 'string' ? body.role.trim() : '';
     const groq = new Groq({ apiKey });
     const completion = await groq.chat.completions.create({
-      messages: buildMessages(history, answer),
+      messages: buildMessages(history, answer, targetRole),
       model: 'llama-3.1-8b-instant',
       response_format: { type: 'json_object' }
     });

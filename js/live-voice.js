@@ -135,7 +135,11 @@ const LiveAI = {
       const llmResponse = await fetch('/api/interview-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ history, answer: sttData.text.trim() })
+        body: JSON.stringify({
+          history,
+          answer: sttData.text.trim(),
+          role: opts.role || ''
+        })
       });
       const llmData = await llmResponse.json();
       if (!llmResponse.ok || !llmData.spoken_response) {
@@ -246,15 +250,11 @@ const LiveAI = {
   /* ----------------------------- Text to speech ---------------------------- */
   async speakResponse(text, opts = {}) {
     try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 2500); // Strict 2.5s timeout for network TTS to prevent lag
       const response = await fetch(window.EDGE_TTS_URL || '/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, voice: opts.voice || 'en-US-AriaNeural' }),
-        signal: ctrl.signal
+        body: JSON.stringify({ text, voice: opts.voice || 'en-US-AriaNeural' })
       });
-      clearTimeout(t);
       if (response.ok) {
         const audioBuffer = await response.arrayBuffer();
         const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
