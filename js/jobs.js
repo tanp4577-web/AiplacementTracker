@@ -17,8 +17,8 @@ const Jobs = {
       <div class="card mb-2">
         <div class="flex-between" style="gap:16px;flex-wrap:wrap">
           <div>
-            <div class="card-title">Hiring Hub</div>
-            <div class="card-sub">Find roles, check your resume fit, and practice the gaps.</div>
+            <div class="card-title"><i class="bi bi-briefcase text-accent" style="margin-right:4px"></i>Hiring Hub</div>
+            <div class="card-sub">Find active student roles, check your resume fit, and practice target gaps.</div>
           </div>
           <div class="flex gap-1" role="group" aria-label="Opportunity scope">
             <button class="btn ${this.state.scope === 'national' ? 'btn-primary' : 'btn-ghost'}" id="nationalJobsBtn">National</button>
@@ -26,8 +26,8 @@ const Jobs = {
           </div>
         </div>
         <div class="flex-between mt-2" style="gap:12px;flex-wrap:wrap">
-          <span class="chip ${this.state.location ? 'green' : 'orange'}">${this.state.location ? `Near ${this.state.locationLabel}` : 'Regional location not set'}</span>
-          <button class="btn btn-ghost btn-sm" id="locateJobsBtn">Use my location</button>
+          <span class="chip ${this.state.location ? 'green' : 'orange'}"><i class="bi bi-geo-alt-fill"></i> ${this.state.location ? `Near ${this.state.locationLabel}` : 'Regional location not set'}</span>
+          <button class="btn btn-ghost btn-sm" id="locateJobsBtn"><i class="bi bi-crosshair" style="margin-right:4px"></i>Use my location</button>
         </div>
       </div>
       <div class="grid grid-2" id="jobsGrid">

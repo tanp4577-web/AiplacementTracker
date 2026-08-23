@@ -95,8 +95,8 @@ render(container) {
     this.container.innerHTML = `
       <div class="grid grid-2">
         <div class="card">
-<div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--accent)"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> Coding Practice</div>
-          <div class="card-sub">LeetCode + HackerRank style challenges with instant test verification</div>
+          <div class="card-title"><i class="bi bi-code-slash text-accent" style="font-size:16px"></i> Coding Practice</div>
+          <div class="card-sub">LeetCode & HackerRank technical problems with instant test suite</div>
 
           <div class="filter-bar">
             <select id="difficultyFilter">
@@ -121,7 +121,7 @@ render(container) {
               ${[5, 10, 20, 50].map(c => `<option value="${c}" ${f.count == c ? 'selected' : ''}>${c} questions</option>`).join('')}
             </select>
             <button class="btn btn-primary btn-sm" id="startSessionBtn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <i class="bi bi-lightning-charge-fill" style="margin-right:4px"></i>
               Generate ${f.count}Q Session
             </button>
           </div>
@@ -269,7 +269,7 @@ _lookupCppQuestion(id) {
 
     this.container.innerHTML = `
       <div class="mb-2 flex-between" style="flex-wrap:wrap;gap:10px">
-        <button class="btn btn-ghost btn-sm" id="backBtn"><- ${inSession ? 'Session' : 'Back to List'}</button>
+        <button class="btn btn-ghost btn-sm" id="backBtn"><i class="bi bi-arrow-left"></i> ${inSession ? 'Session' : 'Back to Problems'}</button>
         ${inSession ? `<div class="flex gap-1 items-center"><span class="chip blue">Session ${sessionPos + 1}/${sessionTotal}</span></div>` : ''}
       </div>
       ${inSession ? `<div class="progress mb-2"><div class="progress-fill" style="width:${((sessionPos + 1) / sessionTotal) * 100}%"></div></div>` : ''}
@@ -300,18 +300,18 @@ _lookupCppQuestion(id) {
             <textarea class="code-input" id="codeEditor" spellcheck="false">${q.starterCode}</textarea>
           </div>
           <div class="text-dim" id="cppNote" style="display:none;font-size:12px;margin-top:6px">
-            <b style="color:var(--accent)">C++ mode:</b> run via the Wandbox GCC compiler (needs internet). Offline fallback shows expected output.
+            <b style="color:var(--accent)">C++ mode:</b> run via Wandbox GCC compiler (online).
           </div>
           <div class="flex gap-2 mt-2">
-            <button class="btn btn-primary" id="runBtn"> Run Tests</button>
-            <button class="btn btn-ghost" id="resetCodeBtn"> Reset</button>
-            <button class="btn btn-outline" id="solutionBtn"> Show Solution</button>
+            <button class="btn btn-primary" id="runBtn"><i class="bi bi-play-fill" style="margin-right:4px"></i>Run Tests</button>
+            <button class="btn btn-ghost" id="resetCodeBtn"><i class="bi bi-arrow-counterclockwise" style="margin-right:4px"></i>Reset</button>
+            <button class="btn btn-outline" id="solutionBtn"><i class="bi bi-lightbulb" style="margin-right:4px"></i>Show Solution</button>
           </div>
-          ${inSession ? `<div class="flex gap-2 mt-2"><button class="btn btn-success btn-block" id="nextBtn" style="display:none">Next Question -></button></div>` : ''}
+          ${inSession ? `<div class="flex gap-2 mt-2"><button class="btn btn-success btn-block" id="nextBtn" style="display:none">Next Question <i class="bi bi-arrow-right"></i></button></div>` : ''}
         </div>
         <div class="card">
-<div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--accent)"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Test Results</div>
-          <div class="card-sub">Your code is verified against hidden test cases</div>
+          <div class="card-title"><i class="bi bi-check2-all text-accent" style="font-size:16px"></i> Test Results</div>
+          <div class="card-sub">Automated verification against hidden test cases</div>
           <div id="solutionPanel" style="display:none">
             <div class="explanation mb-2" style="border-color:rgba(230,162,60,0.35)">
               <b style="color:var(--accent)">Approach & Solution</b>

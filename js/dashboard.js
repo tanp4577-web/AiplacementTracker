@@ -8,7 +8,7 @@ const Dashboard = {
       container.innerHTML = `
         <div class="card text-center" style="padding:60px 24px">
           <div style="font-size:44px;margin-bottom:14px;color:var(--accent)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:52px;height:52px;margin:0 auto"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+            <i class="bi bi-person-lock" style="font-size:48px"></i>
           </div>
           <h3 style="font-size:20px;margin-bottom:8px">Sign in to view your dashboard</h3>
           <p class="text-dim" style="max-width:440px;margin:0 auto">Create an account or sign in to track your placement readiness, analyze skill gaps, and view study streaks.</p>
@@ -42,10 +42,15 @@ const Dashboard = {
           <div class="hero-msg">
             <h3>${this._readinessMessage(readiness)}</h3>
             <p>Your overall placement readiness is calculated from resume quality, aptitude accuracy, coding progress, interview practice, and skill gap coverage.</p>
+            <div class="flex gap-2 mt-3 flex-wrap items-center">
+              <span class="chip blue"><i class="bi bi-fire"></i> ${this._daysActive(prog)} day streak</span>
+              <span class="chip green"><i class="bi bi-patch-check"></i> ${prog.aptitude.completed || 0} quizzes taken</span>
+              <span class="chip purple"><i class="bi bi-code"></i> ${prog.coding.solved ? prog.coding.solved.length : 0} problems solved</span>
+            </div>
             <div class="flex gap-2 mt-3 flex-wrap">
-              <span class="chip blue">${this._daysActive(prog)} day streak</span>
-              <span class="chip green">${prog.aptitude.completed || 0} quizzes taken</span>
-              <span class="chip purple">${prog.coding.solved ? prog.coding.solved.length : 0} problems solved</span>
+              <a href="#coding" class="btn btn-primary btn-sm"><i class="bi bi-code-slash" style="margin-right:4px"></i>Practice Coding</a>
+              <a href="#interview" class="btn btn-outline btn-sm"><i class="bi bi-camera-video" style="margin-right:4px"></i>Mock Interview</a>
+              <a href="#resume" class="btn btn-ghost btn-sm"><i class="bi bi-file-earmark-person" style="margin-right:4px"></i>Analyze Resume</a>
             </div>
           </div>
         </div>
@@ -72,12 +77,12 @@ const Dashboard = {
 
       <div class="grid grid-2 mb-3">
         <div class="card">
-          <div class="card-title">Aptitude Performance</div>
+          <div class="card-title"><i class="bi bi-bar-chart-line text-accent" style="margin-right:4px"></i>Aptitude Performance</div>
           <div class="card-sub">Recent quiz accuracy trends across attempts</div>
           <canvas class="bar-canvas" id="aptBarCanvas"></canvas>
         </div>
         <div class="card">
-          <div class="card-title">Skill Radar</div>
+          <div class="card-title"><i class="bi bi-diagram-3 text-accent" style="margin-right:4px"></i>Skill Radar</div>
           <div class="card-sub">Your profile skills versus target role requirements</div>
           <canvas class="radar-canvas" id="radarCanvas"></canvas>
         </div>
@@ -85,12 +90,12 @@ const Dashboard = {
 
       <div class="grid grid-2">
         <div class="card">
-          <div class="card-title">Recent Study Activity</div>
+          <div class="card-title"><i class="bi bi-calendar2-check text-accent" style="margin-right:4px"></i>Recent Study Activity</div>
           <div class="card-sub">Last 26 days of practice sessions</div>
           ${this._renderHeatmap(prog)}
         </div>
         <div class="card">
-          <div class="card-title">Interview Topics Covered</div>
+          <div class="card-title"><i class="bi bi-chat-left-quote text-accent" style="margin-right:4px"></i>Interview Topics Covered</div>
           <div class="card-sub">HR simulator questions & competency areas practiced</div>
           ${this._renderTopics(prog)}
         </div>

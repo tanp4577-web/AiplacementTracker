@@ -26,45 +26,45 @@ const Aptitude = {
       <div class="grid grid-2">
         <div class="card">
           <div class="card-title">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--accent)"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v.3h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/></svg>
+            <i class="bi bi-patch-question text-accent" style="font-size:16px"></i>
             Aptitude Quiz Generator
           </div>
-          <div class="card-sub">Questions fetched live from OpenTriviaDB — always fresh, adaptive difficulty</div>
+          <div class="card-sub">Dynamic aptitude tests with quantitative, logical, and technical questions</div>
           <label class="field-label">Category</label>
           <select id="quizCategory">
-            <option value="mixed">Mixed (all topics)</option>
-            <option value="18">Computer Science</option>
-            <option value="9">General Knowledge</option>
-            <option value="19">Mathematics</option>
-            <option value="17">Science</option>
+            <option value="mixed">Mixed (All Categories)</option>
+            <option value="18">Computer Science & Tech</option>
+            <option value="19">Quantitative & Mathematics</option>
+            <option value="9">General Aptitude & Logical</option>
+            <option value="17">Science & Engineering</option>
           </select>
           <label class="field-label mt-2">Number of Questions</label>
           <select id="quizCount">
-            <option value="5">5 (Quick)</option>
-            <option value="10" selected>10 (Standard)</option>
-            <option value="15">15 (Deep)</option>
+            <option value="5">5 Questions (Quick Check)</option>
+            <option value="10" selected>10 Questions (Standard Test)</option>
+            <option value="15">15 Questions (Full Mock)</option>
           </select>
           <label class="field-label mt-2">Difficulty</label>
           <select id="quizDifficulty">
-            <option value="easy">Easy</option>
-            <option value="medium" selected>Medium</option>
-            <option value="hard">Hard</option>
+            <option value="easy">Easy (Fundamentals)</option>
+            <option value="medium" selected>Medium (Standard Campus)</option>
+            <option value="hard">Hard (Advanced)</option>
           </select>
           <button class="btn btn-primary btn-block mt-3" id="startQuizBtn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-2px;margin-right:6px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            Generate Quiz
+            <i class="bi bi-lightning-charge-fill" style="margin-right:4px"></i>
+            Start Aptitude Quiz
           </button>
           <p class="text-dim mt-2" style="font-size:12px">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            Needs internet for fresh questions. Falls back to offline bank if unavailable.
+            <i class="bi bi-shield-check text-accent" style="margin-right:4px"></i>
+            Real-time evaluation with detailed explanations for every question.
           </p>
         </div>
         <div class="card">
           <div class="card-title">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--accent)"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="8"/></svg>
-            Your Previous Performance
+            <i class="bi bi-graph-up text-accent" style="font-size:16px"></i>
+            Performance History
           </div>
-          <div class="card-sub">Aptitude history across all sessions</div>
+          <div class="card-sub">Accuracy metrics and past attempts</div>
           ${this._renderStats(prevStats)}
         </div>
       </div>
@@ -189,8 +189,8 @@ const Aptitude = {
         </div>
         <div id="feedback"></div>
         <div class="flex-between mt-3">
-          <button class="btn btn-ghost" id="prevBtn" ${this.state.index === 0 ? 'disabled' : ''}><- Prev</button>
-          <button class="btn btn-primary" id="nextBtn">${this.state.index === total - 1 ? 'Finish Quiz' : 'Next ->'}</button>
+          <button class="btn btn-ghost" id="prevBtn" ${this.state.index === 0 ? 'disabled' : ''}><i class="bi bi-arrow-left"></i> Previous</button>
+          <button class="btn btn-primary" id="nextBtn">${this.state.index === total - 1 ? 'Finish Quiz' : 'Next <i class="bi bi-arrow-right"></i>'}</button>
         </div>
       </div>
     `;
@@ -277,26 +277,25 @@ const Aptitude = {
       App.refreshAll();
     }
 
-    const resultSvg = pct >= 60
-      ? '<svg viewBox="0 0 24 24" fill="none" stroke="#c98a2c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:56px;height:56px"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3"/></svg>'
+    const resultIcon = pct >= 60
+      ? '<i class="bi bi-trophy-fill text-warning" style="font-size:48px"></i>'
       : pct >= 40
-        ? '<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:56px;height:56px"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v.3h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/></svg>'
-        : '<svg viewBox="0 0 24 24" fill="none" stroke="#ef9891" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:56px;height:56px"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z"/><path d="M20 17v5"/></svg>';
+        ? '<i class="bi bi-check-circle-fill text-accent" style="font-size:48px"></i>'
+        : '<i class="bi bi-arrow-clockwise text-dim" style="font-size:48px"></i>';
 
     this.container.innerHTML = `
-      <div class="card text-center" style="padding:40px">
-        <div style="font-size:56px;margin-bottom:12px">${resultSvg}</div>
-        <h2 style="font-size:26px;margin-bottom:6px">Quiz Complete!</h2>
-        <div class="card-stat" style="font-size:44px">${score}/${total}</div>
-        <div class="text-dim mb-2">Score: ${pct}%</div>
-        <div class="progress mb-3" style="max-width:300px;margin:0 auto">
-          <div class="progress-fill" style="width:${pct}%"></div>
+      <div class="card text-center" style="padding:40px;max-width:540px;margin:0 auto">
+        <div style="margin-bottom:12px">${resultIcon}</div>
+        <h2 style="font-size:22px;margin-bottom:6px">Quiz Complete!</h2>
+        <div class="card-stat" style="font-size:36px;font-family:var(--font-mono)">${score} / ${total}</div>
+        <div class="text-dim mb-2">Accuracy: <b>${pct}%</b></div>
+        <div class="progress mb-3" style="max-width:280px;margin:0 auto;height:6px">
+          <div class="progress-fill ${pct >= 60 ? 'green' : pct >= 40 ? 'orange' : 'red'}" style="width:${pct}%"></div>
         </div>
-        <p class="mb-3" style="font-size:14.5px">${msg}</p>
-        <div class="chip blue mb-3">Accuracy: ${pct}%</div>
+        <p class="mb-3" style="font-size:13px;line-height:1.5">${msg}</p>
         <div class="flex gap-2" style="justify-content:center">
-          <button class="btn btn-primary" id="retakeBtn"> Retake Quiz</button>
-          <button class="btn btn-ghost" id="reviewBtn"> Review Answers</button>
+          <button class="btn btn-primary" id="retakeBtn"><i class="bi bi-arrow-clockwise" style="margin-right:4px"></i>Retake Quiz</button>
+          <button class="btn btn-ghost" id="reviewBtn"><i class="bi bi-card-checklist" style="margin-right:4px"></i>Review Answers</button>
         </div>
       </div>
     `;
@@ -321,9 +320,13 @@ const Aptitude = {
 
     this.container.innerHTML = `
       <div class="card mb-2">
-        <div class="card-title"> Answer Review</div>
-        <div class="card-sub">All questions with correct answers</div>
-        <button class="btn btn-ghost btn-sm" id="backBtn"><- Back to Results</button>
+        <div class="flex-between">
+          <div>
+            <div class="card-title"><i class="bi bi-card-checklist text-accent" style="margin-right:4px"></i>Answer Review</div>
+            <div class="card-sub">Detailed solutions and concept explanations</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="backBtn"><i class="bi bi-arrow-left"></i> Back to Results</button>
+        </div>
       </div>
       ${html}
     `;
