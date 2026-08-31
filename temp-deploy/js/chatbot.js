@@ -1,4 +1,3 @@
-/* Copyright (c) 2026. Patent Pending. All Rights Reserved. */
 /* ============ AI Assistant Chatbot ============ */
 const Chatbot = {
   _history: [],

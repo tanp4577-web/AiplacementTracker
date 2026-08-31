@@ -1,4 +1,3 @@
-/* Copyright (c) 2026. Patent Pending. All Rights Reserved. */
 /* ============================================================================
    Vercel Serverless Function — Live AI Chatbot (Google Gemini)
    ----------------------------------------------------------------------------
@@ -20,7 +19,7 @@
    LLM) is used automatically, so the bot is ALWAYS live.
    ========================================================================== */
 
-const DEFAULT_MODEL = 'gemini-2.0-flash';
+const DEFAULT_MODEL = 'gemini-3.6-flash';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 /* ============================================================================
@@ -98,13 +97,6 @@ function buildMessages({ messages, context }) {
   return collapsed;
 }
 
-/**
- * PATENT SPECIFICATION MECHANISM:
- * This handler controls the edge integration for low-latency conversational AI.
- * To achieve a physical technical effect (reducing server transaction times by 400ms+),
- * it directly converts the structured Web Speech transcript into a compressed JSON payload
- * and utilizes HTTP/2 chunking to Google Gemini or Pollinations, dropping HTTP parsing overhead.
- */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');

@@ -1,0 +1,11 @@
+.vercel
+.env*
+node_modules/
+
+# Temp verification artifacts
+verify_*.css
+dep_*.css
+check_*.css
+served_styles.css
+verify_hdr.txt
+*.log

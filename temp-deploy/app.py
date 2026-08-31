@@ -1,4 +1,3 @@
-# Copyright (c) 2026. Patent Pending. All Rights Reserved.
 """Live Interview Recording Collector (Flask)
 
 Receives the video+audio WebM recordings that the browser's LIVE AI

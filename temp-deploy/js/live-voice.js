@@ -60,12 +60,6 @@ const LiveAI = {
   },
 
   /* ----------------------- Recorded voice interaction ---------------------- */
-  /**
-   * PATENT SPECIFICATION MECHANISM: Low-Latency Audio Chunking
-   * By utilizing the native browser MediaRecorder bound to the 'opus' encoding codec,
-   * this module bypasses heavy computational audio transcoding, sending tiny chunks (250ms boundaries)
-   * immediately to the memory buffer. This physical hardware-software integration prevents DOM thread freezing.
-   */
   async startRecording(opts = {}) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
       return { ok: false, error: 'recording-unsupported' };
@@ -119,13 +113,6 @@ const LiveAI = {
     }
   },
 
-  /**
-   * PATENT SPECIFICATION MECHANISM: Asynchronous Event-Driven Interrupter
-   * This logic orchestrates the synchronization of three distinct hardware events: 
-   * (a) Microphone termination, (b) STT transcript conversion, and (c) GPU cluster LLM fetch. 
-   * It enforces deterministic state updates ('recording', 'transcribing', 'thinking', 'speaking')
-   * ensuring UI consistency regardless of variable API latencies. 
-   */
   async runRecordedInteraction(history = [], opts = {}) {
     const onState = opts.onState || (() => { });
     const onError = opts.onError || (() => { });

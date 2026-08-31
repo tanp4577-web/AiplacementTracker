@@ -297,7 +297,8 @@ const Interview = {
 
     document.getElementById('endBtn').addEventListener('click', () => {
       this._finalizeRecording().then(() => {
-        this._showReport();
+        this.cleanup();
+        this._renderReport();
       });
     });
 
