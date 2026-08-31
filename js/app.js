@@ -14,7 +14,7 @@ const App = {
       interview: { render: (c) => Interview.render(c), title: 'HR Simulator', subtitle: 'Practice with our AI interviewer' },
       jobs: { render: (c) => Jobs.render(c), title: 'Hiring Hub', subtitle: 'Find roles and check your resume fit' },
       skills: { render: (c) => Skills.render(c), title: 'Skill Gap Analysis', subtitle: 'Find what to learn next' },
-company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle: 'Top tech interview patterns' },
+      company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle: 'Top tech interview patterns' },
       youtube: { render: (c) => Youtube.render(c), title: 'YouTube Lectures', subtitle: 'Top-rated programming playlists from the best instructors' },
       lecturequestions: { render: (c) => LectureQuestions.render(c), title: 'Lecture Questions', subtitle: 'Timestamped subject practice with runnable C++ code' }
     };
@@ -28,6 +28,7 @@ company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle
     // Router
     window.addEventListener('hashchange', () => this._route());
     window.addEventListener('load', () => this._route());
+    this._route();
 
     // Nav link active tracking
     document.querySelectorAll('.nav-link').forEach(link => {
