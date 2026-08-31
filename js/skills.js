@@ -1,5 +1,5 @@
 /* ============================================================================
-   Skill Gap Analyzer  —  PlacementPrep
+   Skill Gap Analyzer  —  PlacementPrep (GitHub Primer UI)
    Compares candidate resume skills vs target role profiles.
    Highlights missing skills, recommends learning paths, maps gaps to YouTube
    lectures, and calculates an overall Readiness % that persists to localStorage.
@@ -41,12 +41,16 @@ const Skills = {
 
     this.container.innerHTML = `
       <!-- Banner -->
-      <div class="card sg-banner mb-2">
-        <div class="sg-banner-inner">
-          <div class="sg-banner-icon">🎯</div>
-          <div>
-            <div class="card-title" style="font-size:20px">Skill Gap Analyzer</div>
-            <div class="card-sub">Select a target role to discover exactly which skills you're missing and get a personalized learning roadmap.</div>
+      <div class="card sg-banner mb-3" style="background:var(--surface-2);border:1px solid var(--border);padding:18px">
+        <div class="flex-between items-center" style="flex-wrap:wrap;gap:12px">
+          <div class="flex items-center gap-3">
+            <div class="brand-logo" style="width:36px;height:36px;background:var(--surface);border:1px solid var(--border);border-radius:4px">
+              <i class="bi bi-bullseye text-accent" style="font-size:18px"></i>
+            </div>
+            <div>
+              <div class="card-title" style="font-size:16px">Skill Gap Analyzer</div>
+              <div class="card-sub" style="margin-bottom:0">Select a target engineering role to discover missing competencies and your roadmap.</div>
+            </div>
           </div>
           <div class="sg-readiness-pill" id="sgReadinessPill" style="display:none">
             <span id="sgReadinessPct">0%</span>
@@ -55,18 +59,18 @@ const Skills = {
         </div>
       </div>
 
-      <div class="grid grid-2" style="gap:20px">
+      <div class="grid grid-2" style="gap:20px;align-items:start">
 
         <!-- LEFT: Your Skills -->
         <div class="card">
           <div class="card-title">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--success)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <i class="bi bi-check2-circle text-success" style="font-size:16px"></i>
             Your Detected Skills
           </div>
           <div class="card-sub">
             ${allSkills.length
-        ? `${allSkills.length} skills detected — from resume scan + manual additions.`
-        : 'No skills detected yet. Analyze your resume first, or add skills manually below.'}
+        ? `${allSkills.length} skills detected from resume scans and manual entries.`
+        : 'No skills detected yet. Analyze your resume or add skills below.'}
           </div>
 
           ${allSkills.length > 0 ? `
@@ -77,38 +81,40 @@ const Skills = {
                 </span>`).join('')}
             </div>
           ` : `
-            <div class="empty-state" style="padding:24px">
-              <div class="es-icon" style="font-size:28px">📄</div>
-              <p style="font-size:13px">Visit the <b>Resume Analyzer</b> tab to scan your resume, or add skills below.</p>
+            <div class="empty-state" style="padding:24px;text-align:center">
+              <div style="color:var(--text-faint);margin-bottom:8px">
+                <i class="bi bi-file-earmark-code" style="font-size:28px"></i>
+              </div>
+              <p class="text-dim" style="font-size:12.5px">Visit the <b>Resume Analyzer</b> tab to scan your resume, or add skills manually below.</p>
             </div>
           `}
 
           <div class="divider"></div>
-          <div class="card-title" style="font-size:13px">Add Skills Manually</div>
-          <div class="flex gap-1 mt-1">
-            <input type="text" id="manualSkillInput" placeholder="e.g. React, Python, Docker..." style="flex:1" />
-            <button class="btn btn-ghost btn-sm" id="addManualSkillBtn">+ Add</button>
+          <div class="card-title" style="font-size:13px">Add Custom Skills</div>
+          <div class="flex gap-2 mt-2">
+            <input type="text" id="manualSkillInput" placeholder="e.g. React, Python, Docker, AWS..." style="flex:1" />
+            <button class="btn btn-primary btn-sm" id="addManualSkillBtn"><i class="bi bi-plus-lg"></i> Add</button>
           </div>
-          <div class="tag-row mt-1" id="manualSkillsRow">
+          <div class="tag-row mt-2" id="manualSkillsRow">
             ${this.state.manualSkills.map(s => `
               <span class="chip orange sg-manual-chip" data-skill="${s}">
                 ${s}
-                <button class="sg-remove-skill" data-skill="${s}" title="Remove">✕</button>
+                <button class="sg-remove-skill btn-ghost btn-sm" data-skill="${s}" title="Remove" style="padding:0 2px;margin-left:4px;border:none"><i class="bi bi-x"></i></button>
               </span>`).join('')}
           </div>
           ${allSkills.length === 0 ? '' : `
             <div class="divider"></div>
-            <button class="btn btn-ghost btn-sm" id="clearSkillsBtn" style="color:var(--danger)">🗑 Clear manual skills</button>
+            <button class="btn btn-ghost btn-sm" id="clearSkillsBtn" style="color:var(--danger)"><i class="bi bi-trash" style="margin-right:4px"></i>Clear manual skills</button>
           `}
         </div>
 
         <!-- RIGHT: Role Explorer -->
         <div class="card">
           <div class="card-title">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            <i class="bi bi-diagram-3 text-accent" style="font-size:16px"></i>
             Choose Target Role
           </div>
-          <div class="card-sub">Click a role to instantly analyze your gap</div>
+          <div class="card-sub">Select a role to analyze required competencies</div>
 
           <div class="sg-role-grid" id="sgRoleGrid">
             ${ROLE_NAMES.map(r => {
@@ -116,13 +122,15 @@ const Skills = {
           const match = this._computeMatchPct(allSkills, r);
           const color = match >= 70 ? 'var(--success)' : match >= 40 ? 'var(--warning)' : 'var(--danger)';
           return `
-                <div class="sg-role-card hoverable" data-role="${r}" tabindex="0" role="button" aria-label="Analyze role ${r}">
-                  <div class="sg-role-icon">${this._roleEmoji(r)}</div>
-                  <div class="sg-role-info">
-                    <div class="sg-role-name">${r}</div>
-                    <div class="sg-role-sub">${rd ? rd.skills.length : 0} core skills</div>
+                <div class="sg-role-card hoverable" data-role="${r}" tabindex="0" role="button" aria-label="Analyze role ${r}" style="background:var(--bg-2);border:1px solid var(--border);padding:12px;border-radius:4px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;cursor:pointer">
+                  <div class="flex items-center gap-2">
+                    <div class="sg-role-icon" style="color:var(--blue);font-size:16px">${this._roleIcon(r)}</div>
+                    <div>
+                      <div class="sg-role-name" style="font-weight:600;font-size:13px">${r}</div>
+                      <div class="sg-role-sub text-faint" style="font-size:11px">${rd ? rd.skills.length : 0} core skills</div>
+                    </div>
                   </div>
-                  <div class="sg-role-match" style="color:${color};background:${color}22;border-color:${color}55">
+                  <div class="sg-role-match" style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:${color}">
                     ${match}%
                   </div>
                 </div>`;
@@ -184,13 +192,13 @@ const Skills = {
       const roleData = ROLE_SKILLS[role];
       if (!roleData) return 0;
       const profileLower = allSkills.map(s => s.toLowerCase());
-      const poolKeys = ROLE_POOL_KEYS[role] || [];
+      const poolKeys = (typeof ROLE_POOL_KEYS !== 'undefined' && ROLE_POOL_KEYS[role]) ? ROLE_POOL_KEYS[role] : [];
       let matched = 0;
       const required = roleData.skills || [];
       required.forEach(skill => {
         const normalized = skill.name.toLowerCase();
         let match = profileLower.some(p => p.includes(normalized) || normalized.includes(p.split(' ')[0]));
-        if (!match) {
+        if (!match && typeof SKILL_POOL !== 'undefined') {
           for (const key of poolKeys) {
             const synonyms = SKILL_POOL[key] || [key];
             if (synonyms.some(k => profileLower.some(p => p.includes(k) || k.includes(p)))) {
@@ -220,10 +228,10 @@ const Skills = {
 
     const allSkills = this._mergeSkills(this.state.profileSkills, this.state.manualSkills);
     const roleData = ROLE_SKILLS[role];
-    const poolKeys = ROLE_POOL_KEYS[role] || [];
+    const poolKeys = (typeof ROLE_POOL_KEYS !== 'undefined' && ROLE_POOL_KEYS[role]) ? ROLE_POOL_KEYS[role] : [];
 
     if (!roleData) {
-      this.container.innerHTML = `<div class="empty-state"><h3>Role data not found</h3><button class="btn btn-ghost btn-sm" id="sgBackBtn">← Back</button></div>`;
+      this.container.innerHTML = `<div class="empty-state"><h3>Role data not found</h3><button class="btn btn-ghost btn-sm" id="sgBackBtn">Back</button></div>`;
       document.getElementById('sgBackBtn').addEventListener('click', () => this._renderSetup());
       return;
     }
@@ -235,10 +243,8 @@ const Skills = {
     const rows = required.map(skill => {
       const normalized = skill.name.toLowerCase();
       let match = false;
-      // Direct name match
       if (profileLower.some(p => p.includes(normalized) || normalized.includes(p.split(' ')[0]))) match = true;
-      // Pool synonym match
-      if (!match) {
+      if (!match && typeof SKILL_POOL !== 'undefined') {
         for (const key of poolKeys) {
           const synonyms = SKILL_POOL[key] || [key];
           if (synonyms.some(k => normalized.includes(k) || profileLower.some(p => p.includes(k)))) {
@@ -262,19 +268,17 @@ const Skills = {
       ? gaps.slice(0, 5).map((g, i) => ({
         step: i + 1,
         title: `Learn ${g.name}`,
-        desc: `Target proficiency: ${g.level}%. Start with fundamentals, then build a hands-on project.`,
+        desc: `Target proficiency: ${g.level}%. Focus on key fundamentals and practical implementation.`,
         ytLink: ytLinks[g.name.toLowerCase()] || null
       }))
-      : [{ step: 1, title: 'No critical gaps!', desc: 'You match all core skills for this role. Consider advanced topics or certifications.', ytLink: null }];
+      : [{ step: 1, title: 'No Critical Gaps Found', desc: 'You match all core skills for this role. Consider advanced domain architecture topics.', ytLink: null }];
 
     // Persist readiness to DB
-    const readinessPct = matchPct;
     try {
       const email = (typeof Auth !== 'undefined' && Auth.getEmail) ? Auth.getEmail() : null;
       if (email) {
         const prog = DB.getProgress(email);
         const skills = { ...(prog.skills || {}), targetRole: role, matchPct, lastAnalyzed: Date.now() };
-        // Update overall readiness
         const currentReadiness = prog.readiness || 0;
         const newReadiness = Math.round(Math.max(currentReadiness, matchPct * 0.3 + (currentReadiness * 0.7)));
         DB.saveProgress(email, { skills, readiness: newReadiness });
@@ -287,9 +291,9 @@ const Skills = {
 
     this.container.innerHTML = `
       <!-- Navigation breadcrumb -->
-      <div class="flex-between mb-2" style="flex-wrap:wrap;gap:10px">
-        <button class="btn btn-ghost btn-sm" id="sgBackBtn">← Change Role</button>
-        <div class="flex gap-1" style="align-items:center;flex-wrap:wrap">
+      <div class="flex-between mb-3" style="flex-wrap:wrap;gap:10px">
+        <button class="btn btn-outline btn-sm" id="sgBackBtn"><i class="bi bi-arrow-left" style="margin-right:4px"></i>Change Role</button>
+        <div class="flex gap-2" style="align-items:center;flex-wrap:wrap">
           <span class="chip blue">${role}</span>
           <span class="chip ${matchPct >= 70 ? 'green' : matchPct >= 40 ? 'orange' : 'red'}">${matchPct}% match</span>
           <span class="chip">${matchedCount} of ${rows.length} skills matched</span>
@@ -297,53 +301,49 @@ const Skills = {
       </div>
 
       <!-- Stats row -->
-      <div class="grid grid-3 mb-2" style="gap:14px">
+      <div class="grid grid-3 mb-3" style="gap:14px">
         <div class="card text-center">
-          <div class="card-stat" style="color:var(--success)">${matchedCount}</div>
-          <div class="card-stat-label">Skills You Have</div>
+          <div class="card-stat text-success">${matchedCount}</div>
+          <div class="card-stat-label">Matched Skills</div>
         </div>
         <div class="card text-center">
-          <div class="card-stat" style="color:var(--danger)">${gaps.length}</div>
-          <div class="card-stat-label">Skills to Learn</div>
+          <div class="card-stat text-danger">${gaps.length}</div>
+          <div class="card-stat-label">Identified Gaps</div>
         </div>
         <div class="card text-center">
           <div class="card-stat" style="color:${progressColor}">${matchPct}%</div>
-          <div class="card-stat-label">Role Readiness</div>
+          <div class="card-stat-label">Target Role Match</div>
         </div>
       </div>
 
       <!-- Readiness Gauge + Skill Matrix -->
-      <div class="grid grid-2 mb-2" style="gap:20px">
+      <div class="grid grid-2 mb-3" style="gap:20px;align-items:start">
 
         <!-- Gauge Card -->
         <div class="card">
           <div class="card-title">Readiness Overview</div>
-          <div class="card-sub">Your overall match for <b>${role}</b></div>
+          <div class="card-sub">Your current skill profile for <b>${role}</b></div>
           <div class="sg-readiness-gauge">
             <svg viewBox="0 0 200 120" style="width:100%;max-width:240px;margin:0 auto;display:block">
-              <!-- Background arc (half-circle) -->
-              <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(45,45,45,0.12)" stroke-width="16" stroke-linecap="round"/>
-              <!-- Foreground arc -->
+              <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--surface-2)" stroke-width="14" stroke-linecap="round"/>
               <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none"
-                stroke="${progressColor}" stroke-width="16" stroke-linecap="round"
+                stroke="${progressColor}" stroke-width="14" stroke-linecap="round"
                 stroke-dasharray="${Math.PI * 80}"
                 stroke-dashoffset="${Math.PI * 80 * (1 - matchPct / 100)}"
-                style="transition:stroke-dashoffset 1.5s ease"/>
-              <!-- Center text -->
-              <text x="100" y="88" text-anchor="middle" font-size="32" font-weight="700" fill="var(--text)" font-family="var(--font-hand)">${matchPct}%</text>
-              <text x="100" y="108" text-anchor="middle" font-size="11" fill="var(--text-dim)">Readiness</text>
+                style="transition:stroke-dashoffset 1s ease"/>
+              <text x="100" y="86" text-anchor="middle" font-size="28" font-weight="700" fill="var(--text)" font-family="var(--font-mono)">${matchPct}%</text>
+              <text x="100" y="106" text-anchor="middle" font-size="11" fill="var(--text-dim)">Readiness</text>
             </svg>
           </div>
           <div class="divider"></div>
-          <!-- Strength chips -->
           ${strengths.length > 0 ? `
-            <div class="card-title" style="font-size:13px;margin-bottom:8px">✅ Your Strengths</div>
-            <div class="tag-row">
+            <div class="card-title" style="font-size:13px;margin-bottom:6px"><i class="bi bi-check-circle-fill text-success" style="margin-right:4px"></i>Matched Strengths</div>
+            <div class="tag-row mb-2">
               ${strengths.map(s => `<span class="chip green">${s.name}</span>`).join('')}
             </div>
           ` : ''}
           ${gaps.length > 0 ? `
-            <div class="card-title" style="font-size:13px;margin:12px 0 8px">⚠️ Skill Gaps</div>
+            <div class="card-title" style="font-size:13px;margin:12px 0 6px"><i class="bi bi-exclamation-circle-fill text-warning" style="margin-right:4px"></i>Identified Skill Gaps</div>
             <div class="tag-row">
               ${gaps.map(g => `<span class="chip red">${g.name}</span>`).join('')}
             </div>
@@ -352,20 +352,19 @@ const Skills = {
 
         <!-- Skill-by-Skill Matrix -->
         <div class="card">
-          <div class="card-title">Skill-by-Skill Matrix</div>
-          <div class="card-sub">Green = matched · Orange = gap · Bar = required proficiency</div>
+          <div class="card-title">Competency Matrix</div>
+          <div class="card-sub">Individual skill match and target proficiency</div>
           <div class="sg-skill-matrix" id="sgSkillMatrix">
             ${rows.map(r => `
-              <div class="skill-bar-row">
-                <div class="skill-bar-label">
+              <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:8px 12px;margin-bottom:8px">
+                <div class="flex-between" style="font-size:12px;margin-bottom:4px">
                   <b>${r.name}</b>
-                  <span style="color:${r.match ? 'var(--success)' : 'var(--warning)'}">${r.match ? '✓ Matched' : '✗ Gap'}</span>
+                  <span style="color:${r.match ? 'var(--success)' : 'var(--warning)'};font-weight:600">
+                    <i class="bi ${r.match ? 'bi-check-lg' : 'bi-dash'}"></i> ${r.match ? 'Matched' : 'Gap'}
+                  </span>
                 </div>
-                <div class="progress">
-                  <div class="progress-fill ${r.match ? 'green' : 'orange'}"
-                       style="width:${r.match ? r.level : 15}%;transition:width 1s ease"
-                       title="${r.match ? r.level + '% proficiency' : 'Learning needed'}">
-                  </div>
+                <div class="progress" style="height:5px;background:var(--surface);border-radius:3px;overflow:hidden">
+                  <div class="progress-fill" style="width:${r.match ? r.level : 15}%;background:${r.match ? 'var(--success)' : 'var(--warning)'};height:100%"></div>
                 </div>
               </div>
             `).join('')}
@@ -375,85 +374,47 @@ const Skills = {
       </div>
 
       <!-- Roadmap + Resources -->
-      <div class="grid grid-2 mb-2" style="gap:20px">
+      <div class="grid grid-2 mb-3" style="gap:20px;align-items:start">
 
-        <!-- Personalized Learning Roadmap -->
+        <!-- Learning Roadmap -->
         <div class="card">
           <div class="card-title">
-            🗺 Personalized Learning Roadmap
+            <i class="bi bi-signpost-split text-accent" style="font-size:16px"></i>
+            Personalized Learning Roadmap
           </div>
-          <div class="card-sub">Prioritized next steps for the ${role} role</div>
+          <div class="card-sub">Recommended next steps for ${role}</div>
           ${roadmap.map(r => `
-            <div class="roadmap-item">
-              <div class="roadmap-step">${r.step}</div>
+            <div class="roadmap-item" style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+              <div style="width:24px;height:24px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">${r.step}</div>
               <div class="roadmap-body">
-                <div class="roadmap-title">${r.title}</div>
-                <div class="roadmap-desc">${r.desc}</div>
+                <div style="font-size:13px;font-weight:600">${r.title}</div>
+                <div class="text-dim" style="font-size:12px;line-height:1.4;margin-top:2px">${r.desc}</div>
                 ${r.ytLink ? `
-                  <a href="#youtube" class="sg-yt-link" data-ytjump="${r.ytLink.id}">
-                    <svg viewBox="0 0 24 24" width="13" height="13" fill="var(--accent)" style="margin-right:4px"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg>
-                    Watch: ${r.ytLink.title}
+                  <a href="#youtube" class="sg-yt-link" data-ytjump="${r.ytLink.id}" style="font-size:12px;margin-top:4px;display:inline-flex;align-items:center;gap:4px">
+                    <i class="bi bi-play-circle-fill text-accent"></i> Watch: ${r.ytLink.title}
                   </a>` : ''}
               </div>
             </div>
           `).join('')}
           ${gaps.length === 0 ? '' : `
-            <div class="divider"></div>
-            <button class="btn btn-ghost btn-sm" id="sgGoToYtBtn" style="color:var(--accent)">
-              ▶ Go to YouTube Lectures →
-            </button>
+            <div class="mt-3">
+              <button class="btn btn-outline btn-sm" id="sgGoToYtBtn">
+                <i class="bi bi-play-circle" style="margin-right:4px"></i>Browse YouTube Lectures
+              </button>
+            </div>
           `}
         </div>
 
         <!-- Recommended Resources -->
         <div class="card">
-          <div class="card-title">📚 Recommended Resources</div>
-          <div class="card-sub">Curated links for the ${role} path</div>
+          <div class="card-title"><i class="bi bi-bookmarks text-accent" style="font-size:16px"></i>Curated Resources</div>
+          <div class="card-sub">Documentation & tutorials for ${role}</div>
           ${resources.length > 0 ? resources.map(r => `
-            <div class="rec-item">
-              <div class="rec-icon">${this._roleEmoji(role)}</div>
-              <div class="rec-text">
-                <a href="${r.url}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-weight:700">${r.title}</a>
-                <div class="text-dim" style="font-size:12px;margin-top:2px">${r.desc}</div>
-              </div>
+            <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:10px;margin-bottom:8px">
+              <a href="${r.url}" target="_blank" rel="noopener" style="font-weight:600;font-size:13px;display:block">${r.title} <i class="bi bi-box-arrow-up-right" style="font-size:11px;margin-left:4px"></i></a>
+              <div class="text-dim" style="font-size:11.5px;margin-top:2px">${r.desc}</div>
             </div>`).join('')
-        : `<div class="text-dim" style="font-size:13px">No curated resources yet for this role. Check the YouTube Lectures section for video courses.</div>`}
-
-          <div class="divider"></div>
-          <!-- Skill Gap YouTube Map -->
-          <div class="card-title" style="font-size:13px">🔗 Gap → Lecture Map</div>
-          <div class="card-sub">Missing skills mapped to relevant YouTube content</div>
-          ${Object.keys(ytLinks).length > 0
-        ? Object.entries(ytLinks).map(([skill, yt]) => `
-              <div class="sg-yt-map-row">
-                <span class="chip red" style="font-size:11px">${skill}</span>
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--text-dim)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                <a href="#youtube" class="sg-yt-link" data-ytjump="${yt.id}">
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="var(--accent)"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg>
-                  ${yt.title}
-                </a>
-              </div>
-            `).join('')
-        : '<div class="text-dim" style="font-size:12px">All your gaps have matching lectures in the YouTube Lectures section!</div>'}
-        </div>
-      </div>
-
-      <!-- Re-analyze with different role -->
-      <div class="card">
-        <div class="card-title" style="font-size:14px">Try a Different Role</div>
-        <div class="sg-role-grid" id="sgRoleGridBottom">
-          ${ROLE_NAMES.filter(r => r !== role).map(r => {
-          const m = this._computeMatchPct(allSkills, r);
-          const c = m >= 70 ? 'var(--success)' : m >= 40 ? 'var(--warning)' : 'var(--danger)';
-          return `
-              <div class="sg-role-card sg-role-card-sm hoverable" data-role="${r}" tabindex="0" role="button">
-                <div class="sg-role-icon" style="font-size:16px">${this._roleEmoji(r)}</div>
-                <div class="sg-role-info">
-                  <div class="sg-role-name" style="font-size:12.5px">${r}</div>
-                </div>
-                <div class="sg-role-match" style="font-size:11px;color:${c};background:${c}22;border-color:${c}55">${m}%</div>
-              </div>`;
-        }).join('')}
+        : `<div class="text-dim" style="font-size:12.5px">Check the YouTube Lectures section for full playlist courses.</div>`}
         </div>
       </div>
     `;
@@ -461,19 +422,12 @@ const Skills = {
     // Back button
     document.getElementById('sgBackBtn').addEventListener('click', () => this._renderSetup());
 
-    // Role switch (bottom grid)
-    document.querySelectorAll('[data-role]').forEach(el => {
-      el.addEventListener('click', () => this._analyze(el.dataset.role));
-      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') this._analyze(el.dataset.role); });
-    });
-
     // YouTube lecture links
     document.querySelectorAll('.sg-yt-link').forEach(link => {
       link.addEventListener('click', e => {
         e.preventDefault();
         const ytId = link.dataset.ytjump;
         window.location.hash = '#youtube';
-        // After navigation, auto-open the player
         if (ytId) {
           setTimeout(() => {
             if (typeof Youtube !== 'undefined') Youtube._openPlayer(ytId);
@@ -482,44 +436,26 @@ const Skills = {
       });
     });
 
-    // Go to YouTube button
     const ytBtn = document.getElementById('sgGoToYtBtn');
     if (ytBtn) ytBtn.addEventListener('click', () => { window.location.hash = '#youtube'; });
-
-    // Animate progress bars in after DOM ready
-    requestAnimationFrame(() => {
-      document.querySelectorAll('.sg-skill-matrix .progress-fill').forEach(el => {
-        el.style.transition = 'width 1.2s ease';
-      });
-    });
   },
 
-  /* ─── Gap → YouTube lecture mapping ─── */
   _mapGapsToYoutube(gaps, role) {
     const map = {};
     try {
       const playlists = (typeof YOUTUBE_DATA !== 'undefined' && YOUTUBE_DATA.playlists) ? YOUTUBE_DATA.playlists : [];
       const keywordMap = {
-        // Coding
         'javascript': ['js1', 'js2'], 'python': ['py1', 'py2'], 'java': ['java1'],
         'c++': ['cpp1'], 'sql': ['sql1', 'sql2'], 'typescript': ['ts1'],
         'react': ['react1'], 'node': ['node1'], 'node.js': ['node1'],
-        // DevOps
         'docker': ['docker1'], 'kubernetes': ['k8s1'], 'linux': ['linux1'],
         'ci/cd': ['cicd1'], 'jenkins': ['cicd1'], 'terraform': ['terraform1'],
-        'aws': ['aws1'], 'git': ['git1'],
-        // AI/ML
-        'machine learning': ['ml1'], 'deep learning': ['dl1'],
-        'nlp': ['nlp1'], 'computer vision': ['cv1'], 'pytorch': ['pytorch1'],
-        'tensorflow': ['dl1'], 'llm': ['llm1'], 'mlops': ['mlops1'],
-        // SDE
+        'aws': ['aws1'], 'git': ['git1'], 'machine learning': ['ml1'],
+        'deep learning': ['dl1'], 'nlp': ['nlp1'], 'computer vision': ['cv1'],
+        'pytorch': ['pytorch1'], 'tensorflow': ['dl1'], 'llm': ['llm1'],
         'data structures': ['dsa1', 'dsa2'], 'algorithms': ['dsa1', 'dsa2'],
         'system design': ['sd1'], 'operating systems': ['os1'],
-        'databases': ['dbms1'], 'networking': ['cn1'],
-        'dsa': ['dsa2', 'cppdsa'],
-        // Data
-        'data science': ['ds1'], 'pandas': ['pandas1'], 'power bi': ['bi1'],
-        'tableau': ['tableau1'], 'statistics': ['stats1']
+        'databases': ['dbms1'], 'networking': ['cn1'], 'dsa': ['dsa2', 'cppdsa']
       };
 
       gaps.forEach(gap => {
@@ -536,24 +472,11 @@ const Skills = {
             if (map[gapLower]) break;
           }
         }
-        // Fallback: search by category
-        if (!map[gapLower]) {
-          const catMap = {
-            'Frontend Developer': 'coding', 'Backend Developer': 'coding',
-            'Full Stack Developer': 'coding', 'DevOps Engineer': 'devops',
-            'Machine Learning Engineer': 'ai', 'Data Analyst': 'data',
-            'Data Scientist': 'data'
-          };
-          const cat = catMap[role] || 'sde';
-          const pl = playlists.find(p => p.category === cat);
-          if (pl) map[gapLower] = { id: pl.id, title: pl.title };
-        }
       });
     } catch { }
     return map;
   },
 
-  /* ─── Skill extraction from resume text ─── */
   _extractSkills(text) {
     if (!text) return [];
     const lower = text.toLowerCase();
@@ -574,7 +497,6 @@ const Skills = {
     return found;
   },
 
-  /* ─── Merge resume + manual skills (deduplicated) ─── */
   _mergeSkills(resumeSkills, manualSkills) {
     const all = new Map();
     (resumeSkills || []).forEach(s => all.set(s.toLowerCase(), s));
@@ -584,28 +506,26 @@ const Skills = {
     return [...all.values()];
   },
 
-  /* ─── Role emoji helper ─── */
-  _roleEmoji(role) {
+  _roleIcon(role) {
     const map = {
-      'Software Development Engineer': '💻',
-      'SDE (Software Development Engineer)': '💻',
-      'Frontend Developer': '🎨',
-      'Backend Developer': '⚙️',
-      'Full Stack Developer': '🔧',
-      'Data Analyst': '📊',
-      'Data Scientist': '🔬',
-      'Machine Learning Engineer': '🤖',
-      'DevOps Engineer': '🚀',
-      'Product Manager': '📋',
-      'General Software Engineer': '👨‍💻',
-      'Cloud Engineer': '☁️',
-      'Cybersecurity Engineer': '🔐',
+      'Software Development Engineer': '<i class="bi bi-laptop"></i>',
+      'SDE (Software Development Engineer)': '<i class="bi bi-laptop"></i>',
+      'Frontend Developer': '<i class="bi bi-palette"></i>',
+      'Backend Developer': '<i class="bi bi-hdd-network"></i>',
+      'Full Stack Developer': '<i class="bi bi-layers"></i>',
+      'Data Analyst': '<i class="bi bi-graph-up-arrow"></i>',
+      'Data Scientist': '<i class="bi bi-bar-chart"></i>',
+      'Machine Learning Engineer': '<i class="bi bi-cpu"></i>',
+      'DevOps Engineer': '<i class="bi bi-terminal"></i>',
+      'Product Manager': '<i class="bi bi-kanban"></i>',
+      'General Software Engineer': '<i class="bi bi-code-square"></i>',
+      'Cloud Engineer': '<i class="bi bi-cloud"></i>',
+      'Cybersecurity Engineer': '<i class="bi bi-shield-lock"></i>',
     };
-    // Try exact then partial
     if (map[role]) return map[role];
     for (const [k, v] of Object.entries(map)) {
       if (role.toLowerCase().includes(k.toLowerCase().split(' ')[0])) return v;
     }
-    return '🎯';
+    return '<i class="bi bi-briefcase"></i>';
   }
 };

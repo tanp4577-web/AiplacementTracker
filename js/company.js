@@ -25,8 +25,8 @@ const Company = {
 
     this.container.innerHTML = `
       <div class="card mb-2">
-        <div class="card-title">Company Interview Patterns</div>
-        <div class="card-sub">Master the DSA patterns asked at top companies</div>
+        <div class="card-title"><i class="bi bi-buildings text-accent" style="margin-right:4px"></i>Company Interview Patterns</div>
+        <div class="card-sub">Master the DSA patterns and technical rounds asked at top tech employers</div>
         <div class="filter-bar mt-2">
           <select id="companyFilter">
             <option value="all">All Companies</option>
@@ -43,8 +43,8 @@ const Company = {
       </div>
 
       <div class="card mb-2">
-        <div class="card-title">Company Insights</div>
-        <div class="card-sub">What each company focuses on in their interview process</div>
+        <div class="card-title"><i class="bi bi-lightbulb text-accent" style="margin-right:4px"></i>Company Insights</div>
+        <div class="card-sub">What each company focuses on during campus hiring</div>
         <div class="grid grid-3">
           ${companies.map(c => `
             <div class="card hoverable" style="padding:16px" data-company="${c.name}">

@@ -174,14 +174,14 @@
     </main>
   </div>
 
-  <!-- Toast -->
-  <div class="toast-container" id="toastContainer"></div>
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
-  <!-- Overlay (mobile nav) -->
-  <div class="overlay" id="overlay"></div>
+  <!-- Overlay (Mobile Navigation Backdrop) -->
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
 
-  <!-- Login Modal -->
-  <div class="modal-overlay" id="authModal">
+  <!-- Authentication Modal -->
+  <div class="modal-overlay" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
     <div class="modal">
       <div class="modal-head">
         <div class="auth-logo">
@@ -192,25 +192,27 @@
             <path d="M2 12l10 5 10-5" />
           </svg>
         </div>
-        <h2 id="authTitle">Welcome to PlacementPrep</h2>
-        <p class="text-dim" id="authSubtitle">Sign in to track your placement readiness</p>
+        <h2 id="authTitle">Sign in to PlacementPrep</h2>
+        <p class="text-dim" id="authSubtitle" style="font-size:12.5px">Sign in to track your placement readiness</p>
       </div>
-      <div class="auth-tabs">
-        <button class="auth-tab active" id="tabLogin">Sign In</button>
-        <button class="auth-tab" id="tabSignup">Create Account</button>
+      <div class="auth-tabs" role="tablist">
+        <button class="auth-tab active" id="tabLogin" role="tab" aria-selected="true">Sign In</button>
+        <button class="auth-tab" id="tabSignup" role="tab" aria-selected="false">Create Account</button>
       </div>
       <div class="modal-body">
-        <div id="authError" class="auth-error hidden"></div>
+        <div id="authError" class="auth-error hidden" style="color:var(--danger);font-size:12.5px;margin-bottom:12px">
+        </div>
         <div class="auth-field" id="nameField">
           <label class="field-label" for="authName">Full Name</label>
           <input type="text" id="authName" placeholder="e.g. Ananya Sharma" autocomplete="name" />
         </div>
-        <label class="field-label" for="authEmail">Email</label>
+        <label class="field-label" for="authEmail">Email Address</label>
         <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" />
         <label class="field-label" for="authPass">Password</label>
         <input type="password" id="authPass" placeholder="Minimum 4 characters" autocomplete="current-password" />
-        <button class="btn btn-primary btn-block" id="authSubmitBtn">Sign In</button>
-        <p class="auth-switch text-dim">Secure local account · No server required</p>
+        <button class="btn btn-primary btn-block mt-3" id="authSubmitBtn">Sign In</button>
+        <p class="text-dim text-center mt-3" style="font-size:12px">Secure local account · Data stays private in your
+          browser</p>
       </div>
     </div>
   </div>
@@ -236,13 +238,15 @@
           <span class="chat-status">Online</span>
         </div>
       </div>
-      <button class="chatbot-close" id="chatbotClose" aria-label="Close">&#10005;</button>
+      <button class="btn btn-ghost btn-sm" id="chatbotClose" aria-label="Close Assistant"
+        style="padding:2px 6px;font-size:14px"><i class="bi bi-x-lg"></i></button>
     </div>
     <div class="chatbot-body" id="chatbotBody"></div>
-    <div class="quick-chips" id="quickChips"></div>
+    <div class="quick-chips" id="quickChips" style="padding:0 14px 8px"></div>
     <div class="chatbot-input">
-      <input type="text" id="chatbotInput" placeholder="Ask about placements, interviews, or your progress..." />
-      <button class="btn btn-primary" id="chatbotSend" aria-label="Send">&#10148;</button>
+      <input type="text" id="chatbotInput" placeholder="Ask about placement tips, tests, resumes..." />
+      <button class="btn btn-primary" id="chatbotSend" aria-label="Send message" style="padding:6px 12px"><i
+          class="bi bi-send-fill"></i></button>
     </div>
   </div>
 

@@ -2,6 +2,9 @@
   "name": "aiplacement-tracker",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build": "echo build ok"
+  },
   "dependencies": {
     "edge-tts-universal": "^1.4.0",
     "formidable": "^3.5.4",

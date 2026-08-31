@@ -1,5 +1,6 @@
 {
   "name": "aiplacement-tracker",
+  "version": 2,
   "headers": [
     {
       "source": "/(.*)",

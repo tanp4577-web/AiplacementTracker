@@ -270,8 +270,8 @@ const Youtube = {
           <span class="yt-playbtn">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           </span>
-          ${done ? '<span class="yt-done-badge">✓ Watched</span>' : ''}
-          ${!embedUrl ? '<span class="yt-restricted-badge">⚠ Restricted</span>' : ''}
+          ${done ? '<span class="yt-done-badge"><i class="bi bi-check-lg"></i> Watched</span>' : ''}
+          ${!embedUrl ? '<span class="yt-restricted-badge"><i class="bi bi-exclamation-triangle"></i> Restricted</span>' : ''}
         </div>
         <div class="yt-body">
           <div class="yt-title">${p.title}</div>
@@ -282,7 +282,7 @@ const Youtube = {
           <div class="yt-meta">
             <span>${p.views || ''} views</span>
             <span class="yt-dot">•</span>
-            <span>${p.rating} ★</span>
+            <span><i class="bi bi-star-fill text-warning" style="font-size:11px"></i> ${p.rating}</span>
             <span class="yt-dot">•</span>
             <span class="chip ${p.category === 'coding' ? 'blue' : p.category === 'ai' ? 'purple' : p.category === 'devops' ? 'orange' : p.category === 'data' ? 'cyan' : 'green'}" style="font-size:10px;padding:2px 7px;margin-left:4px">${p.category.toUpperCase()}</span>
           </div>
@@ -319,11 +319,11 @@ const Youtube = {
         <div class="yt-player-head">
           <div>
             <div class="yt-player-title">${p.title}</div>
-            <div class="yt-player-channel">${p.channel} &bull; ${p.rating} ★ rating &bull; ${p.views || ''} views</div>
+            <div class="yt-player-channel">${p.channel} &bull; <i class="bi bi-star-fill text-warning"></i> ${p.rating} rating &bull; ${p.views || ''} views</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <a href="${watchUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm yt-watch-link" title="Watch directly on YouTube">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              <i class="bi bi-box-arrow-up-right" style="margin-right:5px"></i>
               Watch on YouTube
             </a>
             <button class="yt-player-close" aria-label="Close player">&times;</button>
@@ -331,23 +331,14 @@ const Youtube = {
         </div>
         <div class="yt-player-frame" id="ytPlayerFrame">
           ${embedUrl
-            ? `<div id="ytApiPlayer" data-video-id="${videoId}" aria-label="${p.title}"></div>
-               <div class="yt-embed-error hidden" id="ytEmbedError">
+            ? `<iframe id="ytVideoIframe" src="${embedUrl}" title="${p.title}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;position:absolute;top:0;left:0"></iframe>`
+            : `<div class="yt-embed-error" style="display:flex;align-items:center;justify-content:center;height:100%;text-align:center;padding:24px;background:#0f172a;color:#fff">
                  <div class="yt-embed-error-inner">
-                   <div style="font-size:32px;margin-bottom:10px">⚠️</div>
-                   <p style="margin-bottom:12px">This video cannot be embedded (the uploader has restricted embedding).</p>
+                   <div style="font-size:32px;margin-bottom:10px"><i class="bi bi-youtube text-danger"></i></div>
+                   <p style="margin-bottom:6px;font-weight:700">Watch Directly on YouTube</p>
+                   <p style="font-size:13px;color:#94a3b8;margin-bottom:16px">This lecture can be viewed directly on YouTube.</p>
                    <a href="${watchUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
-                     Watch on YouTube
-                   </a>
-                 </div>
-               </div>`
-            : `<div class="yt-embed-error">
-                 <div class="yt-embed-error-inner">
-                   <div style="font-size:32px;margin-bottom:10px">⚠️</div>
-                   <p style="margin-bottom:4px;font-weight:700">Video cannot be embedded</p>
-                   <p style="font-size:13px;color:var(--text-dim);margin-bottom:14px">The uploader has disabled embedding for this video.</p>
-                   <a href="${watchUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
-                     ▶ Watch on YouTube
+                     <i class="bi bi-play-circle-fill" style="margin-right:4px"></i>Open YouTube Lecture
                    </a>
                  </div>
                </div>`
@@ -360,7 +351,7 @@ const Youtube = {
               <div class="flex gap-1 mt-1" style="flex-wrap:wrap">
                 <span class="chip red">${p.duration}</span>
                 <span class="chip blue">${p.views || ''} views</span>
-                <span class="chip green">${p.rating} ★ rating</span>
+                <span class="chip green"><i class="bi bi-star-fill text-warning"></i> ${p.rating} rating</span>
                 <span class="chip orange">${(p.category || '').toUpperCase()}</span>
               </div>
             </div>
