@@ -1,6 +1,12 @@
 {
-  "name": "aiplacement-tracker",
   "version": 2,
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
