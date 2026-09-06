@@ -5,7 +5,7 @@
    Tailored for college students & campus recruitment preparation.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Merriweather+Sans:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap');
 
 :root {
   /* ---- Layer Architecture ---- */
@@ -30,35 +30,35 @@
   --space-8: 32px;
 
   /* ---- Premium Color Palette ---- */
-  --bg: #f0f4ff;
-  --bg-2: #e8eef9;
+  --bg: #eef2f6;
+  --bg-2: #dfe7ef;
   --surface: #ffffff;
-  --surface-2: #f5f8ff;
-  --surface-hover: #eef2ff;
-  --border: #e0e8f5;
-  --border-strong: #c7d5ee;
+  --surface-2: #f6f8fa;
+  --surface-hover: #e8eef5;
+  --border: #d5dee8;
+  --border-strong: #aebdcd;
 
-  --text: #0c1527;
-  --text-dim: #4a5878;
-  --text-faint: #8b9bc0;
+  --text: #17263c;
+  --text-dim: #52657b;
+  --text-faint: #7d8da0;
 
   /* ---- Brand Accents ---- */
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-soft: rgba(37, 99, 235, 0.10);
+  --accent: #1557a6;
+  --accent-hover: #0d407d;
+  --accent-soft: rgba(21, 87, 166, 0.10);
   --accent-ink: #ffffff;
 
-  --blue: #2563eb;
-  --blue-soft: rgba(37, 99, 235, 0.10);
+  --blue: #1557a6;
+  --blue-soft: rgba(21, 87, 166, 0.10);
 
-  --success: #059669;
-  --success-soft: rgba(5, 150, 105, 0.10);
+  --success: #237a57;
+  --success-soft: rgba(35, 122, 87, 0.10);
 
-  --warning: #d97706;
-  --warning-soft: rgba(217, 119, 6, 0.10);
+  --warning: #9a6418;
+  --warning-soft: rgba(154, 100, 24, 0.10);
 
-  --danger: #dc2626;
-  --danger-soft: rgba(220, 38, 38, 0.10);
+  --danger: #b63a3a;
+  --danger-soft: rgba(182, 58, 58, 0.10);
 
   --purple: #7c3aed;
   --purple-soft: rgba(124, 58, 237, 0.10);
@@ -67,22 +67,23 @@
   --cyan-soft: rgba(8, 145, 178, 0.10);
 
   /* ---- Shape & Elevation ---- */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
   --radius-full: 9999px;
 
-  --shadow-xs: 0 1px 2px 0 rgba(15, 30, 80, 0.04);
-  --shadow-sm: 0 2px 4px 0 rgba(15, 30, 80, 0.07), 0 1px 2px -1px rgba(15, 30, 80, 0.05);
-  --shadow: 0 4px 12px -2px rgba(15, 30, 80, 0.09), 0 2px 6px -2px rgba(15, 30, 80, 0.05);
-  --shadow-lg: 0 10px 24px -4px rgba(15, 30, 80, 0.12), 0 4px 8px -4px rgba(15, 30, 80, 0.06);
-  --shadow-xl: 0 20px 40px -6px rgba(15, 30, 80, 0.15), 0 8px 16px -6px rgba(15, 30, 80, 0.08);
+  --shadow-xs: 0 1px 2px rgba(23, 38, 60, 0.06);
+  --shadow-sm: 0 1px 3px rgba(23, 38, 60, 0.08);
+  --shadow: 0 3px 10px rgba(23, 38, 60, 0.10);
+  --shadow-lg: 0 8px 22px rgba(23, 38, 60, 0.14);
+  --shadow-xl: 0 16px 34px rgba(23, 38, 60, 0.18);
 
   --sidebar-w: 256px;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-body: 'Source Sans 3', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-heading: 'Merriweather Sans', 'Source Sans 3', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --transition-fast: 130ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -2407,6 +2408,297 @@ textarea {
   .yt-watch-link {
     flex: 1;
     justify-content: center;
+  }
+}
+
+/* ============ Campus Placement Visual Layer ============ */
+body {
+  background: var(--bg);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.brand-text h1,
+.card-title,
+.page-title,
+.modal-head h2 {
+  font-family: var(--font-heading);
+  letter-spacing: 0;
+}
+
+.sidebar {
+  background: #17263c;
+  border-right: 0;
+  box-shadow: 4px 0 18px rgba(23, 38, 60, 0.12);
+}
+
+.brand {
+  border-bottom-color: rgba(255, 255, 255, 0.16);
+}
+
+.brand-logo {
+  background: #1557a6;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+
+.brand-text h1,
+.brand-text p,
+.nav-link,
+.sidebar .mini-label,
+.sidebar .footer-note {
+  color: #f4f7fa;
+}
+
+.brand-text h1 span,
+.sidebar .mini-val {
+  color: #8fc2f4;
+}
+
+.nav-link {
+  border-left: 3px solid transparent;
+  border-radius: 3px;
+  color: #c5d0dc;
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  transform: none;
+}
+
+.nav-link.active {
+  background: #27476a;
+  border-left-color: #8fc2f4;
+  color: #ffffff;
+  padding-left: 9px;
+}
+
+.sidebar .mini-bar {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.sidebar .mini-fill {
+  background: #8fc2f4;
+  border-radius: 0;
+}
+
+.main-content {
+  background: var(--bg);
+}
+
+.topbar {
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom-color: var(--border-strong);
+  box-shadow: none;
+}
+
+.page-title {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.page-subtitle {
+  color: var(--text-dim);
+}
+
+.view-container {
+  max-width: 1480px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.card {
+  border-radius: var(--radius);
+  box-shadow: none;
+  border-color: var(--border);
+}
+
+.card:hover,
+.card.hoverable:hover {
+  box-shadow: var(--shadow-sm);
+  transform: none;
+}
+
+.card-stat,
+.mini-val,
+.hero-num b,
+.li-stat-val,
+.job-detail-stats strong {
+  font-family: var(--font-mono);
+}
+
+.card-stat-label,
+.mini-label,
+.field-label {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.chip,
+.quick-chip,
+.yt-cat {
+  border-radius: 3px;
+  padding: 4px 8px;
+  letter-spacing: 0;
+}
+
+.btn {
+  border-radius: 4px;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.dashboard-hero {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-left: 5px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+
+.dashboard-hero::before {
+  width: 0;
+  height: 0;
+}
+
+.hero-ring svg circle.fg {
+  stroke: var(--accent);
+  animation: readinessDraw 900ms ease-out both;
+}
+
+.hero-ring svg circle.bg {
+  stroke: var(--bg-2);
+}
+
+.hero-msg h3 {
+  font-family: var(--font-heading);
+}
+
+.hero-msg .chip {
+  background: var(--surface-2);
+}
+
+.card-title {
+  font-size: 15px;
+}
+
+.card-title::after {
+  content: '';
+  display: inline-block;
+  width: 26px;
+  height: 2px;
+  margin-left: 4px;
+  background: var(--accent);
+}
+
+.modal,
+.job-details-modal,
+.chatbot-panel,
+.yt-player-modal {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xl);
+}
+
+.modal-head {
+  text-align: left;
+  border-bottom-color: var(--border-strong);
+}
+
+.chatbot-head {
+  background: #17263c;
+  color: #ffffff;
+}
+
+.chatbot-head .chat-status,
+.chatbot-head .chatbot-title {
+  color: #ffffff;
+}
+
+.chatbot-panel {
+  border-color: var(--border-strong);
+}
+
+.msg.bot {
+  background: var(--surface-2);
+  border-color: var(--border);
+  border-radius: 4px;
+}
+
+.msg.user {
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.live-interview-layout .li-panel,
+.code-wrap,
+.question-card,
+.yt-card {
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+
+.li-panel-label,
+.transcript-label {
+  letter-spacing: 0;
+}
+
+.job-detail-tab {
+  border-radius: 0;
+}
+
+.job-detail-stats > div {
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+
+.noticeboard-strip,
+.job-details-note {
+  border-left: 3px solid var(--danger);
+  border-radius: 3px;
+}
+
+.view-container > * {
+  animation: none;
+}
+
+@keyframes readinessDraw {
+  from { stroke-dashoffset: 264; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .page-title {
+    font-size: 16px;
+  }
+
+  .page-subtitle {
+    display: none;
   }
 }
 
