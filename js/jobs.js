@@ -218,6 +218,7 @@ const Jobs = {
       </div>
     `;
     document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add('show'));
     modal.querySelector('#closeJobModal').addEventListener('click', () => modal.remove());
     modal.querySelector('#analyzeJobBtn').addEventListener('click', () => this._analyze(job, modal));
   },
@@ -285,3 +286,5 @@ const Jobs = {
     `;
   }
 };
+
+  requestAnimationFrame(() => modal.classList.add('show'));
