@@ -115,7 +115,7 @@ const Chatbot = {
 
   /**
    * LIVE AI pipeline — every answer is generated in real time:
-  *   1) /api/chat (Groq via Vercel serverless, when GROQ_API_KEY is set)
+    *   1) /api/chat (Gemini via Vercel serverless, when LLM_API_KEY is set)
    *   2) LiveAI.chatReply (Pollinations.ai free keyless live LLM)
    *   3) Smart local fallback (context-aware, built from the user's words)
    */
@@ -141,7 +141,7 @@ const Chatbot = {
 
     let reply = null;
 
-    // 1) Serverless Groq endpoint (deployed with GROQ_API_KEY)
+    // 1) Serverless Gemini endpoint (deployed with LLM_API_KEY)
     let chatApiError = null;
     try {
       const ctrl = new AbortController();

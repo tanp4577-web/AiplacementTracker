@@ -7,7 +7,8 @@
    Response: { reply: string }
    ========================================================================== */
 
-const GROQ_MODEL = 'groq/compound-mini';
+const DEFAULT_MODEL = 'gemini-2.0-flash';
+const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 const SYSTEM_PROMPT = `You are PrepAI, a friendly and highly capable placement assistant for college students.
 You help with: resume ATS optimization, HR/technical mock interviews, aptitude quizzes, coding/DSA strategies, company patterns, and skill gap roadmaps.
@@ -24,8 +25,8 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: 'GROQ_API_KEY is not configured' });
+  const apiKey = process.env.LLM_API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'LLM_API_KEY or GEMINI_API_KEY is not configured' });
 
   let body = {};
   try {
@@ -37,47 +38,43 @@ export default async function handler(req, res) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const context = typeof body.context === 'string' ? body.context : '';
 
-  const formattedMessages = [{ role: 'system', content: SYSTEM_PROMPT + (context ? `\nUser Context: ${context}` : '') }];
+  const formattedMessages = [];
   messages.forEach(m => {
-    const role = (m.role === 'assistant' || m.role === 'ai') ? 'assistant' : 'user';
+    const role = (m.role === 'assistant' || m.role === 'ai') ? 'model' : 'user';
     const text = m.content || m.text || '';
-    if (text.trim()) formattedMessages.push({ role, content: text.trim() });
+    if (text.trim()) formattedMessages.push({ role, parts: [{ text: text.trim() }] });
   });
 
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
+    const baseUrl = (process.env.GEMINI_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
+    const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch(`${baseUrl}/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
       method: 'POST',
       signal: controller.signal,
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: formattedMessages,
-        temperature: 0.7,
-        max_tokens: 300
+        contents: formattedMessages,
+        systemInstruction: { parts: [{ text: SYSTEM_PROMPT + (context ? `\nUser Context: ${context}` : '') }] },
+        generationConfig: { temperature: 0.7, maxOutputTokens: 300 }
       })
     });
     clearTimeout(timeout);
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`Groq API HTTP ${response.status}: ${errText.slice(0, 150)}`);
+      throw new Error(`Gemini API HTTP ${response.status}: ${errText.slice(0, 150)}`);
     }
 
     const data = await response.json();
-    const reply = data?.choices?.[0]?.message?.content?.trim();
-    if (!reply) throw new Error('Empty completion from Groq API');
+    const reply = data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+    if (!reply) throw new Error('Empty completion from Gemini API');
 
     return res.status(200).json({ reply });
   } catch (e) {
     console.error('Chat API Error:', e);
-    return res.status(200).json({
-      reply: 'Preparation tip: Break down your practice daily into 4 tracks: Aptitude, Coding, Communication, and Resume formatting. Track your readiness metric on the dashboard!'
-    });
+    return res.status(502).json({ error: 'Gemini chat request failed' });
   }
 }
