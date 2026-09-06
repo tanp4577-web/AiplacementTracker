@@ -608,8 +608,18 @@ const Interview = {
       };
 
       sr.onerror = event => {
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          this._enableTypedFallback('Microphone permission was denied. You can continue by typing answers.');
+        const hint = document.getElementById('micHint');
+        const messages = {
+          'not-allowed': 'Microphone permission denied. Click the lock or microphone icon in the address bar, allow mic access, then refresh.',
+          'service-not-allowed': 'Microphone permission denied. Click the lock or microphone icon in the address bar, allow mic access, then refresh.',
+          'audio-capture': 'No microphone was detected on this device.',
+          network: 'Speech recognition needs an active internet connection.'
+        };
+        if (messages[event.error]) {
+          if (hint) hint.textContent = messages[event.error];
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            this._enableTypedFallback(messages[event.error]);
+          }
         }
       };
       // Restart if it stops automatically (continuous sometimes drops after silence)

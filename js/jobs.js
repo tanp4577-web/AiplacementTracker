@@ -256,7 +256,12 @@ const Jobs = {
           resumeText
         })
       });
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error('The server sent back an unexpected response. Please try again in a moment.');
+      }
       if (!response.ok) throw new Error(data.error || 'Resume analysis failed.');
       status.textContent = 'Analysis complete.';
       result.innerHTML = this._resultMarkup(data);
