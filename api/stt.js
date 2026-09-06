@@ -5,8 +5,6 @@
    Endpoint: POST /api/stt
    ========================================================================== */
 
-const GROQ_DEFAULT_KEY = '[REDACTED]';
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -14,8 +12,6 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  const apiKey = process.env.GROQ_API_KEY || process.env.LLM_API_KEY || GROQ_DEFAULT_KEY;
 
   try {
     const text = 'Answer recorded successfully.';

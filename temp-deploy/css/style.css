@@ -188,9 +188,9 @@ input, textarea, select { font-family: inherit; }
   position: sticky; top: 0; z-index: 30;
 }
 .menu-toggle { display: none; background: none; border: none; color: var(--text); width: 22px; height: 22px; }
-.page-title-wrap { flex: 1; }
-.page-title { font-size: 19px; font-weight: 700; }
-.page-subtitle { font-size: 13px; color: var(--text-dim); }
+.page-title-wrap { flex: 1; min-width: 0; }
+.page-title { font-size: 19px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.page-subtitle { font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .topbar-actions { display: flex; align-items: center; gap: 12px; }
 .date-badge { font-size: 12.5px; color: var(--text-dim); background: var(--surface-2); padding: 6px 12px; border-radius: var(--radius-full); }
 
@@ -752,6 +752,7 @@ select {
 
 /* ============ Responsive ============ */
 @media (max-width: 900px) {
+  .page-subtitle { display: none; }
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
   .main-content { margin-left: 0; }

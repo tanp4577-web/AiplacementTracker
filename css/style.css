@@ -591,12 +591,19 @@ select {
   font-weight: 700;
   color: var(--text);
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .page-subtitle {
   font-size: 12px;
   color: var(--text-dim);
   margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
 }
 
 .topbar-actions {
@@ -1981,6 +1988,10 @@ textarea {
   }
 
   .date-badge {
+    display: none;
+  }
+
+  .page-subtitle {
     display: none;
   }
 

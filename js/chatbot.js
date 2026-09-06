@@ -115,7 +115,7 @@ const Chatbot = {
 
   /**
    * LIVE AI pipeline — every answer is generated in real time:
-   *   1) /api/chat (Google Gemini via Vercel serverless, when LLM_API_KEY is set)
+  *   1) /api/chat (Groq via Vercel serverless, when GROQ_API_KEY is set)
    *   2) LiveAI.chatReply (Pollinations.ai free keyless live LLM)
    *   3) Smart local fallback (context-aware, built from the user's words)
    */
@@ -141,8 +141,8 @@ const Chatbot = {
 
     let reply = null;
 
-    // 1) Serverless Gemini endpoint (deployed with LLM_API_KEY)
-    let geminiError = null;
+    // 1) Serverless Groq endpoint (deployed with GROQ_API_KEY)
+    let chatApiError = null;
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 25000);
@@ -160,15 +160,15 @@ const Chatbot = {
         }
       } else {
         const errorData = await res.json().catch(() => ({}));
-        geminiError = `Chat API Error (${res.status}): ${errorData.error || 'Unknown'}. Detail: ${errorData.detail || 'None'}`;
+        chatApiError = `Chat API Error (${res.status}): ${errorData.error || 'Unknown'}. Detail: ${errorData.detail || 'None'}`;
       }
     } catch (e) {
-      geminiError = `Network or timeout error trying to reach /api/chat: ${e.message}`;
+      chatApiError = `Network or timeout error trying to reach /api/chat: ${e.message}`;
     }
 
-    if (geminiError && !reply) {
+    if (chatApiError && !reply) {
       // Silently fall through to Pollinations live LLM
-      console.warn('[Chatbot] Gemini failed, using fallback:', geminiError);
+      console.warn('[Chatbot] Chat API failed, using fallback:', chatApiError);
     }
 
     // 2) Free keyless live LLM (Pollinations) directly from the browser

@@ -7,7 +7,6 @@
    Response: { evaluation: string, score: number, spoken_response: string }
    ========================================================================== */
 
-const GROQ_DEFAULT_KEY = '[REDACTED]';
 const GROQ_MODEL = 'groq/compound-mini';
 
 const SYSTEM_PROMPT = `You are a senior tech interviewer conducting a live HR/technical mock interview.
@@ -50,7 +49,8 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const apiKey = process.env.GROQ_API_KEY || process.env.LLM_API_KEY || GROQ_DEFAULT_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'GROQ_API_KEY is not configured' });
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});

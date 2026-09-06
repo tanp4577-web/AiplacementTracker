@@ -24,7 +24,13 @@ GROQ_API_KEY=your_groq_api_key
 
 `GROQ_API_KEY` is required by `/api/interview-chat` and `/api/stt`.
 
-The chatbot and Hiring Hub ATS route use Gemini. Configure one of these key names:
+The chatbot and HR Simulator use Groq. Configure:
+
+```text
+GROQ_API_KEY=your_groq_api_key
+```
+
+The Hiring Hub ATS route and aptitude generator use Gemini. Configure one of these key names:
 
 ```text
 LLM_API_KEY=your_gemini_api_key
