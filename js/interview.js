@@ -178,12 +178,12 @@ const Interview = {
 
           ${!srSupported ? `
             <div class="explanation mt-1" style="font-size:12px;border-color:rgba(209,72,63,0.4);background:rgba(209,72,63,0.08)">
-              ⚠ Web Speech API unsupported — use Chrome or Edge for voice input.
+              <i class="bi bi-exclamation-triangle text-danger"></i> Web Speech API unsupported. Use Chrome or Edge for voice input.
               You can type your answers below.
             </div>
             <div class="mt-1">
               <textarea id="typedAnswer" placeholder="Type your answer here..." style="min-height:60px"></textarea>
-              <button class="btn btn-ghost btn-sm mt-1" id="sendTypedBtn">Send Answer ➤</button>
+              <button class="btn btn-ghost btn-sm mt-1" id="sendTypedBtn"><i class="bi bi-send"></i> Send Answer</button>
             </div>` : ''}
         </div>
 
@@ -198,7 +198,7 @@ const Interview = {
           <div class="li-ai-avatar-wrap">
             <div class="ai-agent" id="aiAgent">
               <div class="agent-ring"></div>
-              <div class="agent-core" id="aiAgentCore">🤖</div>
+              <div class="agent-core" id="aiAgentCore"><i class="bi bi-robot"></i></div>
             </div>
             <div>
               <div class="agent-name">PrepAI Interviewer</div>
@@ -481,7 +481,7 @@ const Interview = {
     this._setAgentState('thinking');
     this.state._inAIReply = true;
     const hint = document.getElementById('micHint');
-    if (hint) hint.textContent = isOpening ? ' AI is preparing your first question...' : '🤔 AI is thinking...';
+    if (hint) hint.textContent = isOpening ? 'AI is preparing your first question...' : 'AI is thinking...';
 
     const roleDesc = this.state.jobRole || 'General Software Engineer';
 
@@ -691,7 +691,7 @@ const Interview = {
 
     const label = document.createElement('div');
     label.className = 'transcript-label';
-    label.textContent = role === 'ai' ? '🤖 PrepAI Interviewer' : '👤 You';
+    label.textContent = role === 'ai' ? 'PrepAI Interviewer' : 'You';
 
     const content = document.createElement('div');
     content.className = 'transcript-text';
@@ -773,10 +773,10 @@ const Interview = {
       <div class="card mb-2" style="border-color:var(--success);background:var(--success-soft)">
         <div class="flex-between" style="flex-wrap:wrap;gap:12px">
           <div>
-            <div class="card-title" style="color:var(--success)">✅ Interview Complete — ${grade}</div>
+            <div class="card-title" style="color:var(--success)"><i class="bi bi-check-circle-fill"></i> Interview Complete — ${grade}</div>
             <div class="card-sub">Role: ${this.state.jobRole} &bull; Style: ${this.state.interviewType}</div>
           </div>
-          <button class="btn btn-primary" id="restartInterviewBtn">🔄 New Interview</button>
+          <button class="btn btn-primary" id="restartInterviewBtn"><i class="bi bi-arrow-repeat"></i> New Interview</button>
         </div>
       </div>
 

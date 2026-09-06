@@ -18,7 +18,7 @@ const Jobs = {
         <div class="flex-between" style="gap:16px;flex-wrap:wrap">
           <div>
             <div class="card-title"><i class="bi bi-briefcase text-accent" style="margin-right:4px"></i>Hiring Hub</div>
-            <div class="card-sub">Find active student roles, check your resume fit, and practice target gaps.</div>
+            <div class="card-sub">${jobs.length} roles across engineering, data, product, design, and operations. Check your resume fit and practice target gaps.</div>
           </div>
           <div class="flex gap-1" role="group" aria-label="Opportunity scope">
             <button class="btn ${this.state.scope === 'national' ? 'btn-primary' : 'btn-ghost'}" id="nationalJobsBtn">National</button>
@@ -163,14 +163,23 @@ const Jobs = {
 
   _resultMarkup(data) {
     const score = Math.max(0, Math.min(100, Number(data.matchScore) || 0));
+    const escape = value => String(value || '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
+    const recommendations = (data.recommendations || []).map(item => `
+      <li class="recommendation-row">
+        <strong>${escape(item.action)}</strong>
+        <span class="text-dim">${escape(item.resourceType)} · ${escape(item.outcome)}</span>
+      </li>
+    `).join('');
     return `
       <div class="card" style="background:var(--success-soft);border-color:var(--success)">
         <div class="flex-between"><div class="card-title">ATS Match Score</div><strong style="font-size:26px;color:var(--success)">${score}%</strong></div>
         <div class="progress mt-1"><div class="progress-fill green" style="width:${score}%"></div></div>
-        <div class="card-sub mt-1">Matched skills: ${(data.matchedSkills || []).join(', ') || 'None identified'}</div>
-        <div class="card-sub">Missing or weak skills: ${(data.missingSkills || []).join(', ') || 'None identified'}</div>
+        <div class="card-sub mt-1">Matched skills: ${(data.matchedSkills || []).map(escape).join(', ') || 'None identified'}</div>
+        <div class="card-sub">Missing or weak skills: ${(data.missingSkills || []).map(escape).join(', ') || 'None identified'}</div>
+        ${data.skillGapSummary ? `<div class="explanation mt-1"><strong>Priority gap:</strong> ${escape(data.skillGapSummary)}</div>` : ''}
+        ${recommendations ? `<div class="card-title mt-2" style="font-size:15px">Recommended next steps</div><ol class="recommendation-list">${recommendations}</ol>` : ''}
         <div class="card-title mt-2" style="font-size:15px">Recommended interview questions</div>
-        <ol style="padding-left:20px;font-size:13px">${(data.recommendedInterviewQuestions || []).map(question => `<li>${question}</li>`).join('')}</ol>
+        <ol style="padding-left:20px;font-size:13px">${(data.recommendedInterviewQuestions || []).map(question => `<li>${escape(question)}</li>`).join('')}</ol>
         <button class="btn btn-primary btn-sm mt-1" data-start-interview>Start targeted interview</button>
       </div>
     `;

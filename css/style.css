@@ -1350,6 +1350,23 @@ textarea {
   letter-spacing: 0.05em;
 }
 
+.recommendation-list {
+  display: grid;
+  gap: var(--space-2);
+  padding-left: 20px;
+  font-size: 13px;
+}
+
+.recommendation-row {
+  display: grid;
+  gap: 2px;
+  padding-left: 4px;
+}
+
+.recommendation-row span {
+  font-size: 12px;
+}
+
 .li-typed-fallback {
   display: grid;
   gap: var(--space-2);

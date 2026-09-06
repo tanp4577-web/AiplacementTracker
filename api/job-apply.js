@@ -10,9 +10,9 @@ Target Location Type: ${locationType}
 Job Description: ${jobDescription}
 Candidate Resume Text: ${resumeText}
 
-Calculate a match score from 0 to 100. Identify exactly up to 3 matched skills and exactly up to 3 missing or weak skills. Generate exactly 3 concise voice-interview questions tailored to the missing or weak areas.
+Calculate a match score from 0 to 100. Identify up to 5 matched skills and up to 5 missing or weak skills. Explain the most important skill gap in one sentence. Recommend exactly 4 practical learning actions with a resource type and a measurable outcome. Generate exactly 3 concise voice-interview questions tailored to the missing or weak areas.
 Return ONLY valid JSON with this shape:
-{"matchScore": number, "matchedSkills": [string], "missingSkills": [string], "recommendedInterviewQuestions": [string, string, string]}`;
+{"matchScore": number, "matchedSkills": [string], "missingSkills": [string], "skillGapSummary": string, "recommendations": [{"action": string, "resourceType": string, "outcome": string}], "recommendedInterviewQuestions": [string, string, string]}`;
 }
 
 function parseJson(text) {
@@ -54,8 +54,16 @@ export default async function handler(req, res) {
     const parsed = parseJson(text);
     return res.status(200).json({
       matchScore: Math.max(0, Math.min(100, Number(parsed.matchScore) || 0)),
-      matchedSkills: Array.isArray(parsed.matchedSkills) ? parsed.matchedSkills.slice(0, 3) : [],
-      missingSkills: Array.isArray(parsed.missingSkills) ? parsed.missingSkills.slice(0, 3) : [],
+      matchedSkills: Array.isArray(parsed.matchedSkills) ? parsed.matchedSkills.slice(0, 5) : [],
+      missingSkills: Array.isArray(parsed.missingSkills) ? parsed.missingSkills.slice(0, 5) : [],
+      skillGapSummary: typeof parsed.skillGapSummary === 'string' ? parsed.skillGapSummary.trim() : '',
+      recommendations: Array.isArray(parsed.recommendations)
+        ? parsed.recommendations.slice(0, 4).map(item => ({
+          action: typeof item?.action === 'string' ? item.action.trim() : '',
+          resourceType: typeof item?.resourceType === 'string' ? item.resourceType.trim() : 'Practice',
+          outcome: typeof item?.outcome === 'string' ? item.outcome.trim() : ''
+        })).filter(item => item.action)
+        : [],
       recommendedInterviewQuestions: Array.isArray(parsed.recommendedInterviewQuestions)
         ? parsed.recommendedInterviewQuestions.slice(0, 3)
         : []
