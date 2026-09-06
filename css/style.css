@@ -1997,7 +1997,26 @@ textarea {
   border-radius: var(--radius);
   font-size: 13px;
   line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   animation: msgIn 150ms ease-out both;
+}
+
+.msg.bot {
+  max-width: 96%;
+}
+
+.msg.bot code {
+  display: block;
+  margin-top: 8px;
+  padding: 10px;
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  background: #0c1527;
+  color: #e2e8f0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre;
 }
 
 @keyframes msgIn {

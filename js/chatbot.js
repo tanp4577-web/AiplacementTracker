@@ -65,7 +65,21 @@ const Chatbot = {
   _addBotMsg(text) {
     const div = document.createElement('div');
     div.className = 'msg bot';
-    div.textContent = text;
+    const parts = String(text || '').split(/```(?:[a-zA-Z0-9+#.-]+)?\n?([\s\S]*?)```/g);
+    if (parts.length === 1) {
+      div.textContent = text;
+    } else {
+      parts.forEach((part, index) => {
+        if (!part) return;
+        if (index % 2 === 1) {
+          const code = document.createElement('code');
+          code.textContent = part.trim();
+          div.appendChild(code);
+        } else {
+          div.appendChild(document.createTextNode(part));
+        }
+      });
+    }
     this.body.appendChild(div);
     this.body.scrollTop = this.body.scrollHeight;
   },
