@@ -95,6 +95,11 @@ const Interview = {
   cleanup() {
     LiveAI.stopSpeaking();
     LiveAI.stopListening();
+    clearTimeout(this.state._silenceTimer);
+    if (this.state._continuousSR) {
+      try { this.state._continuousSR.onend = null; this.state._continuousSR.stop(); } catch { }
+      this.state._continuousSR = null;
+    }
     if (this._timerInterval) { clearInterval(this._timerInterval); this._timerInterval = null; }
     this.state.running = false;
     this.state._conversationActive = false;
@@ -511,7 +516,7 @@ const Interview = {
     // Fast local fallback (no network call)
     if (!reply || !reply.trim()) {
       reply = isOpening
-        ? `Hello! I am your AI interviewer today. Let us start — could you please introduce yourself and tell me what brings you here for the ${roleDesc} position?`
+        ? `Hello! I am your AI interviewer today. To start, could you tell me your name and give me a brief introduction of yourself for the ${roleDesc} position?`
         : 'That is interesting. Could you expand on that a bit more? Give me a concrete example from your experience.';
     }
 
@@ -527,14 +532,18 @@ const Interview = {
     }
   },
 
-  /* ═══ Speak using native browser TTS (zero latency) then invite recording ═══ */
+  /* ═══ Speak using native browser TTS (zero latency) then auto-listen live ═══ */
   _speakAndListen(text) {
     if (!this.state._conversationActive) return;
     const hint = document.getElementById('micHint');
     const afterSpeak = () => {
       this.state._inAIReply = false;
       this._setAgentState('listening');
-      if (hint) hint.textContent = 'Hold [Spacebar] to record your answer';
+      if (hint) hint.innerHTML = '<i class="bi bi-mic-fill text-success"></i> Listening... just speak naturally (I\'ll reply when you pause)';
+      this.state._autoTranscript = '';
+      this.state._autoInterim = '';
+      clearTimeout(this.state._silenceTimer);
+      this._ensureContinuousSpeechRecognition();
     };
     if (this.state._speakerOn && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -559,10 +568,12 @@ const Interview = {
   _startListening() {
     if (!this.state._conversationActive) return;
     const hint = document.getElementById('micHint');
-    if (hint) hint.textContent = 'Hold [Spacebar] to record and speak naturally';
+    if (hint) hint.innerHTML = '<i class="bi bi-mic-fill text-success"></i> Listening... just speak naturally';
   },
 
-  /* ═══ Continuous Push-to-Talk (Zero Latency) ═══ */
+    /* ═══ Continuous Live Listening (auto turn-taking, no key press needed) ═══
+      While the AI is not speaking, every word the mic picks up is buffered.
+      About 1.2 seconds of silence after you stop talking submits the answer. */
   _ensureContinuousSpeechRecognition() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR || this.state._continuousSR) return;
@@ -581,19 +592,19 @@ const Interview = {
           else interim += ev.results[i][0].transcript;
         }
 
-        // Only save words spoken WHILE spacebar is actively held down
-        if (this.state._spaceDown) {
-          if (final) this.state._pttTranscript = (this.state._pttTranscript || '') + final;
-          this.state._pttInterim = interim;
+        if (!this.state._conversationActive || this.state._inAIReply) return;
+        if (final) this.state._autoTranscript = (this.state._autoTranscript || '') + final;
+        this.state._autoInterim = interim;
 
-          const box = document.getElementById('transcriptBox');
-          if (box) {
-            let el = box.querySelector('#pttInterim');
-            if (!el) { el = document.createElement('div'); el.id = 'pttInterim'; el.className = 'transcript-msg user interim'; box.appendChild(el); }
-            el.textContent = ((this.state._pttTranscript || '') + interim).trim();
-            box.scrollTop = box.scrollHeight;
-          }
+        const box = document.getElementById('transcriptBox');
+        if (box) {
+          let el = box.querySelector('#pttInterim');
+          if (!el) { el = document.createElement('div'); el.id = 'pttInterim'; el.className = 'transcript-msg user interim'; box.appendChild(el); }
+          el.textContent = ((this.state._autoTranscript || '') + interim).trim();
+          box.scrollTop = box.scrollHeight;
         }
+        clearTimeout(this.state._silenceTimer);
+        this.state._silenceTimer = setTimeout(() => this._autoSubmitAnswer(), 1200);
       };
 
       sr.onerror = event => {
@@ -613,46 +624,45 @@ const Interview = {
     } catch (e) { }
   },
 
-  _onKeyDown(e) {
-    if (e.code !== 'Space' || e.repeat || !this.state._conversationActive || this.state._spaceDown) return;
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    e.preventDefault();
-    this.state._spaceDown = true;
-    this.state._pttTranscript = '';
-    this.state._pttInterim = '';
-
-    // Interrupt AI speech instantly
-    window.speechSynthesis && window.speechSynthesis.cancel();
-    this.state._inAIReply = false;
-
-    const hint = document.getElementById('micHint');
-    if (hint) hint.innerHTML = '<i class="bi bi-mic-fill text-success"></i> Listening… speak now (release to send)';
-
-    this._ensureContinuousSpeechRecognition();
-  },
-
-  _onKeyUp(e) {
-    if (e.code !== 'Space' || !this.state._spaceDown) return;
-    e.preventDefault();
-    this.state._spaceDown = false;
-    const hint = document.getElementById('micHint');
+  /* ═══ Auto-submit once the candidate pauses ═══ */
+  _autoSubmitAnswer() {
+    if (!this.state._conversationActive || this.state._inAIReply) return;
+    const text = ((this.state._autoTranscript || '') + ' ' + (this.state._autoInterim || '')).trim();
+    this.state._autoTranscript = '';
+    this.state._autoInterim = '';
 
     const box = document.getElementById('transcriptBox');
     const interimEl = box && box.querySelector('#pttInterim');
     if (interimEl) interimEl.remove();
 
-    const text = ((this.state._pttTranscript || '') + ' ' + (this.state._pttInterim || '')).trim();
-    this.state._pttTranscript = '';
-    this.state._pttInterim = '';
-
     if (text.length > 2) {
-      if (hint) hint.textContent = 'Processing ...';
+      const hint = document.getElementById('micHint');
+      if (hint) hint.textContent = 'Processing...';
       this._addTranscript('user', text);
       this._handleUserReply(text);
-    } else {
-      if (hint) hint.textContent = 'Nothing captured. Hold [Spacebar], speak clearly, then release.';
     }
   },
+
+  _onKeyDown(e) {
+    if (e.code !== 'Space' || e.repeat || !this.state._conversationActive) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    e.preventDefault();
+
+    if (this.state._inAIReply) {
+      window.speechSynthesis && window.speechSynthesis.cancel();
+      this.state._inAIReply = false;
+      this._setAgentState('listening');
+      this.state._autoTranscript = '';
+      this.state._autoInterim = '';
+      this._ensureContinuousSpeechRecognition();
+      return;
+    }
+
+    clearTimeout(this.state._silenceTimer);
+    this._autoSubmitAnswer();
+  },
+
+  _onKeyUp(e) { /* Submission no longer depends on key release. */ },
 
 
   /* ═══ Process user answer ═══ */
