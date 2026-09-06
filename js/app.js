@@ -70,6 +70,13 @@ const App = {
       Interview.cleanup();
     }
 
+    // Remove any leftover modal dynamically appended to <body> by the previous view
+    // (e.g. Hiring Hub's apply/details modal) so it cannot freeze the next page if the
+    // user navigated away instead of clicking its own Close button.
+    document.querySelectorAll('body > .modal-overlay').forEach(overlay => {
+      if (overlay.id !== 'authModal') overlay.remove();
+    });
+
     this.currentView = hash;
 
     const view = this.views[hash];
