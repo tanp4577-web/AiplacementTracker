@@ -1,5 +1,5 @@
 /* Vercel Serverless Function - resume-to-job ATS matching. */
-const DEFAULT_MODEL = 'gemini-2.5-flash-lite';
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 function screeningPrompt({ jobTitle, locationType, jobDescription, resumeText }) {

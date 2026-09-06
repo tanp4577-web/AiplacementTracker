@@ -23,7 +23,7 @@ The project focuses on seamless user experience through a Single Page Applicatio
 
 ### Serverless API (Vercel Functions)
 The `/api` folder contains Node.js serverless edge functions that act as secure proxies to interact with LLMs (Large Language Models), keeping API keys hidden from the client browser. 
-- **Google Gemini API**: Serves as the core intelligence engine (using `gemini-2.5-flash-lite`).
+- **Google Gemini API**: Serves as the core intelligence engine (using `gemini-3.5-flash-lite`).
 - **Endpoints**:
   - `api/chat.js`: Powers the "PrepAI Assistant" floating chatbot.
   - `api/interview-chat.js`: Powers the dynamic Interview Simulator by providing intelligent HR follow-up questions contextually.
