@@ -1600,6 +1600,24 @@ textarea {
 
 .yt-thumb img { width: 100%; height: 100%; object-fit: cover; }
 
+.yt-thumb-fallback {
+  background: linear-gradient(135deg, #172554, #1e3a8a 55%, #0f766e);
+}
+
+.yt-thumb-fallback-label {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.yt-thumb-fallback .yt-thumb-fallback-label { display: flex; }
+
 .yt-playbtn {
   position: absolute;
   inset: 0;

@@ -258,14 +258,14 @@ const Youtube = {
     const progress = this.state.watchProgress[p.id];
     const embedUrl = this._buildEmbedUrl(p.url);
     const videoId = this._parseVideoId(p.url);
-    const thumbSrc = videoId
-      ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-      : (p.thumbnail || '');
+    const thumbSrc = p.thumbnail || (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : '');
+    const fallbackThumb = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : '';
     return `
       <div class="yt-card${done ? ' yt-completed' : ''}" data-play="${p.id}">
         <div class="yt-thumb">
-          <img src="${thumbSrc}" alt="${p.title}" loading="lazy"
-               onerror="this.src='https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg'" />
+          <img src="${thumbSrc}" alt="${p.title}" loading="lazy" data-fallback="${fallbackThumb}"
+            onerror="if(this.dataset.fallback && this.src !== this.dataset.fallback){this.src=this.dataset.fallback;}else{this.hidden=true;this.parentElement.classList.add('yt-thumb-fallback');}" />
+          <span class="yt-thumb-fallback-label"><i class="bi bi-image"></i> Preview unavailable</span>
           <span class="yt-duration">${p.duration}</span>
           <span class="yt-playbtn">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
