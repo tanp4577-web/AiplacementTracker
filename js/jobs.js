@@ -47,6 +47,7 @@ const Jobs = {
     document.getElementById('locateJobsBtn').addEventListener('click', () => this._locate());
     this.container.querySelectorAll('[data-job-id]').forEach(card => {
       card.querySelector('[data-apply]')?.addEventListener('click', () => this._openApplication(card.dataset.jobId));
+      card.querySelector('[data-details]')?.addEventListener('click', () => this._openDetails(card.dataset.jobId));
     });
   },
 
@@ -72,9 +73,108 @@ const Jobs = {
         </div>
         <p class="text-dim mt-1" style="font-size:13px;line-height:1.55">${job.description}</p>
         <div class="flex gap-1 mt-1" style="flex-wrap:wrap">${job.skills.map(skill => `<span class="chip">${skill}</span>`).join('')}</div>
-        <button class="btn btn-primary btn-sm mt-2" data-apply>Analyze resume</button>
+        <div class="flex gap-1 mt-2" style="flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" data-details><i class="bi bi-building"></i> Company details</button>
+          <button class="btn btn-primary btn-sm" data-apply><i class="bi bi-file-earmark-person"></i> Analyze resume</button>
+        </div>
       </article>
     `;
+  },
+
+  _detailsFor(job) {
+    const title = job.title.toLowerCase();
+    const packageRange = title.includes('machine learning') || title.includes('data engineer') ? '8-16 LPA'
+      : title.includes('product') ? '7-13 LPA'
+        : title.includes('security') || title.includes('devops') ? '6-12 LPA'
+          : title.includes('analyst') || title.includes('ux') || title.includes('qa') ? '4.5-9 LPA'
+            : '5-11 LPA';
+    const rounds = title.includes('product') || title.includes('analyst')
+      ? ['Online aptitude and case assessment', 'Product or business case discussion', 'Panel interview', 'People and culture discussion']
+      : title.includes('qa') || title.includes('security') || title.includes('cloud')
+        ? ['Online aptitude and technical assessment', 'Technical interview', 'Practical troubleshooting round', 'People and culture discussion']
+        : ['Online aptitude and coding assessment', 'Technical interview', 'Role-specific deep dive', 'People and culture discussion'];
+    return {
+      packageRange,
+      pptDate: '16 Sep 2026',
+      testDate: '18 Sep 2026',
+      deadline: '14 Sep 2026',
+      openings: title.includes('engineer') || title.includes('developer') ? 'Multiple openings' : '2-5 openings',
+      eligibility: 'Final-year students and graduates with 0-2 years of experience',
+      rounds,
+      benefits: ['Mentorship and structured onboarding', 'Learning budget and certification support', 'Performance-based growth reviews'],
+      note: 'Dates and package are indicative demo details for placement preparation. Confirm the final schedule with the employer.'
+    };
+  },
+
+  _openDetails(id) {
+    const job = JOB_OPENINGS.find(item => item.id === id);
+    if (!job) return;
+    const details = this._detailsFor(job);
+    const existing = document.getElementById('jobDetailsModal');
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = 'jobDetailsModal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal job-details-modal" role="dialog" aria-modal="true" aria-labelledby="jobDetailsTitle">
+        <div class="modal-head">
+          <div class="job-details-heading">
+            <div class="job-company-mark"><i class="bi bi-building"></i></div>
+            <div>
+              <h2 id="jobDetailsTitle">${job.title}</h2>
+              <p class="text-dim">${job.company} · ${job.location} · ${job.mode}</p>
+            </div>
+          </div>
+          <button class="modal-close" id="closeJobDetails" aria-label="Close company details"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body">
+          <p class="job-company-description">${job.description}</p>
+          <div class="job-detail-stats">
+            <div><span>Package</span><strong>${details.packageRange}</strong></div>
+            <div><span>Openings</span><strong>${details.openings}</strong></div>
+            <div><span>Apply by</span><strong>${details.deadline}</strong></div>
+            <div><span>Work mode</span><strong>${job.mode}</strong></div>
+          </div>
+          <div class="job-detail-grid">
+            <section>
+              <h3>Hiring timeline</h3>
+              <dl class="job-timeline">
+                <div><dt>PPT / briefing</dt><dd>${details.pptDate}</dd></div>
+                <div><dt>Online test</dt><dd>${details.testDate}</dd></div>
+                <div><dt>Interview window</dt><dd>22-25 Sep 2026</dd></div>
+              </dl>
+            </section>
+            <section>
+              <h3>Eligibility</h3>
+              <p class="text-dim">${details.eligibility}</p>
+              <h3 class="mt-2">Required skills</h3>
+              <div class="flex gap-1" style="flex-wrap:wrap">${job.skills.map(skill => `<span class="chip blue">${skill}</span>`).join('')}</div>
+            </section>
+          </div>
+          <section class="job-rounds mt-2">
+            <h3>Selection rounds</h3>
+            <ol>${details.rounds.map(round => `<li>${round}</li>`).join('')}</ol>
+          </section>
+          <section class="job-rounds mt-2">
+            <h3>Benefits and growth</h3>
+            <ul>${details.benefits.map(benefit => `<li>${benefit}</li>`).join('')}</ul>
+          </section>
+          <p class="job-details-note"><i class="bi bi-info-circle"></i> ${details.note}</p>
+          <div class="flex-between mt-2" style="gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost" id="closeJobDetailsBottom">Close</button>
+            <button class="btn btn-primary" id="detailsAnalyzeBtn"><i class="bi bi-file-earmark-person"></i> Analyze my resume for this role</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    modal.querySelector('#closeJobDetails').addEventListener('click', close);
+    modal.querySelector('#closeJobDetailsBottom').addEventListener('click', close);
+    modal.querySelector('#detailsAnalyzeBtn').addEventListener('click', () => {
+      close();
+      this._openApplication(job.id);
+    });
   },
 
   _locate() {
