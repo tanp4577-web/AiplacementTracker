@@ -168,6 +168,7 @@ const Jobs = {
       </div>
     `;
     document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add('show'));
     const close = () => modal.remove();
     modal.querySelector('#closeJobDetails').addEventListener('click', close);
     modal.querySelector('#closeJobDetailsBottom').addEventListener('click', close);
@@ -286,5 +287,3 @@ const Jobs = {
     `;
   }
 };
-
-  requestAnimationFrame(() => modal.classList.add('show'));
