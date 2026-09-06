@@ -42,7 +42,7 @@ or:
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
-Optional Gemini settings are `GEMINI_MODEL` and `GEMINI_BASE_URL`; defaults are `gemini-2.5-flash` and `https://generativelanguage.googleapis.com/v1beta`. Do not add `VERCEL_OIDC_TOKEN` to project environment variables; it is a local deployment credential managed by Vercel.
+Optional Gemini settings are `GEMINI_MODEL` and `GEMINI_BASE_URL`; defaults are `gemini-2.5-flash-lite` and `https://generativelanguage.googleapis.com/v1beta`. Do not add `VERCEL_OIDC_TOKEN` to project environment variables; it is a local deployment credential managed by Vercel.
 
 API keys are read only by server-side functions and are never hardcoded in frontend files.
 
