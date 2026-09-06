@@ -128,38 +128,34 @@ const Jobs = {
           <button class="modal-close" id="closeJobDetails" aria-label="Close company details"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body">
-          <p class="job-company-description">${job.description}</p>
-          <div class="job-detail-stats">
-            <div><span>Package</span><strong>${details.packageRange}</strong></div>
-            <div><span>Openings</span><strong>${details.openings}</strong></div>
-            <div><span>Apply by</span><strong>${details.deadline}</strong></div>
-            <div><span>Work mode</span><strong>${job.mode}</strong></div>
+          <div class="job-detail-tabs" role="tablist" aria-label="Role information">
+            <button class="job-detail-tab active" role="tab" aria-selected="true" data-detail-tab="overview"><i class="bi bi-building"></i> Overview</button>
+            <button class="job-detail-tab" role="tab" aria-selected="false" data-detail-tab="process"><i class="bi bi-diagram-3"></i> Hiring process</button>
+            <button class="job-detail-tab" role="tab" aria-selected="false" data-detail-tab="preparation"><i class="bi bi-mortarboard"></i> Preparation</button>
           </div>
-          <div class="job-detail-grid">
-            <section>
-              <h3>Hiring timeline</h3>
-              <dl class="job-timeline">
-                <div><dt>PPT / briefing</dt><dd>${details.pptDate}</dd></div>
-                <div><dt>Online test</dt><dd>${details.testDate}</dd></div>
-                <div><dt>Interview window</dt><dd>22-25 Sep 2026</dd></div>
-              </dl>
-            </section>
-            <section>
-              <h3>Eligibility</h3>
-              <p class="text-dim">${details.eligibility}</p>
-              <h3 class="mt-2">Required skills</h3>
-              <div class="flex gap-1" style="flex-wrap:wrap">${job.skills.map(skill => `<span class="chip blue">${skill}</span>`).join('')}</div>
-            </section>
+          <div class="job-detail-panel active" data-detail-panel="overview" role="tabpanel">
+            <p class="job-company-description">${job.description}</p>
+            <div class="job-detail-stats">
+              <div><span>Package</span><strong>${details.packageRange}</strong></div>
+              <div><span>Openings</span><strong>${details.openings}</strong></div>
+              <div><span>Apply by</span><strong>${details.deadline}</strong></div>
+              <div><span>Work mode</span><strong>${job.mode}</strong></div>
+            </div>
+            <div class="job-detail-grid">
+              <section><h3>Eligibility</h3><p class="text-dim">${details.eligibility}</p></section>
+              <section><h3>Required skills</h3><div class="flex gap-1" style="flex-wrap:wrap">${job.skills.map(skill => `<span class="chip blue">${skill}</span>`).join('')}</div></section>
+            </div>
           </div>
-          <section class="job-rounds mt-2">
-            <h3>Selection rounds</h3>
-            <ol>${details.rounds.map(round => `<li>${round}</li>`).join('')}</ol>
-          </section>
-          <section class="job-rounds mt-2">
-            <h3>Benefits and growth</h3>
-            <ul>${details.benefits.map(benefit => `<li>${benefit}</li>`).join('')}</ul>
-          </section>
-          <p class="job-details-note"><i class="bi bi-info-circle"></i> ${details.note}</p>
+          <div class="job-detail-panel" data-detail-panel="process" role="tabpanel" hidden>
+            <div class="job-detail-grid">
+              <section><h3>Hiring timeline</h3><dl class="job-timeline"><div><dt>PPT / briefing</dt><dd>${details.pptDate}</dd></div><div><dt>Online test</dt><dd>${details.testDate}</dd></div><div><dt>Interview window</dt><dd>22-25 Sep 2026</dd></div></dl></section>
+              <section class="job-rounds"><h3>Selection rounds</h3><ol>${details.rounds.map(round => `<li>${round}</li>`).join('')}</ol></section>
+            </div>
+          </div>
+          <div class="job-detail-panel" data-detail-panel="preparation" role="tabpanel" hidden>
+            <section class="job-rounds"><h3>Benefits and growth</h3><ul>${details.benefits.map(benefit => `<li>${benefit}</li>`).join('')}</ul></section>
+            <p class="job-details-note"><i class="bi bi-info-circle"></i> ${details.note}</p>
+          </div>
           <div class="flex-between mt-2" style="gap:8px;flex-wrap:wrap">
             <button class="btn btn-ghost" id="closeJobDetailsBottom">Close</button>
             <button class="btn btn-primary" id="detailsAnalyzeBtn"><i class="bi bi-file-earmark-person"></i> Analyze my resume for this role</button>
@@ -172,6 +168,19 @@ const Jobs = {
     const close = () => modal.remove();
     modal.querySelector('#closeJobDetails').addEventListener('click', close);
     modal.querySelector('#closeJobDetailsBottom').addEventListener('click', close);
+    modal.querySelectorAll('[data-detail-tab]').forEach(tab => tab.addEventListener('click', () => {
+      const target = tab.dataset.detailTab;
+      modal.querySelectorAll('[data-detail-tab]').forEach(item => {
+        const active = item === tab;
+        item.classList.toggle('active', active);
+        item.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      modal.querySelectorAll('[data-detail-panel]').forEach(panel => {
+        const active = panel.dataset.detailPanel === target;
+        panel.classList.toggle('active', active);
+        panel.hidden = !active;
+      });
+    }));
     modal.querySelector('#detailsAnalyzeBtn').addEventListener('click', () => {
       close();
       this._openApplication(job.id);
