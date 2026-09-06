@@ -65,9 +65,12 @@ const Chatbot = {
   _addBotMsg(text) {
     const div = document.createElement('div');
     div.className = 'msg bot';
-    const parts = String(text || '').split(/```(?:[a-zA-Z0-9+#.-]+)?\n?([\s\S]*?)```/g);
+    const cleanText = String(text || '')
+      .replace(/\$([^$\n]+)\$/g, '$1')
+      .replace(/^#{1,6}\s*/gm, '');
+    const parts = cleanText.split(/```(?:[a-zA-Z0-9+#.-]+)?\n?([\s\S]*?)```/g);
     if (parts.length === 1) {
-      div.textContent = text;
+      div.textContent = cleanText;
     } else {
       parts.forEach((part, index) => {
         if (!part) return;
