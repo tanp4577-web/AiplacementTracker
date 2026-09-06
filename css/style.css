@@ -1350,6 +1350,19 @@ textarea {
   letter-spacing: 0.05em;
 }
 
+.li-typed-fallback {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.li-typed-fallback textarea {
+  min-height: 72px;
+  font-size: 13px;
+}
+
 /* ============ Code Editor Sandbox ============ */
 .code-wrap {
   border: 1px solid #1e293b;

@@ -95,6 +95,7 @@ const Interview = {
   cleanup() {
     LiveAI.stopSpeaking();
     LiveAI.stopListening();
+    if (this._timerInterval) { clearInterval(this._timerInterval); this._timerInterval = null; }
     this.state.running = false;
     this.state._conversationActive = false;
     this.state._inAIReply = false;
@@ -296,9 +297,7 @@ const Interview = {
     document.getElementById('startBtn').addEventListener('click', () => this._startSession());
 
     document.getElementById('endBtn').addEventListener('click', () => {
-      this._finalizeRecording().then(() => {
-        this._showReport();
-      });
+      this._showReport();
     });
 
     document.getElementById('speakerToggleBtn').addEventListener('click', e => {
@@ -328,6 +327,30 @@ const Interview = {
         this._handleUserReply(text);
       });
     }
+  },
+
+  _enableTypedFallback(message = 'Voice input is unavailable. Type your answer below instead.') {
+    const panel = document.querySelector('.li-panel-left');
+    if (!panel || document.getElementById('typedFallback')) return;
+    const fallback = document.createElement('div');
+    fallback.id = 'typedFallback';
+    fallback.className = 'li-typed-fallback';
+    fallback.innerHTML = `
+      <div class="explanation" style="font-size:12px;border-color:var(--warning);background:var(--warning-soft)">
+        <i class="bi bi-keyboard"></i> ${message}
+      </div>
+      <textarea id="typedFallbackInput" placeholder="Type your interview answer..."></textarea>
+      <button class="btn btn-primary btn-sm" id="typedFallbackSend"><i class="bi bi-send"></i> Send Answer</button>
+    `;
+    panel.appendChild(fallback);
+    fallback.querySelector('#typedFallbackSend').addEventListener('click', () => {
+      const input = fallback.querySelector('#typedFallbackInput');
+      const text = input.value.trim();
+      if (!text || !this.state.running || this.state._inAIReply) return;
+      input.value = '';
+      this._addTranscript('user', text);
+      this._handleUserReply(text);
+    });
   },
 
   /* ═══ Start Session ═══ */
@@ -431,6 +454,7 @@ const Interview = {
 
       } catch (e) {
         console.warn('Camera unavailable:', e.message);
+        this._enableTypedFallback('Camera or microphone permission was unavailable. You can continue by typing answers.');
       }
     }
 
@@ -572,7 +596,11 @@ const Interview = {
         }
       };
 
-      sr.onerror = () => { };
+      sr.onerror = event => {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          this._enableTypedFallback('Microphone permission was denied. You can continue by typing answers.');
+        }
+      };
       // Restart if it stops automatically (continuous sometimes drops after silence)
       sr.onend = () => {
         if (this.state._conversationActive && this.state.micEnabled) {
