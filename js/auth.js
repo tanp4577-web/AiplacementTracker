@@ -152,7 +152,6 @@ const Auth = {
     DB.setSession(user);
     this._hideModal();
     this._renderLoggedIn(user);
-    this._updateAdminNav(user);
     if (msg) App.showToast(msg, 'success');
     App.refreshAll();
   },
@@ -177,17 +176,12 @@ const Auth = {
     supabaseClient.auth.signOut().finally(() => {
       DB.clearSession();
       this.authArea.innerHTML = '';
-      this._updateAdminNav(null);
       this._showModal();
       App.showToast('Signed out successfully', 'info');
       App.refreshAll();
     });
   },
 
-  _updateAdminNav(user) {
-    const link = document.getElementById('adminNavLink');
-    if (link) link.hidden = !user || user.role !== 'admin';
-  },
 
   _showError(msg) {
     this.errorDiv.textContent = msg;

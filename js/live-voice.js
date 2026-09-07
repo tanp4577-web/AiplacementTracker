@@ -538,7 +538,7 @@ const LiveAI = {
       return `For a strong resume: use action verbs like "built" and "led", quantify results (for example "improved load time by 30%"), keep it under two pages, tailor keywords to the job description, and link your GitHub and LinkedIn. Open the Resume Analyzer and paste your resume to get a live ATS score and line-by-line suggestions.`;
     }
     if (interview) {
-      return `Great choice! Interviews are best handled with the STAR method — Situation, Task, Action, Result. Prepare answers for "tell me about yourself", "your strengths and weaknesses", and "why should we hire you". Try the HR Simulator for a live AI mock interview where the interviewer listens and adapts to your answers.`;
+      return `Great choice! Interviews are best handled with the STAR method — Situation, Task, Action, Result. Prepare answers for "tell me about yourself", "your strengths and weaknesses", and "why should we hire you". Browse Interview Experiences to learn from students who have already been through the process.`;
     }
     if (coding) {
       return `For coding practice, build in layers: arrays and strings first, then hashing, two pointers, sliding window, and finally DP and graphs. Solve problems on LeetCode/HackerRank consistently — even 1 or 2 problems a day compounds quickly. The Coding Practice module lets you filter by difficulty, source, and target role.`;
@@ -558,7 +558,7 @@ const LiveAI = {
       try {
         const prog = DB.getProgress(email);
         const r = prog.readiness || 0;
-        return `Your current placement readiness is ${r}%. ${r < 30 ? 'Start with the Resume Analyzer and a few Aptitude quizzes to build a strong foundation.' : r < 60 ? 'Solid progress! Focus on coding practice and a live mock interview next to level up.' : 'Excellent! You are nearly placement-ready. Polish weak areas and keep taking mock interviews.'}`;
+        return `Your current placement readiness is ${r}%. ${r < 30 ? 'Start with the Resume Analyzer and a few Aptitude quizzes to build a strong foundation.' : r < 60 ? 'Solid progress! Focus on coding practice and share an interview experience to help the community.' : 'Excellent! You are nearly placement-ready. Polish weak areas and share what you learned from interviews.'}`;
       } catch (e) {
         return 'Sign in to see your personalized readiness score and progress dashboard.';
       }
@@ -567,7 +567,7 @@ const LiveAI = {
       return 'Use the account button in the top-right corner to sign in or create a free account. Your progress is saved locally per account — resume scores, quiz history, coding stats, and interview sessions all sync to your dashboard.';
     }
     if (/(help|what can you|features|modules)/.test(u)) {
-      return 'Here is what I can help with: Resume Analyzer (ATS score + line-by-line fixes), Aptitude Quiz (fresh questions), Coding Practice (LeetCode/HackerRank style), HR Simulator (live AI voice interview), Skill Gap Analysis, and Company Patterns. Ask me about any of these or your readiness progress!';
+      return 'Here is what I can help with: Resume Analyzer (ATS score + line-by-line fixes), Aptitude Quiz (fresh questions), Coding Practice (LeetCode/HackerRank style), Interview Experiences, Skill Gap Analysis, and Company Patterns. Ask me about any of these or your readiness progress!';
     }
 
     // ---- General knowledge + factual questions (works offline) ----
@@ -576,7 +576,7 @@ const LiveAI = {
 
     // Dynamic response built from the user's own words so it never feels canned.
     const snippet = user.trim().split(/\s+/).slice(0, 8).join(' ');
-    return `I want to make sure I fully address that for you. You said: "${snippet}". Here is my take — for campus placements, break preparation into four tracks: aptitude (daily timed quizzes), coding (consistent DSA practice), communication (mock interviews with the HR Simulator), and resume (quantified achievements). Focus on your weakest track first, and track your readiness score on the dashboard to measure improvement. Could you tell me a bit more about which area matters most to you right now?`;
+    return `I want to make sure I fully address that for you. You said: "${snippet}". Here is my take — for campus placements, break preparation into four tracks: aptitude (daily timed quizzes), coding (consistent DSA practice), interview preparation through shared experiences, and resume (quantified achievements). Focus on your weakest track first, and track your readiness score on the dashboard to measure improvement. Could you tell me a bit more about which area matters most to you right now?`;
   },
 
   /**

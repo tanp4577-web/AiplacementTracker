@@ -11,13 +11,12 @@ const App = {
       resume: { render: (c) => Resume.render(c), title: 'Resume Analyzer', subtitle: 'ATS score & improvement suggestions' },
       aptitude: { render: (c) => Aptitude.render(c), title: 'Aptitude Quiz', subtitle: 'Practice with adaptive difficulty' },
       coding: { render: (c) => Coding.render(c), title: 'Coding Practice', subtitle: 'Solve challenges in your browser' },
-      interview: { render: (c) => Interview.render(c), title: 'HR Simulator', subtitle: 'Practice with our AI interviewer' },
+      interview: { render: (c) => InterviewWall.render(c), title: 'Interview Experiences', subtitle: 'Real rounds and tips, shared by students who\'ve been there' },
       jobs: { render: (c) => Jobs.render(c), title: 'Hiring Hub', subtitle: 'Find roles and check your resume fit' },
       skills: { render: (c) => Skills.render(c), title: 'Skill Gap Analysis', subtitle: 'Find what to learn next' },
       company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle: 'Top tech interview patterns' },
       youtube: { render: (c) => Youtube.render(c), title: 'YouTube Lectures', subtitle: 'Top-rated programming playlists from the best instructors' },
-      lecturequestions: { render: (c) => LectureQuestions.render(c), title: 'Lecture Questions', subtitle: 'Timestamped subject practice with runnable C++ code' },
-      admin: { render: (c) => Admin.render(c), title: 'Admin', subtitle: 'Student progress and job applications' }
+      lecturequestions: { render: (c) => LectureQuestions.render(c), title: 'Lecture Questions', subtitle: 'Timestamped subject practice with runnable C++ code' }
     };
 
     // Initialize auth
@@ -69,11 +68,6 @@ const App = {
     if (hash === 'admin' && (!Auth.getCurrentUser() || Auth.getCurrentUser().role !== 'admin')) {
       window.location.hash = '#dashboard';
       return;
-    }
-
-    // Clean up the HR interview resources (speech, mic, camera, timers) before leaving
-    if (this.currentView === 'interview' && typeof Interview.cleanup === 'function') {
-      Interview.cleanup();
     }
 
     // Remove any leftover modal dynamically appended to <body> by the previous view

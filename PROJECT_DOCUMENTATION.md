@@ -50,7 +50,7 @@ A Python Flask server (`app.py`) exists to provide premium features that the bro
 ### 3. Hiring Hub & Resume Analyzer
 - **Location**: `js/jobs.js`, `js/resume.js`, `js/resume-parser.js`, `js/data/jobs-data.js`
 - **Functionality**: Acts as an AI-powered job board. Users can allow location tracking to see regional openings.
-- **Deep Integration**: When applying for a job, users upload a Resume. The browser extracts the text locally, sends it with the Job Description to `api/job-apply.js`. The AI acts as an ATS, giving a "Match Score", suggesting "Missing Skills" (skill gap), and creating 3 targeted interview questions specific to the weaknesses detected. The user can then immediately launch the HR Simulator utilizing these targeted questions.
+- **Deep Integration**: When applying for a job, users upload a Resume. The browser extracts the text locally, sends it with the Job Description to `api/job-apply.js`. The AI acts as an ATS, giving a "Match Score" and suggesting "Missing Skills" (skill gap). Candidates can then browse the community Interview Experiences wall for real rounds and preparation tips.
 
 ### 4. Chatbot (PrepAI Assistant)
 - **Location**: `js/chatbot.js`, `api/chat.js`

@@ -18,7 +18,7 @@ const Dashboard = {
     }
 
     const prog = DB.getProgress(email);
-    const readiness = this._computeReadiness(prog);
+    const readiness = this._computeReadiness(prog, 0);
 
     if (prog.readiness !== readiness) {
       DB.saveProgress(email, { readiness });
@@ -30,18 +30,18 @@ const Dashboard = {
           <div class="hero-ring">
             <svg viewBox="0 0 100 100">
               <circle class="bg" cx="50" cy="50" r="42" stroke-width="8" fill="none"/>
-              <circle class="fg" cx="50" cy="50" r="42" stroke-width="8" fill="none"
+              <circle class="fg" id="readinessRing" cx="50" cy="50" r="42" stroke-width="8" fill="none"
                 stroke-dasharray="${2 * Math.PI * 42}"
                 stroke-dashoffset="${2 * Math.PI * 42 * (1 - readiness / 100)}"/>
             </svg>
             <div class="hero-num">
-              <b>${readiness}%</b>
+              <b id="readinessValue">${readiness}%</b>
               <span>Readiness</span>
             </div>
           </div>
           <div class="hero-msg">
-            <h3>${this._readinessMessage(readiness)}</h3>
-            <p>Your overall placement readiness is calculated from resume quality, aptitude accuracy, coding progress, interview practice, and skill gap coverage.</p>
+            <h3 id="readinessMessage">${this._readinessMessage(readiness)}</h3>
+            <p>Your overall placement readiness is calculated from resume quality, aptitude accuracy, coding progress, shared interview experiences, and skill gap coverage.</p>
             <div class="flex gap-2 mt-3 flex-wrap items-center">
               <span class="chip blue"><i class="bi bi-fire"></i> ${this._daysActive(prog)} day streak</span>
               <span class="chip green"><i class="bi bi-patch-check"></i> ${prog.aptitude.completed || 0} quizzes taken</span>
@@ -49,7 +49,7 @@ const Dashboard = {
             </div>
             <div class="flex gap-2 mt-3 flex-wrap">
               <a href="#coding" class="btn btn-primary btn-sm"><i class="bi bi-code-slash" style="margin-right:4px"></i>Practice Coding</a>
-              <a href="#interview" class="btn btn-outline btn-sm"><i class="bi bi-camera-video" style="margin-right:4px"></i>Mock Interview</a>
+              <a href="#interview" class="btn btn-outline btn-sm"><i class="bi bi-chat-square-quote" style="margin-right:4px"></i>Interview Experiences</a>
               <a href="#resume" class="btn btn-ghost btn-sm"><i class="bi bi-file-earmark-person" style="margin-right:4px"></i>Analyze Resume</a>
             </div>
           </div>
@@ -66,8 +66,8 @@ const Dashboard = {
           <div class="card-stat-label">Aptitude Accuracy</div>
         </div>
         <div class="card text-center">
-          <div class="card-stat" style="color:var(--purple)">${prog.interview.sessions || 0}</div>
-          <div class="card-stat-label">Mock Interviews</div>
+          <div class="card-stat" id="experienceSharedCount" style="color:var(--purple)">0</div>
+          <div class="card-stat-label">Experiences Shared</div>
         </div>
         <div class="card text-center">
           <div class="card-stat text-warning">${Object.keys(prog.skills || {}).length ? prog.skills.matchPct || 0 : 0}%</div>
@@ -95,9 +95,9 @@ const Dashboard = {
           ${this._renderHeatmap(prog)}
         </div>
         <div class="card">
-          <div class="card-title"><i class="bi bi-chat-left-quote text-accent" style="margin-right:4px"></i>Interview Topics Covered</div>
-          <div class="card-sub">HR simulator questions & competency areas practiced</div>
-          ${this._renderTopics(prog)}
+          <div class="card-title"><i class="bi bi-chat-left-quote text-accent" style="margin-right:4px"></i>Recent Interview Experiences</div>
+          <div class="card-sub">Your latest contributions to the student community</div>
+          <div id="recentExperiencesCard">${this._renderTopics([])}</div>
         </div>
       </div>
     `;
@@ -114,18 +114,52 @@ const Dashboard = {
     if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
     this._resizeHandler = () => renderCharts();
     window.addEventListener('resize', this._resizeHandler);
+    this._loadInterviewExperiences(email, prog);
   },
 
-  _computeReadiness(prog) {
+  async _loadInterviewExperiences(email, prog) {
+    const user = Auth.getCurrentUser();
+    if (!user || !user.id) return;
+    const { data, error } = await supabaseClient
+      .from('interview_experiences')
+      .select('id,company_name,role_applied,created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.warn('Interview experience count failed:', error.message || error);
+      return;
+    }
+    const experiences = data || [];
+    const count = experiences.length;
+    const countEl = document.getElementById('experienceSharedCount');
+    if (countEl) countEl.textContent = count;
+    const recentEl = document.getElementById('recentExperiencesCard');
+    if (recentEl) {
+      recentEl.innerHTML = this._renderTopics(experiences.slice(0, 3));
+      recentEl.querySelectorAll('[data-interview-experience]').forEach(link => {
+        link.addEventListener('click', () => sessionStorage.setItem('interviewWallFocusId', link.dataset.interviewExperience));
+      });
+    }
+    const readiness = this._computeReadiness(prog, count);
+    if (prog.readiness !== readiness) DB.saveProgress(email, { readiness });
+    const ring = document.getElementById('readinessRing');
+    const readinessValue = document.getElementById('readinessValue');
+    const message = document.getElementById('readinessMessage');
+    if (ring) ring.style.strokeDashoffset = `${2 * Math.PI * 42 * (1 - readiness / 100)}`;
+    if (readinessValue) readinessValue.textContent = `${readiness}%`;
+    if (message) message.textContent = this._readinessMessage(readiness);
+    App._updateMiniReadiness();
+  },
+
+  _computeReadiness(prog, experiencesShared = 0) {
     const resumeScore = prog.resumeScore || 0;
     const apt = prog.aptitude || { completed: 0, correct: 0, total: 0 };
     const coding = prog.coding || { solved: [] };
-    const interview = prog.interview || { sessions: 0 };
 
     const resume = Math.min(resumeScore, 100);
     const aptitude = apt.total ? Math.round((apt.correct / apt.total) * 100) : 0;
     const code = Math.min((coding.solved.length / 3) * 100, 100);
-    const intrv = Math.min((interview.sessions / 3) * 100, 100);
+    const intrv = Math.min((experiencesShared / 3) * 100, 100);
 
     const readiness = Math.round(
       resume * 0.25 +
@@ -197,24 +231,27 @@ const Dashboard = {
     `;
   },
 
-  _renderTopics(prog) {
-    const topics = (prog.interview && prog.interview.topics) || [];
-    if (!topics.length) {
+  _renderTopics(experiences) {
+    if (!experiences.length) {
       return `
         <div class="empty-state" style="padding:28px 12px;text-align:center">
           <div style="margin-bottom:8px;color:var(--text-faint)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:36px;height:36px;margin:0 auto"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
           </div>
-          <h4 style="font-size:14px;margin-bottom:4px">No interview practice yet</h4>
-          <p class="text-dim" style="font-size:12.5px">Try the HR Simulator to cover common interview questions.</p>
+          <h4 style="font-size:14px;margin-bottom:4px">No interview experience shared yet</h4>
+          <p class="text-dim" style="font-size:12.5px">Share your first interview experience to help other students — and boost your readiness score.</p>
         </div>
       `;
     }
-    return `
-      <div class="tag-row mt-2">
-        ${topics.map(t => `<span class="chip green">${t}</span>`).join('')}
-      </div>
-    `;
+    return `<div class="tag-row mt-2" style="display:flex;flex-direction:column;align-items:stretch;gap:8px">
+      ${experiences.map(item => `<a href="#interview" class="chip green" data-interview-experience="${this._escape(item.id)}" style="text-decoration:none;white-space:normal;text-align:left"><strong>${this._escape(item.company_name || 'Unknown company')}</strong> · ${this._escape(item.role_applied || 'Role not specified')}</a>`).join('')}
+    </div>`;
+  },
+
+  _escape(value) {
+    const div = document.createElement('div');
+    div.textContent = value == null ? '' : String(value);
+    return div.innerHTML;
   },
 
   _drawBarChart(canvas, history) {

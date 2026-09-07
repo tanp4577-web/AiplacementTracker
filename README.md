@@ -24,7 +24,7 @@ GROQ_API_KEY=your_groq_api_key
 
 `GROQ_API_KEY` is required by `/api/interview-chat` and `/api/stt`.
 
-The chatbot and HR Simulator use Groq. Configure:
+The chatbot uses Groq. Configure:
 
 ```text
 GROQ_API_KEY=your_groq_api_key
@@ -50,7 +50,7 @@ Use HTTPS, or `http://localhost`, for camera and microphone permissions.
 
 ## Hiring Hub
 
-The Hiring Hub provides national and regional demo openings. Regional mode uses browser geolocation and shows roles within 600 km when permission is available. Select **Analyze resume** on a listing, upload a PDF, DOCX, TXT, or RTF resume, and the Gemini ATS worker returns a match score, matched skills, missing skills, and three targeted interview questions. **Start targeted interview** sends those questions into the HR Simulator.
+The Hiring Hub provides national and regional demo openings. Regional mode uses browser geolocation and shows roles within 600 km when permission is available. Select **Analyze resume** on a listing, upload a PDF, DOCX, TXT, or RTF resume, and the Gemini ATS worker returns a match score, matched skills, and missing skills. Use **View Interview Experiences** to browse real rounds and tips shared by other students.
 
 The ATS endpoint uses the same server-side Gemini configuration shown above. Resume text is extracted in the browser before it is sent to `/api/job-apply`; the original file is not uploaded or stored by that endpoint.
 

@@ -9,6 +9,8 @@ try {
 		select: () => emptyQuery(),
 		eq: () => emptyQuery(),
 		order: () => emptyQuery(),
+		delete: () => emptyQuery(),
+		update: () => emptyQuery(),
 		single: async () => ({ data: null, error: new Error('Supabase is not configured yet.') }),
 		insert: async () => ({ data: null, error: null }),
 		upsert: async () => ({ data: null, error: null })
@@ -16,6 +18,7 @@ try {
 	supabaseClient = {
 		auth: {
 			getSession: async () => ({ data: { session: null }, error: null }),
+			getUser: async () => ({ data: { user: null }, error: null }),
 			signUp: async () => ({ data: { user: null }, error: new Error('Supabase is not configured yet.') }),
 			signInWithPassword: async () => ({ data: { user: null }, error: new Error('Supabase is not configured yet.') }),
 			signOut: async () => ({ error: null })

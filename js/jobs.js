@@ -267,7 +267,6 @@ const Jobs = {
       status.textContent = 'Analysis complete.';
       result.innerHTML = this._resultMarkup(data);
       result.querySelector('[data-start-interview]')?.addEventListener('click', () => {
-        Interview.state.customQuestions = data.recommendedInterviewQuestions || [];
         modal.remove();
         window.location.hash = '#interview';
       });
@@ -314,7 +313,7 @@ const Jobs = {
         ${recommendations ? `<div class="card-title mt-2" style="font-size:15px">Recommended next steps</div><ol class="recommendation-list">${recommendations}</ol>` : ''}
         <div class="card-title mt-2" style="font-size:15px">Recommended interview questions</div>
         <ol style="padding-left:20px;font-size:13px">${(data.recommendedInterviewQuestions || []).map(question => `<li>${escape(question)}</li>`).join('')}</ol>
-        <button class="btn btn-primary btn-sm mt-1" data-start-interview>Start targeted interview</button>
+        <button class="btn btn-primary btn-sm mt-1" data-start-interview>View Interview Experiences</button>
       </div>
     `;
   }

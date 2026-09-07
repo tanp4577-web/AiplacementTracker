@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PlacementPrep — Admin Access</title>
+  <meta name="theme-color" content="#2563eb" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Merriweather+Sans:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    body.admin-page { min-height: 100vh; background: var(--bg); }
+    .admin-main { width: 100%; min-height: 100vh; margin-left: 0; }
+    .admin-login-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .admin-login-card { width: min(100%, 420px); }
+    .admin-dashboard { padding: 24px; max-width: 1500px; margin: 0 auto; }
+    .admin-summary-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+    .admin-table-wrap { overflow-x: auto; }
+    .admin-sort { border: 0; background: transparent; color: inherit; font: inherit; padding: 0; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+    .admin-sort:hover { color: var(--accent); }
+    @media (max-width: 1100px) { .admin-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 700px) { .admin-dashboard { padding: 14px; } .admin-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+
+<body class="admin-page">
+  <main class="admin-main">
+    <section class="admin-login-shell" id="adminLoginShell">
+      <div class="card admin-login-card">
+        <div class="modal-head">
+          <div class="auth-logo"><i class="bi bi-shield-lock"></i></div>
+          <h1>Admin Access</h1>
+        </div>
+        <form id="adminLoginForm" class="modal-body">
+          <div id="adminLoginError" class="auth-error hidden" style="color:var(--danger);font-size:12.5px;margin-bottom:12px"></div>
+          <label class="field-label" for="adminEmail">Email</label>
+          <input type="email" id="adminEmail" autocomplete="username" required />
+          <label class="field-label" for="adminPassword">Password</label>
+          <input type="password" id="adminPassword" autocomplete="current-password" required />
+          <button class="btn btn-primary btn-block mt-3" id="adminLoginBtn" type="submit">Sign In</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="adminDashboard" class="hidden">
+      <header class="topbar">
+        <div class="page-title-wrap">
+          <h2 class="page-title">Admin Dashboard</h2>
+          <span class="page-subtitle">Placement activity across the student community</span>
+        </div>
+        <button class="btn btn-ghost" id="adminSignOutBtn"><i class="bi bi-box-arrow-right"></i> Sign Out</button>
+      </header>
+      <div class="admin-dashboard" id="adminContent">
+        <div class="loading-screen"><div class="spinner"></div><p>Loading admin data...</p></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/supabase-client.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+
+</html>
