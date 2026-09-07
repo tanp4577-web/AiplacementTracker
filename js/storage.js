@@ -35,8 +35,8 @@ const DB = {
     return this._get('session') || null;
   },
 
-  setSession(email) {
-    this._set('session', { email, loginAt: Date.now() });
+  setSession(user) {
+    this._set('session', { ...user, loginAt: Date.now() });
   },
 
   clearSession() {
@@ -70,6 +70,32 @@ const DB = {
     activity.push({ date: Date.now(), type: 'update' });
     if (activity.length > 200) activity.splice(0, activity.length - 200);
     this._set(key, { ...existing, ...data, activity });
+    this.syncProgress(email);
+  },
+
+  syncProgress(email) {
+    try {
+      const user = typeof Auth !== 'undefined' && Auth.getCurrentUser ? Auth.getCurrentUser() : null;
+      if (!user || !user.id || typeof supabaseClient === 'undefined') return;
+      const progress = this.getProgress(email);
+      supabaseClient.from('progress').upsert({
+        user_id: user.id,
+        readiness_pct: progress.readiness || 0,
+        resume_score: progress.resumeScore || 0,
+        aptitude_accuracy: progress.aptitude && progress.aptitude.total
+          ? Math.round((progress.aptitude.correct / progress.aptitude.total) * 100)
+          : 0,
+        mock_interviews: progress.interview ? progress.interview.sessions || 0 : 0,
+        target_skill_match: progress.skills ? progress.skills.matchPct || 0 : 0,
+        quizzes_taken: progress.aptitude ? progress.aptitude.completed || 0 : 0,
+        problems_solved: progress.coding && progress.coding.solved ? progress.coding.solved.length : 0,
+        updated_at: new Date().toISOString()
+      }).then(({ error }) => {
+        if (error) console.warn('Progress sync failed:', error.message || error);
+      }).catch(error => console.warn('Progress sync failed:', error));
+    } catch (error) {
+      console.warn('Progress sync failed:', error);
+    }
   },
 
   /* ---------- Activity Tracking ---------- */

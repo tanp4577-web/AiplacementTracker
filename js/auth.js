@@ -2,7 +2,7 @@
 const Auth = {
   mode: 'login', // 'login' | 'signup'
 
-  init() {
+  async init() {
     this.modal = document.getElementById('authModal');
     this.title = document.getElementById('authTitle');
     this.subtitle = document.getElementById('authSubtitle');
@@ -19,10 +19,11 @@ const Auth = {
     this._bindEvents();
 
     // Check if already logged in
-    const session = DB.getSession();
-    if (session && DB.getUser(session.email)) {
-      this._renderLoggedIn(session.email);
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session && session.user) {
+      await this._loadProfile(session.user);
     } else {
+      DB.clearSession();
       this._showModal();
     }
 
@@ -87,7 +88,7 @@ const Auth = {
     this.modal.classList.remove('show');
   },
 
-  _handleSubmit() {
+  async _handleSubmit() {
     const email = this.emailInput.value.trim().toLowerCase();
     const pass = this.passInput.value.trim();
     const name = this.nameInput.value.trim();
@@ -115,38 +116,48 @@ const Auth = {
       return;
     }
 
-    const existing = DB.getUser(email);
-
-    if (isSignup) {
-      if (existing) {
-        this._showError('An account with this email already exists. Please sign in.');
-        return;
+    this.submitBtn.disabled = true;
+    try {
+      if (isSignup) {
+        const { data, error } = await supabaseClient.auth.signUp({ email, password: pass });
+        if (error) throw error;
+        if (!data.user) throw new Error('Account creation failed. Please try again.');
+        const { error: profileError } = await supabaseClient.from('profiles').insert({
+          id: data.user.id,
+          name,
+          email,
+          role: 'student'
+        });
+        if (profileError) throw profileError;
+        await this._login({ id: data.user.id, name, email, role: 'student' }, 'Account created! Welcome aboard.');
+      } else {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
+        if (error) throw error;
+        await this._loadProfile(data.user, 'Welcome back!');
       }
-      DB.saveUser(email, { name, email, pass, createdAt: Date.now() });
-      this._login(email, 'Account created! Welcome aboard.');
-    } else {
-      if (!existing) {
-        this._showError('No account found with this email. Please create an account.');
-        return;
-      }
-      if (existing.pass !== pass) {
-        this._showError('Incorrect password. Please try again.');
-        return;
-      }
-      this._login(email, 'Welcome back!');
+    } catch (error) {
+      this._showError(error.message || 'Authentication failed. Please try again.');
+    } finally {
+      this.submitBtn.disabled = false;
     }
   },
 
-  _login(email, msg) {
-    DB.setSession(email);
+  async _loadProfile(authUser, msg) {
+    const { data: profile, error } = await supabaseClient.from('profiles').select('name,email,role').eq('id', authUser.id).single();
+    if (error) throw error;
+    await this._login({ id: authUser.id, name: profile.name, email: profile.email || authUser.email, role: profile.role }, msg);
+  },
+
+  async _login(user, msg) {
+    DB.setSession(user);
     this._hideModal();
-    this._renderLoggedIn(email);
-    App.showToast(msg, 'success');
+    this._renderLoggedIn(user);
+    this._updateAdminNav(user);
+    if (msg) App.showToast(msg, 'success');
     App.refreshAll();
   },
 
-  _renderLoggedIn(email) {
-    const user = DB.getUser(email);
+  _renderLoggedIn(user) {
     if (!user) return;
     const initial = (user.name || email[0]).charAt(0).toUpperCase();
     const displayName = user.name ? user.name.split(' ')[0] : email.split('@')[0];
@@ -163,11 +174,19 @@ const Auth = {
   },
 
   _logout() {
-    DB.clearSession();
-    this.authArea.innerHTML = '';
-    this._showModal();
-    App.showToast('Signed out successfully', 'info');
-    App.refreshAll();
+    supabaseClient.auth.signOut().finally(() => {
+      DB.clearSession();
+      this.authArea.innerHTML = '';
+      this._updateAdminNav(null);
+      this._showModal();
+      App.showToast('Signed out successfully', 'info');
+      App.refreshAll();
+    });
+  },
+
+  _updateAdminNav(user) {
+    const link = document.getElementById('adminNavLink');
+    if (link) link.hidden = !user || user.role !== 'admin';
   },
 
   _showError(msg) {
@@ -182,9 +201,7 @@ const Auth = {
   },
 
   getCurrentUser() {
-    const session = DB.getSession();
-    if (!session) return null;
-    return DB.getUser(session.email);
+    return DB.getSession();
   },
 
   isLoggedIn() {

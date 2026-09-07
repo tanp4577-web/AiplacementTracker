@@ -263,6 +263,7 @@ const Jobs = {
         throw new Error('The server sent back an unexpected response. Please try again in a moment.');
       }
       if (!response.ok) throw new Error(data.error || 'Resume analysis failed.');
+      this._logApplication(job, Number(data.matchScore) || 0);
       status.textContent = 'Analysis complete.';
       result.innerHTML = this._resultMarkup(data);
       result.querySelector('[data-start-interview]')?.addEventListener('click', () => {
@@ -274,6 +275,23 @@ const Jobs = {
       status.textContent = error.message || 'Could not analyze this resume.';
     } finally {
       modal.querySelector('#analyzeJobBtn').disabled = false;
+    }
+  },
+
+  _logApplication(job, matchScore) {
+    try {
+      const user = Auth.getCurrentUser();
+      if (!user || !user.id || typeof supabaseClient === 'undefined') return;
+      supabaseClient.from('job_applications').insert({
+        user_id: user.id,
+        job_title: job.title,
+        location_type: this.state.scope,
+        match_score: matchScore
+      }).then(({ error }) => {
+        if (error) console.warn('Job application sync failed:', error.message || error);
+      }).catch(error => console.warn('Job application sync failed:', error));
+    } catch (error) {
+      console.warn('Job application sync failed:', error);
     }
   },
 

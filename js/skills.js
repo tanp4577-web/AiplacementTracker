@@ -44,7 +44,7 @@ const Skills = {
       <div class="card sg-banner mb-3" style="background:var(--surface-2);border:1px solid var(--border);padding:18px">
         <div class="flex-between items-center" style="flex-wrap:wrap;gap:12px">
           <div class="flex items-center gap-3">
-            <div class="brand-logo" style="width:36px;height:36px;background:var(--surface);border:1px solid var(--border);border-radius:4px">
+            <div class="brand-logo" style="width:36px;height:36px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--accent)">
               <i class="bi bi-bullseye text-accent" style="font-size:18px"></i>
             </div>
             <div>

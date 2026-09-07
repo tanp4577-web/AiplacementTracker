@@ -16,7 +16,8 @@ const App = {
       skills: { render: (c) => Skills.render(c), title: 'Skill Gap Analysis', subtitle: 'Find what to learn next' },
       company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle: 'Top tech interview patterns' },
       youtube: { render: (c) => Youtube.render(c), title: 'YouTube Lectures', subtitle: 'Top-rated programming playlists from the best instructors' },
-      lecturequestions: { render: (c) => LectureQuestions.render(c), title: 'Lecture Questions', subtitle: 'Timestamped subject practice with runnable C++ code' }
+      lecturequestions: { render: (c) => LectureQuestions.render(c), title: 'Lecture Questions', subtitle: 'Timestamped subject practice with runnable C++ code' },
+      admin: { render: (c) => Admin.render(c), title: 'Admin', subtitle: 'Student progress and job applications' }
     };
 
     // Initialize auth
@@ -64,6 +65,11 @@ const App = {
   _route() {
     const hash = window.location.hash.slice(1) || 'dashboard';
     if (this.currentView === hash) return;
+
+    if (hash === 'admin' && (!Auth.getCurrentUser() || Auth.getCurrentUser().role !== 'admin')) {
+      window.location.hash = '#dashboard';
+      return;
+    }
 
     // Clean up the HR interview resources (speech, mic, camera, timers) before leaving
     if (this.currentView === 'interview' && typeof Interview.cleanup === 'function') {
