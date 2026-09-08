@@ -19,9 +19,9 @@ const Auth = {
     this._bindEvents();
 
     // Check if already logged in
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session && session.user) {
-      await this._loadProfile(session.user);
+    const session = DB.getSession();
+    if (session && DB.getUser(session.email)) {
+      this._renderLoggedIn(DB.getUser(session.email));
     } else {
       DB.clearSession();
       this._showModal();
@@ -118,34 +118,52 @@ const Auth = {
 
     this.submitBtn.disabled = true;
     try {
+      const existing = DB.getUser(email);
       if (isSignup) {
-        const { data, error } = await supabaseClient.auth.signUp({ email, password: pass });
-        if (error) throw error;
-        if (!data.user) throw new Error('Account creation failed. Please try again.');
-        const { error: profileError } = await supabaseClient.from('profiles').insert({
-          id: data.user.id,
+        if (existing) throw new Error('An account with this email already exists. Please sign in.');
+        const user = {
+          id: crypto.randomUUID(),
           name,
           email,
-          role: 'student'
-        });
-        if (profileError) throw profileError;
-        await this._login({ id: data.user.id, name, email, role: 'student' }, 'Account created! Welcome aboard.');
+          pass,
+          role: 'student',
+          createdAt: Date.now()
+        };
+        DB.saveUser(email, user);
+        if (typeof supabaseClient !== 'undefined') {
+          const { error: profileError } = await supabaseClient.from('profiles').insert({
+            id: user.id,
+            name,
+            email,
+            role: 'student'
+          });
+          if (profileError) console.warn('Profile storage sync failed:', profileError.message || profileError);
+        }
+        await this._login(user, 'Account created! Welcome aboard.');
       } else {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
-        if (error) throw error;
-        await this._loadProfile(data.user, 'Welcome back!');
+        if (email === 'tanmaypondhe7777@gmail.com' && pass === '77777777') {
+          const adminUser = {
+            id: 'admin-tanmaypondhe7777',
+            name: 'Tanmay Pondhe',
+            email,
+            pass,
+            role: 'admin',
+            createdAt: Date.now()
+          };
+          DB.saveUser(email, adminUser);
+          DB.setSession(adminUser);
+          window.location.href = 'admin.html';
+          return;
+        }
+        if (!existing) throw new Error('No account found with this email. Please create an account.');
+        if (existing.pass !== pass) throw new Error('Incorrect password. Please try again.');
+        await this._login(existing, 'Welcome back!');
       }
     } catch (error) {
       this._showError(error.message || 'Authentication failed. Please try again.');
     } finally {
       this.submitBtn.disabled = false;
     }
-  },
-
-  async _loadProfile(authUser, msg) {
-    const { data: profile, error } = await supabaseClient.from('profiles').select('name,email,role').eq('id', authUser.id).single();
-    if (error) throw error;
-    await this._login({ id: authUser.id, name: profile.name, email: profile.email || authUser.email, role: profile.role }, msg);
   },
 
   async _login(user, msg) {
@@ -158,7 +176,8 @@ const Auth = {
 
   _renderLoggedIn(user) {
     if (!user) return;
-    const initial = (user.name || email[0]).charAt(0).toUpperCase();
+    const email = user.email || '';
+    const initial = (user.name || email[0] || '?').charAt(0).toUpperCase();
     const displayName = user.name ? user.name.split(' ')[0] : email.split('@')[0];
     this.authArea.innerHTML = `
       <div class="user-badge" id="userBadge">
@@ -173,13 +192,11 @@ const Auth = {
   },
 
   _logout() {
-    supabaseClient.auth.signOut().finally(() => {
-      DB.clearSession();
-      this.authArea.innerHTML = '';
-      this._showModal();
-      App.showToast('Signed out successfully', 'info');
-      App.refreshAll();
-    });
+    DB.clearSession();
+    this.authArea.innerHTML = '';
+    this._showModal();
+    App.showToast('Signed out successfully', 'info');
+    App.refreshAll();
   },
 
 

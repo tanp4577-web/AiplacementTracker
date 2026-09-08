@@ -16,13 +16,6 @@ try {
 		upsert: async () => ({ data: null, error: null })
 	});
 	supabaseClient = {
-		auth: {
-			getSession: async () => ({ data: { session: null }, error: null }),
-			getUser: async () => ({ data: { user: null }, error: null }),
-			signUp: async () => ({ data: { user: null }, error: new Error('Supabase is not configured yet.') }),
-			signInWithPassword: async () => ({ data: { user: null }, error: new Error('Supabase is not configured yet.') }),
-			signOut: async () => ({ error: null })
-		},
 		from: emptyQuery
 	};
 }

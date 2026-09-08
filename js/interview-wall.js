@@ -176,11 +176,10 @@ const InterviewWall = {
     button.disabled = true;
     errorBox.classList.add('hidden');
     try {
-      const { data: { user } } = await supabaseClient.auth.getUser();
       const currentUser = Auth.getCurrentUser();
-      if (!user || !currentUser) throw new Error('Please sign in before sharing an experience.');
+      if (!currentUser) throw new Error('Please sign in before sharing an experience.');
       const { error } = await supabaseClient.from('interview_experiences').insert({
-        user_id: user.id,
+        user_id: currentUser.id,
         author_name: currentUser.name || currentUser.email,
         ...values
       });

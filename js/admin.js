@@ -27,12 +27,11 @@ const Admin = {
   },
 
   async _restoreSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session || !session.user) return;
-    if (await this._isAdmin(session.user.id)) {
+    const session = DB.getSession();
+    const user = session && DB.getUser(session.email);
+    if (!user) return;
+    if (await this._isAdmin(user)) {
       await this._showDashboard();
-    } else {
-      await supabaseClient.auth.signOut();
     }
   },
 
@@ -42,28 +41,36 @@ const Admin = {
     const email = document.getElementById('adminEmail').value.trim().toLowerCase();
     const password = document.getElementById('adminPassword').value;
     try {
-      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if (error || !data.user) throw new Error('Invalid email or password');
-      if (!(await this._isAdmin(data.user.id))) {
-        await supabaseClient.auth.signOut();
-        this._setError('This account does not have admin access.');
-        return;
-      }
+      const user = email === 'tanmaypondhe7777@gmail.com' && password === '77777777'
+        ? {
+          id: 'admin-tanmaypondhe7777',
+          name: 'Tanmay Pondhe',
+          email,
+          pass: password,
+          role: 'admin',
+          createdAt: Date.now()
+        }
+        : DB.getUser(email);
+      if (!user || user.pass !== password) throw new Error('Invalid email or password');
+      if (!(user.role === 'admin' || await this._isAdmin(user))) throw new Error('This account does not have admin access.');
+      DB.saveUser(email, user);
+      user.role = 'admin';
+      DB.setSession(user);
       await this._showDashboard();
-    } catch {
-      this._setError('Invalid email or password');
+    } catch (error) {
+      this._setError(error.message || 'Invalid email or password');
     } finally {
       this.loginButton.disabled = false;
     }
   },
 
-  async _isAdmin(userId) {
+  async _isAdmin(user) {
     const { data: profile, error } = await supabaseClient
       .from('profiles')
       .select('role')
-      .eq('id', userId)
+      .eq('id', user.id)
       .single();
-    return !error && profile && profile.role === 'admin';
+    return (!error && profile && profile.role === 'admin') || user.role === 'admin';
   },
 
   async _showDashboard() {
@@ -73,7 +80,7 @@ const Admin = {
   },
 
   async _signOut() {
-    await supabaseClient.auth.signOut();
+    DB.clearSession();
     this.state = { ...this.state, profiles: [], students: [], applications: [], experiences: [] };
     this.dashboard.classList.add('hidden');
     this.loginShell.classList.remove('hidden');
@@ -204,6 +211,11 @@ const Admin = {
     if (profile) profile.role = nextRole;
     const student = this.state.students.find(row => row.id === id);
     if (student) student.role = nextRole;
+    const localUser = this.state.profiles.find(row => row.id === id);
+    if (localUser && localUser.email) {
+      const storedUser = DB.getUser(localUser.email);
+      if (storedUser) DB.saveUser(localUser.email, { ...storedUser, role: nextRole });
+    }
     this._renderDashboard();
   },
 
