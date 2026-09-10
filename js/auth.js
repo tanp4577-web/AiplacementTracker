@@ -2,6 +2,13 @@
 const Auth = {
   mode: 'login', // 'login' | 'signup'
 
+  /** SHA-256 hash a password (returns hex string). */
+  async _hashPassword(plain) {
+    const data = new TextEncoder().encode(plain);
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+
   async init() {
     this.modal = document.getElementById('authModal');
     this.title = document.getElementById('authTitle');
@@ -121,42 +128,32 @@ const Auth = {
       const existing = DB.getUser(email);
       if (isSignup) {
         if (existing) throw new Error('An account with this email already exists. Please sign in.');
+        const hashed = await this._hashPassword(pass);
         const user = {
           id: crypto.randomUUID(),
           name,
           email,
-          pass,
+          pass: hashed,
           role: 'student',
           createdAt: Date.now()
         };
         DB.saveUser(email, user);
-        if (typeof supabaseClient !== 'undefined') {
-          const { error: profileError } = await supabaseClient.from('profiles').insert({
-            id: user.id,
-            name,
-            email,
-            role: 'student'
-          });
-          if (profileError) console.warn('Profile storage sync failed:', profileError.message || profileError);
-        }
         await this._login(user, 'Account created! Welcome aboard.');
       } else {
-        if (email === 'tanmaypondhe7777@gmail.com' && pass === '77777777') {
-          const adminUser = {
-            id: 'admin-tanmaypondhe7777',
-            name: 'Tanmay Pondhe',
-            email,
-            pass,
-            role: 'admin',
-            createdAt: Date.now()
-          };
-          DB.saveUser(email, adminUser);
-          DB.setSession(adminUser);
-          window.location.href = 'admin.html';
-          return;
-        }
         if (!existing) throw new Error('No account found with this email. Please create an account.');
-        if (existing.pass !== pass) throw new Error('Incorrect password. Please try again.');
+        /* Password migration: if stored password is a 64-char hex SHA-256 hash,
+           compare against hash; otherwise treat as legacy plaintext and upgrade. */
+        const storedPass = existing.pass || '';
+        const looksHashed = /^[0-9a-f]{64}$/.test(storedPass);
+        if (looksHashed) {
+          const hash = await this._hashPassword(pass);
+          if (hash !== storedPass) throw new Error('Incorrect password. Please try again.');
+        } else {
+          if (storedPass !== pass) throw new Error('Incorrect password. Please try again.');
+          /* Migrate plaintext → hashed */
+          const newHash = await this._hashPassword(pass);
+          DB.saveUser(email, { ...existing, pass: newHash });
+        }
         await this._login(existing, 'Welcome back!');
       }
     } catch (error) {

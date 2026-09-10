@@ -2,6 +2,7 @@
 const App = {
   currentView: null,
   views: {},
+  _routeTimer: null,
 
   init() {
     console.log('App.init() called');
@@ -64,6 +65,7 @@ const App = {
   _route() {
     const hash = window.location.hash.slice(1) || 'dashboard';
     if (this.currentView === hash) return;
+    if (this._routeTimer) return; // debounce rapid route changes
 
     if (hash === 'admin' && (!Auth.getCurrentUser() || Auth.getCurrentUser().role !== 'admin')) {
       window.location.hash = '#dashboard';
@@ -97,7 +99,8 @@ const App = {
     // Render the view
     const container = document.getElementById('viewContainer');
     container.innerHTML = '<div class="loading-screen"><div class="spinner"></div><p>Loading...</p></div>';
-    setTimeout(() => {
+    this._routeTimer = setTimeout(() => {
+      this._routeTimer = null;
       container.innerHTML = '';
       view.render(container);
     }, 200);
@@ -127,6 +130,8 @@ const App = {
 
   showToast(msg, type = 'info') {
     const container = document.getElementById('toastContainer');
+    // Cap toasts at 6 to prevent memory leak
+    while (container.children.length >= 6) container.firstChild.remove();
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     const icons = {

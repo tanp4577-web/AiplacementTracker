@@ -11,16 +11,9 @@ const InterviewWall = {
     this.container = container;
     this.state = { experiences: [], filterCompany: 'all', filterDifficulty: 'all', search: '' };
     this.container.innerHTML = '<div class="loading-screen"><div class="spinner"></div><p>Loading interview experiences...</p></div>';
-    const { data, error } = await supabaseClient
-      .from('interview_experiences')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      this.container.innerHTML = `<div class="card"><div class="text-danger">${this._escape(error.message || 'Could not load interview experiences.')}</div></div>`;
-      return;
-    }
-    this.state.experiences = data || [];
+    /* Load experiences from localStorage */
+    const allExp = DB.getGlobal('interview_experiences') || [];
+    this.state.experiences = allExp.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     this._renderWall();
   },
 
@@ -178,12 +171,10 @@ const InterviewWall = {
     try {
       const currentUser = Auth.getCurrentUser();
       if (!currentUser) throw new Error('Please sign in before sharing an experience.');
-      const { error } = await supabaseClient.from('interview_experiences').insert({
-        user_id: currentUser.id,
-        author_name: currentUser.name || currentUser.email,
-        ...values
-      });
-      if (error) throw error;
+      const newExp = { id: crypto.randomUUID(), user_id: currentUser.id, author_name: currentUser.name || currentUser.email, created_at: new Date().toISOString(), ...values };
+      const allExp = DB.getGlobal('interview_experiences') || [];
+      allExp.unshift(newExp);
+      DB.setGlobal('interview_experiences', allExp);
       modal.remove();
       App.showToast('Experience shared successfully', 'success');
       await this.render(this.container);
@@ -196,11 +187,8 @@ const InterviewWall = {
   },
 
   async _deleteExperience(id) {
-    const { error } = await supabaseClient.from('interview_experiences').delete().eq('id', id);
-    if (error) {
-      App.showToast(error.message || 'Could not delete experience.', 'error');
-      return;
-    }
+    const allExp = DB.getGlobal('interview_experiences') || [];
+    DB.setGlobal('interview_experiences', allExp.filter(item => String(item.id) !== String(id)));
     this.state.experiences = this.state.experiences.filter(item => String(item.id) !== String(id));
     this._renderWall();
   },

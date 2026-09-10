@@ -120,11 +120,9 @@ const Dashboard = {
   async _loadInterviewExperiences(email, prog) {
     const user = Auth.getCurrentUser();
     if (!user || !user.id) return;
-    const { data, error } = await supabaseClient
-      .from('interview_experiences')
-      .select('id,company_name,role_applied,created_at')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    /* Load interview experiences from localStorage */
+    const data = (DB.getGlobal('interview_experiences') || []).map(e => ({id:e.id,company_name:e.company_name,role_applied:e.role_applied,created_at:e.created_at}));
+    const error = null;
     if (error) {
       console.warn('Interview experience count failed:', error.message || error);
       return;

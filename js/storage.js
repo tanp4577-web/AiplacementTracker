@@ -76,7 +76,8 @@ const DB = {
   syncProgress(email) {
     try {
       const user = typeof Auth !== 'undefined' && Auth.getCurrentUser ? Auth.getCurrentUser() : null;
-      if (!user || !user.id || typeof supabaseClient === 'undefined') return;
+      /* Supabase removed */
+      if (true) return;
       const progress = this.getProgress(email);
       supabaseClient.from('progress').upsert({
         user_id: user.id,
@@ -124,5 +125,12 @@ const DB = {
       this._del(this._progressKey(session.email));
     }
     this._del('session');
+    /* Clean any other prepportal_ keys from localStorage */
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(this._prefix)) toRemove.push(key);
+    }
+    toRemove.forEach(k => localStorage.removeItem(k));
   }
 };

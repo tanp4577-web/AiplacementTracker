@@ -110,6 +110,8 @@ const Chatbot = {
     this._addUserMsg(text);
     this.input.value = '';
     this._history.push({ role: 'user', content: text });
+    /* Cap history at 50 messages to prevent memory bloat */
+    if (this._history.length > 50) this._history = this._history.slice(-50);
 
     const typing = this._showTyping();
     this._busy = true;

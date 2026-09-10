@@ -280,15 +280,10 @@ const Jobs = {
   _logApplication(job, matchScore) {
     try {
       const user = Auth.getCurrentUser();
-      if (!user || !user.id || typeof supabaseClient === 'undefined') return;
-      supabaseClient.from('job_applications').insert({
-        user_id: user.id,
-        job_title: job.title,
-        location_type: this.state.scope,
-        match_score: matchScore
-      }).then(({ error }) => {
-        if (error) console.warn('Job application sync failed:', error.message || error);
-      }).catch(error => console.warn('Job application sync failed:', error));
+      if (!user || !user.id) return;
+      const apps = DB.getGlobal('job_applications') || [];
+      apps.unshift({ id: crypto.randomUUID(), user_id: user.id, job_title: job.title, location_type: this.state.scope, match_score: matchScore, applied_at: new Date().toISOString(), created_at: new Date().toISOString() });
+      DB.setGlobal('job_applications', apps);
     } catch (error) {
       console.warn('Job application sync failed:', error);
     }

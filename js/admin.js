@@ -11,6 +11,13 @@ const Admin = {
     applicationSort: { key: 'applied_at', direction: 'desc' }
   },
 
+  /** SHA-256 hash a password (returns hex string). */
+  async _hashPassword(plain) {
+    const data = new TextEncoder().encode(plain);
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+
   init() {
     this.loginShell = document.getElementById('adminLoginShell');
     this.loginForm = document.getElementById('adminLoginForm');
@@ -41,20 +48,23 @@ const Admin = {
     const email = document.getElementById('adminEmail').value.trim().toLowerCase();
     const password = document.getElementById('adminPassword').value;
     try {
-      const user = email === 'tanmaypondhe7777@gmail.com' && password === '77777777'
-        ? {
-          id: 'admin-tanmaypondhe7777',
-          name: 'Tanmay Pondhe',
-          email,
-          pass: password,
-          role: 'admin',
-          createdAt: Date.now()
-        }
-        : DB.getUser(email);
-      if (!user || user.pass !== password) throw new Error('Invalid email or password');
+      const user = DB.getUser(email);
+      if (!user) throw new Error('Invalid email or password');
+      /* Password migration: compare hash vs plaintext like auth.js */
+      const storedPass = user.pass || '';
+      const looksHashed = /^[0-9a-f]{64}$/.test(storedPass);
+      if (looksHashed) {
+        const hash = await this._hashPassword(password);
+        if (hash !== storedPass) throw new Error('Invalid email or password');
+      } else {
+        if (storedPass !== password) throw new Error('Invalid email or password');
+        /* Migrate plaintext → hashed */
+        const newHash = await this._hashPassword(password);
+        DB.saveUser(email, { ...user, pass: newHash });
+      }
       if (!(user.role === 'admin' || await this._isAdmin(user))) throw new Error('This account does not have admin access.');
-      DB.saveUser(email, user);
       user.role = 'admin';
+      DB.saveUser(email, user);
       DB.setSession(user);
       await this._showDashboard();
     } catch (error) {
@@ -65,12 +75,10 @@ const Admin = {
   },
 
   async _isAdmin(user) {
-    const { data: profile, error } = await supabaseClient
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-    return (!error && profile && profile.role === 'admin') || user.role === 'admin';
+    if (user.role === 'admin') return true;
+    /* Check localStorage — the only source of truth after Supabase removal */
+    const stored = DB.getUser(user.email);
+    return stored && stored.role === 'admin';
   },
 
   async _showDashboard() {
@@ -90,23 +98,29 @@ const Admin = {
 
   async _loadData() {
     this.content.innerHTML = '<div class="loading-screen"><div class="spinner"></div><p>Loading admin data...</p></div>';
-    const results = await Promise.all([
-      supabaseClient.from('profiles').select('id,name,email,role,created_at').order('created_at', { ascending: false }),
-      supabaseClient.from('progress').select('user_id,readiness_pct,resume_score,aptitude_accuracy,mock_interviews,problems_solved'),
-      supabaseClient.from('job_applications').select('id,user_id,job_title,location_type,match_score,applied_at,created_at').order('applied_at', { ascending: false }),
-      supabaseClient.from('interview_experiences').select('id,user_id,company_name,role_applied,difficulty,author_name,created_at').order('created_at', { ascending: false })
-    ]);
-    const failed = results.find(result => result.error);
-    if (failed) {
-      this.content.innerHTML = `<div class="card"><div class="text-danger">${this._escape(failed.error.message || 'Could not load admin data.')}</div></div>`;
-      return;
-    }
-
-    const profiles = results[0].data || [];
-    const progress = results[1].data || [];
-    const applications = results[2].data || [];
-    const experiences = results[3].data || [];
-    const progressByUser = new Map(progress.map(row => [row.user_id, row]));
+    /* Load all data from localStorage (Supabase removed) */
+    const users = DB.getUsers();
+    const profiles = Object.entries(users).map(([email, u]) => ({
+      id: u.id || email,
+      name: u.name || '',
+      email,
+      role: u.role || 'student',
+      created_at: u.createdAt ? new Date(u.createdAt).toISOString() : null
+    }));
+    const experiences = DB.getGlobal('interview_experiences') || [];
+    const applications = DB.getGlobal('job_applications') || [];
+    const progressList = profiles.map(p => {
+      const prog = DB.getProgress(p.email);
+      return {
+        user_id: p.id,
+        readiness_pct: prog.readiness || 0,
+        resume_score: prog.resumeScore || 0,
+        aptitude_accuracy: prog.aptitude && prog.aptitude.total ? Math.round((prog.aptitude.correct / prog.aptitude.total) * 100) : 0,
+        mock_interviews: prog.interview ? (prog.interview.sessions || 0) : 0,
+        problems_solved: prog.coding && prog.coding.solved ? prog.coding.solved.length : 0
+      };
+    });
+    const progressByUser = new Map(progressList.map(row => [row.user_id, row]));
     const experienceCounts = new Map();
     experiences.forEach(row => experienceCounts.set(row.user_id, (experienceCounts.get(row.user_id) || 0) + 1));
     const profileByUser = new Map(profiles.map(row => [row.id, row]));
@@ -205,24 +219,19 @@ const Admin = {
   async _changeRole(id, currentRole) {
     const nextRole = currentRole === 'admin' ? 'student' : 'admin';
     if (!confirm(`${nextRole === 'admin' ? 'Promote this user to admin' : 'Revoke admin access from this user'}?`)) return;
-    const { error } = await supabaseClient.from('profiles').update({ role: nextRole }).eq('id', id);
-    if (error) { alert(error.message || 'Could not update this role.'); return; }
+    const localUser = Object.entries(DB.getUsers()).find(([, u]) => u.id === id || u.email === id);
+    if (localUser) { const [email] = localUser; DB.saveUser(email, { ...DB.getUser(email), role: nextRole }); }
     const profile = this.state.profiles.find(row => row.id === id);
     if (profile) profile.role = nextRole;
     const student = this.state.students.find(row => row.id === id);
     if (student) student.role = nextRole;
-    const localUser = this.state.profiles.find(row => row.id === id);
-    if (localUser && localUser.email) {
-      const storedUser = DB.getUser(localUser.email);
-      if (storedUser) DB.saveUser(localUser.email, { ...storedUser, role: nextRole });
-    }
     this._renderDashboard();
   },
 
   async _deleteExperience(id) {
     if (!confirm('Delete this interview experience?')) return;
-    const { error } = await supabaseClient.from('interview_experiences').delete().eq('id', id);
-    if (error) { alert(error.message || 'Could not delete this experience.'); return; }
+    const allExp = DB.getGlobal('interview_experiences') || [];
+    DB.setGlobal('interview_experiences', allExp.filter(row => String(row.id) !== String(id)));
     const deleted = this.state.experiences.find(row => String(row.id) === String(id));
     this.state.experiences = this.state.experiences.filter(row => String(row.id) !== String(id));
     const student = this.state.students.find(row => deleted && String(row.id) === String(deleted.user_id));
