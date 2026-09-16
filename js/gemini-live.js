@@ -6,7 +6,7 @@
      POST /api/gemini-token   ->  ephemeral token (server mints it)
      WebSocket                 ->  browser connects DIRECTLY to Gemini Live:
        wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage
-           .v1alpha.GenerativeService.BidiGenerateContentConstrained
+           .v1beta.GenerativeService.BidiGenerateContentConstrained
            ?access_token=auth_tokens/<id>
 
    Microphone audio flows straight from the tab to Gemini; the AI's voice flows
@@ -145,7 +145,7 @@ class GeminiLive {
    */
   constructor(opts) {
     opts = opts || {};
-    this.model = opts.model || 'gemini-2.0-flash-live-001';
+    this.model = opts.model || 'gemini-3.8-live';
     this.systemInstruction = opts.systemInstruction || '';
     this.voiceName = opts.voiceName || 'Puck';
     this.temperature = typeof opts.temperature === 'number' ? opts.temperature : 0.7;
@@ -186,6 +186,9 @@ class GeminiLive {
       tokenData = await res.json().catch(function(){ return {}; });
       if (!res.ok || !tokenData || !tokenData.ok || !tokenData.url)
         throw new Error((tokenData && tokenData.error) || 'Live AI token request failed');
+      // The token was minted with the server's resolved model — make the setup
+      // message always match it (supports GEMINI_LIVE_MODEL env overrides).
+      if (tokenData && tokenData.model) this.model = tokenData.model;
     } catch (e) { this.onError((e&&e.message)||'Could not start the live AI connection.', true); throw e; }
     // 2. Audio in/out (getUserMedia + AudioWorklet/ScriptProcessor).
     try { await this._initAudio(); }

@@ -3,3 +3,4 @@ app.py
 recordings/
 .env*
 __pycache__/
+temp-deploy/

@@ -31,6 +31,7 @@ Rules:
 - Evaluate communication clarity, technical depth, and confidence.
 - Return ONLY valid JSON with this exact shape:
 {"spoken_response": "your next question or comment to speak aloud", "evaluation": "brief internal assessment of the answer", "score": 0-10}
+- Output the JSON as a SINGLE line. Do NOT wrap it in markdown code fences, backticks, or any explanatory text before or after.
 - The spoken_response should be natural speech — no JSON formatting, no markdown.
 - Keep spoken_response under 60 words so TTS playback is quick.
 - ACKNOWLEDGE BEFORE A TASK TAKES A MOMENT: if composing the next question needs
@@ -40,6 +41,28 @@ Rules:
 - PROACTIVE CHECK: if the candidate seems stuck or hesitant, briefly encourage them
   in 1 to 2 short sentences ("Take your time..." style, fresh wording each time).
   Never read this rule aloud.`;
+
+/* Robustly extract the interviewer JSON object from a model reply.
+   Some models wrap the JSON in ```json ... ``` markdown fences or prefix/suffix
+   it with prose. This strips fences and pulls only the { ... } object, so the
+   interviewer never speaks raw JSON out loud. */
+function extractInterviewJSON(raw) {
+    if (!raw) return null;
+    let text = String(raw).trim();
+    // Strip markdown code fences: ```json ... ``` or ``` ... ```
+    text = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1 || end === -1 || end <= start) return null;
+    text = text.slice(start, end + 1);
+    try {
+        const obj = JSON.parse(text);
+        if (obj && typeof obj.spoken_response === 'string' && obj.spoken_response.trim()) {
+            return obj;
+        }
+    } catch (e) { /* fall through */ }
+    return null;
+}
 
 function buildSystemPrompt(role, memory) {
     const now = new Date().toLocaleString('en-US', {
@@ -91,13 +114,11 @@ async function tryGemini(system, history, answer) {
         const raw = (data?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
         if (!raw) return null;
 
-        let parsed;
-        try { parsed = JSON.parse(raw); }
-        catch (e) { parsed = { spoken_response: raw, evaluation: '', score: null }; }
-        if (!parsed.spoken_response) return null;
+        const parsed = extractInterviewJSON(raw);
+        if (!parsed) return null;
 
         return {
-            spoken_response: parsed.spoken_response,
+            spoken_response: parsed.spoken_response.trim(),
             evaluation: parsed.evaluation || '',
             score: typeof parsed.score === 'number' ? parsed.score : null
         };
@@ -148,13 +169,11 @@ async function tryGroq(system, history, answer) {
         const data = await response.json();
         const raw = data?.choices?.[0]?.message?.content || '';
 
-        let parsed;
-        try { parsed = JSON.parse(raw); }
-        catch (e) { parsed = { spoken_response: raw.trim(), evaluation: '', score: null }; }
-        if (!parsed.spoken_response) throw new Error('Empty response from interview AI');
+        const parsed = extractInterviewJSON(raw);
+        if (!parsed) throw new Error('Empty response from interview AI');
 
         return {
-            spoken_response: parsed.spoken_response,
+            spoken_response: parsed.spoken_response.trim(),
             evaluation: parsed.evaluation || '',
             score: typeof parsed.score === 'number' ? parsed.score : null
         };

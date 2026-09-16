@@ -19,7 +19,7 @@
    token:
 
        wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage
-           .v1alpha.GenerativeService.BidiGenerateContentConstrained
+           .v1beta.GenerativeService.BidiGenerateContentConstrained
            ?access_token=auth_tokens/<id>
 
    The whole setup (model, generation config, voice, system instruction) is
@@ -31,8 +31,8 @@
 
 const AUTH_TOKEN_URL = 'https://generativelanguage.googleapis.com/v1alpha/auth_tokens';
 const WS_BASE_URL =
-  'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained';
-const DEFAULT_LIVE_MODEL = 'gemini-2.0-flash-live-001';
+  'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
+const DEFAULT_LIVE_MODEL = 'gemini-3.8-live';
 
 function isoDate(msFromNow) {
   return new Date(Date.now() + msFromNow).toISOString();

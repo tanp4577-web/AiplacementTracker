@@ -32,6 +32,7 @@
    ========================================================================== */
 const MockInterview = {
   MAX_QUESTIONS: 6,
+  LIVE_MODEL: 'gemini-3.8-live',   // Gemini Live full-duplex model (2026 GA)
   OPENING_QUESTION: 'Tell me about yourself and your background.',
   SILENCE_MS: 1500,               // quiet period that commits the candidate's turn
   LONG_SILENCE_NUDGE_MS: 30000,   // proactive nudge if the candidate goes quiet
@@ -606,7 +607,7 @@ Rules:
     var self = this;
     try {
       this.state.live = new GeminiLive({
-        model: 'gemini-2.0-flash-live-001',
+        model: this.LIVE_MODEL,
         systemInstruction: this._liveSystemPrompt(),
         voiceName: 'Puck',
         temperature: 0.7,
