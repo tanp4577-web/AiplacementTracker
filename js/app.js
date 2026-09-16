@@ -13,6 +13,7 @@ const App = {
       aptitude: { render: (c) => Aptitude.render(c), title: 'Aptitude Quiz', subtitle: 'Practice with adaptive difficulty' },
       coding: { render: (c) => Coding.render(c), title: 'Coding Practice', subtitle: 'Solve challenges in your browser' },
       interview: { render: (c) => InterviewWall.render(c), title: 'Interview Experiences', subtitle: 'Real rounds and tips, shared by students who\'ve been there' },
+      mockinterview: { render: (c) => MockInterview.render(c), title: 'Live AI Mock Interview', subtitle: 'Speak your answers — the AI listens, replies, and follows up' },
       jobs: { render: (c) => Jobs.render(c), title: 'Hiring Hub', subtitle: 'Find roles and check your resume fit' },
       skills: { render: (c) => Skills.render(c), title: 'Skill Gap Analysis', subtitle: 'Find what to learn next' },
       company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle: 'Top tech interview patterns' },
