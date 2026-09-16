@@ -1,0 +1,5 @@
+Prompt for building an AI interview feature:
+1. Capture user audio input.
+2. Use a speech-to-text API (e.g., Whisper, Google) to transcribe speech.
+3. Pass the transcription to a language model (e.g., GPT) as context to generate an appropriate response, acting as an interviewer.
+4. Convert the model's text response back to speech using a text-to-speech API (e.g., ElevenLabs, Google).
