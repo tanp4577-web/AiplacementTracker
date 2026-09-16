@@ -78,17 +78,24 @@ const MockInterview = {
   _renderIntro() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     this.container.innerHTML = `
-      <div class="card mb-2">
-        <div class="card-title"><i class="bi bi-mic-fill text-accent" style="margin-right:6px"></i>Live AI Mock Interview</div>
-        <div class="card-sub">Speak your answers out loud — the AI interviewer listens live, replies, and follows up automatically. No buttons to press mid-interview — and you can even cut in while it's speaking.</div>
-        ${!SR ? '<p class="mt-2" style="color:#f87171;font-size:.85rem">Your browser does not support live speech recognition. Please use Chrome or Edge.</p>' : ''}
-        <div class="mt-2">
-          <label style="display:block;margin-bottom:6px;font-size:.85rem;color:var(--text-secondary,#9fb3c8)">Role you're applying for (optional)</label>
-          <input type="text" id="miRole" placeholder="e.g. Frontend Developer" style="width:100%;max-width:360px" />
+      <div class="card mi-intro mb-2">
+        <div class="mi-intro-head">
+          <div class="mi-hero-orb"><i class="bi bi-mic-fill"></i></div>
+          <div class="mi-intro-copy">
+            <div class="card-title mi-title"><i class="bi bi-mic-fill" style="margin-right:6px"></i>Live AI Mock Interview</div>
+            <div class="card-sub">Speak your answers out loud — the AI interviewer listens live, replies, and follows up automatically. No buttons to press mid-interview — and you can even cut in while it's speaking.</div>
+            ${!SR ? '<p class="mt-2 mi-warn">Your browser does not support live speech recognition. Please use Chrome or Edge.</p>' : ''}
+          </div>
         </div>
-        <button class="btn btn-primary mt-2" id="miStartBtn" ${!SR ? 'disabled' : ''}><i class="bi bi-mic" style="margin-right:4px"></i>Start Interview</button>
-        ${typeof GeminiLive !== 'undefined' && GeminiLive.supported() ? '<button class="btn btn-ghost mt-2" id="miLiveStartBtn" style="margin-left:8px"><i class="bi bi-lightning-fill" style="margin-right:4px"></i>Start LIVE Interview (full-duplex AI)</button>' : ''}
-        <p class="mt-2" style="font-size:.8rem;color:var(--text-secondary,#9fb3c8)">Requires microphone access (camera is optional, just for your own preview). The LIVE button uses Gemini's native voice — no browser speech recognition needed.</p>
+        <div class="mi-role-wrap">
+          <label for="miRole" class="field-label">Role you're applying for <span class="text-faint">(optional)</span></label>
+          <input type="text" id="miRole" placeholder="e.g. Frontend Developer" />
+        </div>
+        <div class="mi-cta-row">
+          <button class="btn btn-primary" id="miStartBtn" ${!SR ? 'disabled' : ''}><i class="bi bi-mic" style="margin-right:4px"></i>Start Interview</button>
+          ${typeof GeminiLive !== 'undefined' && GeminiLive.supported() ? '<button class="btn btn-live" id="miLiveStartBtn"><i class="bi bi-lightning-fill" style="margin-right:4px"></i>Start LIVE Interview</button>' : ''}
+        </div>
+        <p class="mi-note"><i class="bi bi-shield-check" style="margin-right:4px"></i>Requires microphone access (camera is optional, just for your own preview). The LIVE button uses Gemini's native voice — no browser speech recognition needed.</p>
       </div>
     `;
     this.container.querySelector('#miStartBtn').addEventListener('click', () => this._startInterview());
@@ -131,31 +138,38 @@ const MockInterview = {
 
   _renderSession() {
     this.container.innerHTML = `
-      <div class="card mb-2">
+      <div class="card mi-stage mb-2">
         <div class="flex-between items-center" style="gap:12px;flex-wrap:wrap">
-          <div class="card-title"><i class="bi bi-mic-fill text-accent" style="margin-right:6px"></i>Live AI Mock Interview</div>
-          <div id="miStatus" style="font-size:.85rem;color:var(--text-secondary,#9fb3c8)">Starting…</div>
-        </div>
-        <div class="grid grid-2 mt-2" style="gap:16px;align-items:start">
-          <div>
-            <video id="miVideo" autoplay muted playsinline style="width:100%;border-radius:10px;background:#000"></video>
-            <div style="height:6px;background:#1f2a37;border-radius:4px;margin-top:8px;overflow:hidden">
-              <div id="miLevelBar" style="height:100%;width:0%;background:#16a34a;transition:width .1s"></div>
+          <div class="mi-head-left">
+            <div class="mi-av"><i class="bi bi-robot"></i></div>
+            <div>
+              <div class="card-title mi-title"><i class="bi bi-mic-fill" style="margin-right:6px"></i>Live AI Mock Interview</div>
+              <span class="mi-tag">PrepAI · AI HR Interviewer</span>
             </div>
           </div>
-          <div>
-            <div class="card" style="background:var(--bg-secondary,#0b0f14);min-height:90px">
-              <div style="font-size:.75rem;color:var(--text-secondary,#9fb3c8);margin-bottom:6px">INTERVIEWER</div>
-              <div id="miQuestion" style="font-size:1.05rem;line-height:1.5">—</div>
+          <div id="miStatus" class="mi-status">Starting…</div>
+        </div>
+        <div class="mi-grid">
+          <div class="mi-cam-col">
+            <div class="mi-cam">
+              <video id="miVideo" autoplay muted playsinline></video>
+              <span class="mi-cam-badge"><i class="bi bi-camera-video"></i>Camera preview</span>
             </div>
-            <div class="card mt-2" style="background:var(--bg-secondary,#0b0f14);min-height:60px">
-              <div style="font-size:.75rem;color:var(--text-secondary,#9fb3c8);margin-bottom:6px">YOU (live transcript)</div>
-              <div id="miTranscript" style="font-size:.95rem;font-style:italic;color:#7dd3fc">—</div>
+            <div class="mi-meter"><div id="miLevelBar"></div></div>
+          </div>
+          <div class="mi-chat-col">
+            <div class="mi-bubble mi-bubble-ai">
+              <div class="mi-bubble-label"><i class="bi bi-mic-fill"></i> INTERVIEWER</div>
+              <div id="miQuestion">—</div>
+            </div>
+            <div class="mi-bubble mi-bubble-you">
+              <div class="mi-bubble-label"><i class="bi bi-person-fill"></i> YOU · live transcript</div>
+              <div id="miTranscript">—</div>
             </div>
           </div>
         </div>
-        <div class="mt-2">
-          <button class="btn btn-ghost" id="miEndBtn">End Interview</button>
+        <div class="mt-3">
+          <button class="btn btn-outline" id="miEndBtn"><i class="bi bi-stop-circle" style="margin-right:4px"></i>End Interview</button>
         </div>
       </div>
     `;
@@ -534,9 +548,14 @@ Rules:
     const summary = document.createElement('div');
     summary.className = 'card mt-2';
     summary.innerHTML = `
-      <div class="card-title">Interview Complete</div>
-      <p>You answered ${answered} question${answered === 1 ? '' : 's'}.${avgScore ? ` Average score: <strong>${avgScore}/10</strong>.` : ''}</p>
-      <button class="btn btn-primary" id="miRestartBtn">Start New Interview</button>
+      <div class="mi-done">
+        <div class="mi-done-orb">🎉</div>
+        <div class="mi-done-copy">
+          <div class="card-title mi-title"><i class="bi bi-patch-check-fill" style="margin-right:6px"></i>Interview Complete</div>
+          <p>You answered ${answered} question${answered === 1 ? '' : 's'}.${avgScore ? ` Average score: <strong>${avgScore}/10</strong>.` : ''}</p>
+          <button class="btn btn-primary" id="miRestartBtn"><i class="bi bi-arrow-counterclockwise" style="margin-right:4px"></i>Start New Interview</button>
+        </div>
+      </div>
     `;
     this.container.querySelector('.card').after(summary);
     summary.querySelector('#miRestartBtn').addEventListener('click', () => {
