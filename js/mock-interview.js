@@ -1,12 +1,29 @@
 /* ============ Live AI Mock Interview (voice) ============
-   Wires the existing LiveAI engine (js/live-voice.js) and the existing
-   /api/interview-chat + /api/stt + /api/tts endpoints into an actual
-   interview session: record answer -> transcribe -> AI follow-up -> speak
-   -> repeat. Nothing in live-voice.js or the API layer is modified.
+   Continuous, hands-free interview loop:
+     click Start -> AI speaks -> mic auto-listens -> silence detected ->
+     AI thinks -> AI speaks the follow-up -> repeat.
+   No manual "record" button per turn — this is intentional so it behaves
+   like a live conversation instead of a walkie-talkie.
+
+   Two fixes versus the previous version:
+   1. The opening question is spoken via the browser's own speechSynthesis
+      DIRECTLY inside the Start-button click handler, before any awaited
+      permission prompts. Browsers require audio playback to happen very
+      close to a real user click ("user activation") or they silently
+      block it — that's why the interviewer wasn't speaking before.
+   2. Speech-to-text now uses the browser's own continuous SpeechRecognition
+      instead of recording audio and sending it to a server transcription
+      endpoint. It's instant, doesn't depend on an extra API key working,
+      and shows a live transcript as you talk.
+
+   The AI brain itself still calls the existing /api/interview-chat
+   endpoint (unchanged) — that part still requires GROQ_API_KEY to be set
+   in Vercel, or you'll get a clear error toast instead of a reply.
    ========================================================================== */
 const MockInterview = {
   MAX_QUESTIONS: 6,
   OPENING_QUESTION: 'Tell me about yourself and your background.',
+  SILENCE_MS: 1500,
 
   state: {
     history: [],
@@ -15,7 +32,8 @@ const MockInterview = {
     scores: [],
     stream: null,
     stopLevelMeter: null,
-    recording: false,
+    recognition: null,
+    listening: false,
     finished: false
   },
 
@@ -23,64 +41,56 @@ const MockInterview = {
     this.container = container;
     this.state = {
       history: [], role: '', questionCount: 0, scores: [],
-      stream: null, stopLevelMeter: null, recording: false, finished: false
+      stream: null, stopLevelMeter: null, recognition: null, listening: false, finished: false
     };
     this._renderIntro();
   },
 
   _renderIntro() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     this.container.innerHTML = `
       <div class="card mb-2">
         <div class="card-title"><i class="bi bi-mic-fill text-accent" style="margin-right:6px"></i>Live AI Mock Interview</div>
-        <div class="card-sub">Speak your answers out loud — the AI interviewer listens, replies, and asks relevant follow-ups.</div>
+        <div class="card-sub">Speak your answers out loud — the AI interviewer listens live, replies, and follows up automatically. No buttons to press mid-interview.</div>
+        ${!SR ? '<p class="mt-2" style="color:#f87171;font-size:.85rem">Your browser does not support live speech recognition. Please use Chrome or Edge.</p>' : ''}
         <div class="mt-2">
           <label style="display:block;margin-bottom:6px;font-size:.85rem;color:var(--text-secondary,#9fb3c8)">Role you're applying for (optional)</label>
           <input type="text" id="miRole" placeholder="e.g. Frontend Developer" style="width:100%;max-width:360px" />
         </div>
-        <button class="btn btn-primary mt-2" id="miStartBtn"><i class="bi bi-camera-video" style="margin-right:4px"></i>Start Interview</button>
-        <p class="mt-2" style="font-size:.8rem;color:var(--text-secondary,#9fb3c8)">Requires microphone (camera optional) access. Works best in Chrome or Edge.</p>
+        <button class="btn btn-primary mt-2" id="miStartBtn" ${!SR ? 'disabled' : ''}><i class="bi bi-mic" style="margin-right:4px"></i>Start Interview</button>
+        <p class="mt-2" style="font-size:.8rem;color:var(--text-secondary,#9fb3c8)">Requires microphone access (camera is optional, just for your own preview).</p>
       </div>
     `;
     this.container.querySelector('#miStartBtn').addEventListener('click', () => this._startInterview());
   },
 
-  async _startInterview() {
+  _startInterview() {
     this.state.role = (this.container.querySelector('#miRole')?.value || '').trim();
-
-    if (!LiveAI.isSecureContext()) {
-      App.showToast('Camera/microphone requires HTTPS (or localhost).', 'error');
-      return;
-    }
-
-    let stream;
-    try {
-      stream = await LiveAI.enableCamera(true, true);
-    } catch (e) {
-      try {
-        stream = await LiveAI.enableCamera(true, false); // retry audio-only
-      } catch (e2) {
-        App.showToast('Microphone access is required for the live interview: ' + (e2.message || e.message), 'error');
-        return;
-      }
-    }
-    this.state.stream = stream;
-
     this._renderSession();
 
-    const videoEl = this.container.querySelector('#miVideo');
-    if (videoEl && stream.getVideoTracks().length) {
-      videoEl.srcObject = stream;
-      videoEl.play().catch(() => {});
-    } else if (videoEl) {
-      videoEl.style.display = 'none';
+    // Speak the opening question immediately, synchronously in this click
+    // handler — no awaits before this line — so the browser doesn't block it.
+    const qEl = this.container.querySelector('#miQuestion');
+    if (qEl) qEl.textContent = this.OPENING_QUESTION;
+    this._speakThenListen(this.OPENING_QUESTION);
+
+    // Camera preview is cosmetic only — enable it in parallel, don't block
+    // the interview loop on it (mic permission is requested separately by
+    // SpeechRecognition itself when it starts).
+    if (LiveAI.isSecureContext()) {
+      LiveAI.enableCamera(true, true).then((stream) => {
+        this.state.stream = stream;
+        const videoEl = this.container.querySelector('#miVideo');
+        if (videoEl) { videoEl.srcObject = stream; videoEl.play().catch(() => {}); }
+        LiveAI.startLevelMeter(stream, (level) => {
+          const bar = this.container.querySelector('#miLevelBar');
+          if (bar) bar.style.width = Math.round(level * 100) + '%';
+        }).then((stop) => { this.state.stopLevelMeter = stop; });
+      }).catch(() => {
+        const videoEl = this.container.querySelector('#miVideo');
+        if (videoEl) videoEl.style.display = 'none';
+      });
     }
-
-    this.state.stopLevelMeter = await LiveAI.startLevelMeter(stream, (level) => {
-      const bar = this.container.querySelector('#miLevelBar');
-      if (bar) bar.style.width = Math.round(level * 100) + '%';
-    });
-
-    this._showOpeningQuestion();
   },
 
   _renderSession() {
@@ -88,7 +98,7 @@ const MockInterview = {
       <div class="card mb-2">
         <div class="flex-between items-center" style="gap:12px;flex-wrap:wrap">
           <div class="card-title"><i class="bi bi-mic-fill text-accent" style="margin-right:6px"></i>Live AI Mock Interview</div>
-          <div id="miStatus" style="font-size:.85rem;color:var(--text-secondary,#9fb3c8)">Ready</div>
+          <div id="miStatus" style="font-size:.85rem;color:var(--text-secondary,#9fb3c8)">Starting…</div>
         </div>
         <div class="grid grid-2 mt-2" style="gap:16px;align-items:start">
           <div>
@@ -103,18 +113,16 @@ const MockInterview = {
               <div id="miQuestion" style="font-size:1.05rem;line-height:1.5">—</div>
             </div>
             <div class="card mt-2" style="background:var(--bg-secondary,#0b0f14);min-height:60px">
-              <div style="font-size:.75rem;color:var(--text-secondary,#9fb3c8);margin-bottom:6px">YOUR LAST ANSWER</div>
+              <div style="font-size:.75rem;color:var(--text-secondary,#9fb3c8);margin-bottom:6px">YOU (live transcript)</div>
               <div id="miTranscript" style="font-size:.95rem;font-style:italic;color:#7dd3fc">—</div>
             </div>
           </div>
         </div>
         <div class="mt-2">
-          <button class="btn btn-primary" id="miRecordBtn" disabled><i class="bi bi-mic" style="margin-right:4px"></i>Record Answer</button>
           <button class="btn btn-ghost" id="miEndBtn">End Interview</button>
         </div>
       </div>
     `;
-    this.container.querySelector('#miRecordBtn').addEventListener('click', () => this._toggleRecording());
     this.container.querySelector('#miEndBtn').addEventListener('click', () => this._endInterview());
   },
 
@@ -123,82 +131,122 @@ const MockInterview = {
     if (el) el.textContent = text;
   },
 
-  _showOpeningQuestion() {
-    const qEl = this.container.querySelector('#miQuestion');
-    if (qEl) qEl.textContent = this.OPENING_QUESTION;
+  /** Speak text with the browser's own voice, then auto-start listening when it ends. */
+  _speakThenListen(text) {
     this._setStatus('🔊 Interviewer speaking…');
-    LiveAI.speakResponse(this.OPENING_QUESTION, {
-      onend: () => {
-        this._setStatus('Ready — click Record Answer');
-        const btn = this.container.querySelector('#miRecordBtn');
-        if (btn) btn.disabled = false;
-      }
-    });
+    if (!('speechSynthesis' in window)) {
+      this._startListening();
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 1;
+    utter.pitch = 1.02;
+    utter.onend = () => { if (!this.state.finished) this._startListening(); };
+    utter.onerror = () => { if (!this.state.finished) this._startListening(); };
+    window.speechSynthesis.speak(utter);
   },
 
-  async _toggleRecording() {
-    const btn = this.container.querySelector('#miRecordBtn');
-    if (!this.state.recording) {
-      const result = await LiveAI.startRecording();
-      if (!result.ok) {
-        App.showToast('Could not start recording: ' + (result.error || 'unknown error'), 'error');
+  _startListening() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      App.showToast('Speech recognition needs Chrome or Edge.', 'error');
+      return;
+    }
+    if (this.state.recognition) {
+      try { this.state.recognition.stop(); } catch (e) {}
+    }
+
+    this._setStatus('🎙️ Listening…');
+    this.state.listening = true;
+    const tEl = this.container.querySelector('#miTranscript');
+    if (tEl) tEl.textContent = '';
+
+    const rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+
+    let finalTranscript = '';
+    let silenceTimer = null;
+
+    rec.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalTranscript += t + ' ';
+        else interim += t;
+      }
+      if (tEl) tEl.textContent = (finalTranscript + interim).trim();
+
+      clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(() => {
+        if (this.state.listening && finalTranscript.trim()) rec.stop();
+      }, this.SILENCE_MS);
+    };
+
+    rec.onerror = (e) => {
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      if (e.error === 'not-allowed') {
+        App.showToast("Microphone access was blocked. Allow it in your browser's address-bar permissions and click Start again.", 'error');
+      }
+    };
+
+    rec.onend = () => {
+      this.state.listening = false;
+      if (this.state.finished) return;
+      const answer = finalTranscript.trim();
+      finalTranscript = '';
+      if (!answer) {
+        this._startListening(); // nothing heard yet, keep listening
         return;
       }
-      this.state.recording = true;
-      btn.innerHTML = '<i class="bi bi-stop-fill" style="margin-right:4px"></i>Stop & Submit';
-      this._setStatus('🎙️ Recording your answer…');
-    } else {
-      this.state.recording = false;
-      btn.disabled = true;
-      btn.innerHTML = '<i class="bi bi-mic" style="margin-right:4px"></i>Record Answer';
-      this._submitAnswer();
-    }
+      this._handleAnswer(answer);
+    };
+
+    this.state.recognition = rec;
+    try { rec.start(); } catch (e) { /* already running */ }
   },
 
-  async _submitAnswer() {
-    this._setStatus('⏳ Processing…');
+  async _handleAnswer(answer) {
+    this._setStatus('🤔 Thinking…');
+    try {
+      const res = await fetch('/api/interview-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ history: this.state.history, answer, role: this.state.role })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.spoken_response) {
+        throw new Error(data.error || 'The interviewer had no response.');
+      }
 
-    const result = await LiveAI.runRecordedInteraction(this.state.history, {
-      role: this.state.role,
-      onState: (s) => {
-        const labels = {
-          recording: '⏳ Finishing recording…',
-          transcribing: '📝 Transcribing…',
-          thinking: '🤔 Thinking…',
-          speaking: '🔊 Interviewer speaking…',
-          idle: 'Ready — click Record Answer',
-          error: '⚠️ Something went wrong'
-        };
-        this._setStatus(labels[s] || s);
-        // Only re-enable once the AI has actually finished speaking (idle) or failed —
-        // not right when the network call resolves, so the candidate can't talk over it.
-        if ((s === 'idle' || s === 'error') && !this.state.finished && this.state.questionCount < this.MAX_QUESTIONS) {
-          const btn = this.container.querySelector('#miRecordBtn');
-          if (btn) btn.disabled = false;
-        }
-      },
-      onError: (msg) => App.showToast(msg, 'error')
-    });
+      this.state.history.push({ role: 'user', content: answer });
+      this.state.history.push({ role: 'assistant', content: data.spoken_response });
+      if (typeof data.score === 'number') this.state.scores.push(data.score);
+      this.state.questionCount++;
 
-    if (result.error) return; // onState('error') already re-enabled the button
+      const qEl = this.container.querySelector('#miQuestion');
+      if (qEl) qEl.textContent = data.spoken_response;
 
-    this.state.history.push({ role: 'user', content: result.text });
-    this.state.history.push({ role: 'assistant', content: result.spoken_response });
-    if (typeof result.score === 'number') this.state.scores.push(result.score);
-    this.state.questionCount++;
+      if (this.state.questionCount >= this.MAX_QUESTIONS) {
+        this._finishInterview();
+        return;
+      }
 
-    const tEl = this.container.querySelector('#miTranscript');
-    if (tEl) tEl.textContent = result.text;
-    const qEl = this.container.querySelector('#miQuestion');
-    if (qEl) qEl.textContent = result.spoken_response;
-
-    if (this.state.questionCount >= this.MAX_QUESTIONS) {
-      this._finishInterview();
+      this._speakThenListen(data.spoken_response);
+    } catch (e) {
+      App.showToast(e.message, 'error');
+      this._setStatus('⚠️ ' + e.message);
+      if (!this.state.finished) this._startListening();
     }
   },
 
   _finishInterview() {
     this.state.finished = true;
+    if (this.state.recognition) {
+      try { this.state.recognition.stop(); } catch (e) {}
+    }
 
     const email = (typeof Auth !== 'undefined' && Auth.getEmail) ? Auth.getEmail() : null;
     if (email && typeof DB !== 'undefined') {
@@ -213,8 +261,6 @@ const MockInterview = {
       : null;
 
     this._setStatus('✅ Interview complete');
-    const btn = this.container.querySelector('#miRecordBtn');
-    if (btn) { btn.disabled = true; btn.style.display = 'none'; }
 
     const summary = document.createElement('div');
     summary.className = 'card mt-2';
@@ -241,9 +287,10 @@ const MockInterview = {
   },
 
   _cleanup() {
-    LiveAI.stopSpeaking();
-    if (this.state.recording) {
-      LiveAI.stopRecording().catch(() => {});
+    this.state.finished = true;
+    window.speechSynthesis.cancel();
+    if (this.state.recognition) {
+      try { this.state.recognition.stop(); } catch (e) {}
     }
     if (this.state.stopLevelMeter) {
       this.state.stopLevelMeter();
