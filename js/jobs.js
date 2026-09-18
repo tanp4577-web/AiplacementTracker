@@ -1,117 +1,181 @@
+/* ============ Hiring Hub — REAL live job listings ============
+   Replaces the old hardcoded JOB_OPENINGS array entirely. Every job shown
+   here comes from /api/jobs (Adzuna's real job aggregation API) — genuine,
+   currently-open vacancies with a real "Apply" link to the original posting.
+   No AI-generated or fabricated job details (package ranges, PPT dates,
+   interview rounds, etc.) are shown anywhere in this file.
+   ================================================================== */
 const Jobs = {
-  state: { scope: 'national', location: null, locationLabel: 'Location not set' },
+  state: {
+    scope: 'national',
+    keyword: 'software developer',
+    location: null,
+    locationLabel: 'Location not set',
+    jobs: [],
+    loading: false,
+    error: null,
+    page: 1,
+    count: 0
+  },
 
   render(container) {
     this.container = container;
+    this._search();
+  },
+
+  async _search(append = false) {
+    if (this.state.scope === 'regional' && !this.state.locationLabel) {
+      this.state.jobs = [];
+      this.state.loading = false;
+      this.state.error = null;
+      this._renderHub();
+      return;
+    }
+
+    this.state.loading = true;
+    this.state.error = null;
+    if (!append) this.state.page = 1;
     this._renderHub();
+
+    const params = new URLSearchParams({
+      what: this.state.keyword || '',
+      page: String(this.state.page),
+      results_per_page: '20'
+    });
+    if (this.state.scope === 'regional' && this.state.location) {
+      params.set('where', this.state.locationLabel);
+      params.set('distance', '50');
+    }
+
+    try {
+      const res = await fetch(`/api/jobs?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not load job listings.');
+      this.state.jobs = append ? [...this.state.jobs, ...data.jobs] : data.jobs;
+      this.state.count = data.count || this.state.jobs.length;
+    } catch (err) {
+      this.state.error = err.message || 'Could not load job listings.';
+      if (!append) this.state.jobs = [];
+    } finally {
+      this.state.loading = false;
+      this._renderHub();
+    }
   },
 
   _renderHub() {
-    const regionalJobs = JOB_OPENINGS.filter(job => {
-      if (job.scope !== 'regional') return false;
-      if (!this.state.location) return true;
-      return this._distanceKm(this.state.location, job) <= 600;
-    });
-    const jobs = this.state.scope === 'national' ? JOB_OPENINGS : regionalJobs;
+    const { jobs, loading, error, count } = this.state;
     this.container.innerHTML = `
       <div class="card mb-2">
         <div class="flex-between" style="gap:16px;flex-wrap:wrap">
           <div>
             <div class="card-title"><i class="bi bi-briefcase text-accent" style="margin-right:4px"></i>Hiring Hub</div>
-            <div class="card-sub">${jobs.length} roles across engineering, data, product, design, and operations. Check your resume fit and practice target gaps.</div>
+            <div class="card-sub">${loading ? 'Loading live listings…' : `${count} real, currently-open ${count === 1 ? 'role' : 'roles'} — live from the job market, updated on every search.`}</div>
           </div>
           <div class="flex gap-1" role="group" aria-label="Opportunity scope">
             <button class="btn ${this.state.scope === 'national' ? 'btn-primary' : 'btn-ghost'}" id="nationalJobsBtn">National</button>
             <button class="btn ${this.state.scope === 'regional' ? 'btn-primary' : 'btn-ghost'}" id="regionalJobsBtn">Regional</button>
           </div>
         </div>
+        <div class="flex gap-1 mt-2" style="flex-wrap:wrap">
+          <input type="search" id="jobKeywordInput" placeholder="Job title or keyword (e.g. frontend developer)" value="${this._escape(this.state.keyword)}" style="flex:1;min-width:220px" />
+          <button class="btn btn-primary" id="jobSearchBtn"><i class="bi bi-search" style="margin-right:4px"></i>Search</button>
+        </div>
         <div class="flex-between mt-2" style="gap:12px;flex-wrap:wrap">
-          <span class="chip ${this.state.location ? 'green' : 'orange'}"><i class="bi bi-geo-alt-fill"></i> ${this.state.location ? `Near ${this.state.locationLabel}` : 'Regional location not set'}</span>
+          <span class="chip ${this.state.location ? 'green' : 'orange'}"><i class="bi bi-geo-alt-fill"></i> ${this.state.location ? `Near ${this._escape(this.state.locationLabel)}` : 'Regional location not set'}</span>
           <button class="btn btn-ghost btn-sm" id="locateJobsBtn"><i class="bi bi-crosshair" style="margin-right:4px"></i>Use my location</button>
         </div>
+        <div class="text-dim mt-1" style="font-size:11px">Live job data via Adzuna's job aggregation API — real listings, real companies, real apply links.</div>
       </div>
+
+      ${error ? `<div class="empty-state"><h3>Couldn't load listings</h3><p>${this._escape(error)}</p></div>` : ''}
+      ${!error && loading && jobs.length === 0 ? `<div class="empty-state"><h3>Loading live listings…</h3><p>Fetching real, currently-open roles.</p></div>` : ''}
+      ${!error && !loading && this.state.scope === 'regional' && !this.state.location ? `<div class="empty-state"><h3>Set your location</h3><p>Click "Use my location" to see roles near you.</p></div>` : ''}
+      ${!error && !loading && jobs.length === 0 && (this.state.scope === 'national' || this.state.location) ? `<div class="empty-state"><h3>No roles found</h3><p>Try a different keyword${this.state.scope === 'regional' ? ' or switch to National' : ''}.</p></div>` : ''}
+
       <div class="grid grid-2" id="jobsGrid">
-        ${jobs.map(job => this._jobCard(job)).join('') || '<div class="empty-state"><h3>No nearby demo roles found</h3><p>Try National Opportunities or update your location.</p></div>'}
+        ${jobs.map(job => this._jobCard(job)).join('')}
       </div>
-      <div class="text-dim mt-2" style="font-size:12px">Listings are demo opportunities for practicing targeted applications.</div>
+      ${!error && jobs.length > 0 && jobs.length < count ? `<div class="flex-between mt-2"><button class="btn btn-ghost" id="loadMoreJobsBtn" ${loading ? 'disabled' : ''}>${loading ? 'Loading…' : 'Load more'}</button></div>` : ''}
+      <div class="text-dim mt-2" style="font-size:12px">Listings and salary figures are sourced live from the job market and may include estimated salary ranges where the employer didn't publish one.</div>
     `;
 
     document.getElementById('nationalJobsBtn').addEventListener('click', () => {
+      if (this.state.scope === 'national') return;
       this.state.scope = 'national';
-      this._renderHub();
+      this._search();
     });
     document.getElementById('regionalJobsBtn').addEventListener('click', () => {
+      if (this.state.scope === 'regional') return;
       this.state.scope = 'regional';
-      this._renderHub();
+      this._search();
+    });
+    document.getElementById('jobSearchBtn').addEventListener('click', () => this._onSearchClick());
+    document.getElementById('jobKeywordInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this._onSearchClick();
     });
     document.getElementById('locateJobsBtn').addEventListener('click', () => this._locate());
+    document.getElementById('loadMoreJobsBtn')?.addEventListener('click', () => {
+      this.state.page += 1;
+      this._search(true);
+    });
     this.container.querySelectorAll('[data-job-id]').forEach(card => {
       card.querySelector('[data-apply]')?.addEventListener('click', () => this._openApplication(card.dataset.jobId));
       card.querySelector('[data-details]')?.addEventListener('click', () => this._openDetails(card.dataset.jobId));
+      card.querySelector('[data-view-original]')?.addEventListener('click', () => {
+        const job = this.state.jobs.find(j => j.id === card.dataset.jobId);
+        if (job?.applyUrl) window.open(job.applyUrl, '_blank', 'noopener');
+      });
     });
   },
 
-  _distanceKm(first, second) {
-    const radians = value => value * Math.PI / 180;
-    const latitudeDelta = radians(second.latitude - first.latitude);
-    const longitudeDelta = radians(second.longitude - first.longitude);
-    const latitudeA = radians(first.latitude);
-    const latitudeB = radians(second.latitude);
-    const a = Math.sin(latitudeDelta / 2) ** 2 + Math.cos(latitudeA) * Math.cos(latitudeB) * Math.sin(longitudeDelta / 2) ** 2;
-    return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  _onSearchClick() {
+    const input = document.getElementById('jobKeywordInput');
+    this.state.keyword = (input?.value || '').trim();
+    this._search();
+  },
+
+  _escape(value) {
+    return String(value || '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
+  },
+
+  _formatSalary(job) {
+    if (!job.salaryMin && !job.salaryMax) return null;
+    const fmt = (n) => '₹' + Math.round(n).toLocaleString('en-IN');
+    const range = job.salaryMin && job.salaryMax && job.salaryMin !== job.salaryMax
+      ? `${fmt(job.salaryMin)} – ${fmt(job.salaryMax)}`
+      : fmt(job.salaryMin || job.salaryMax);
+    return range + (job.salaryIsPredicted ? ' (estimated)' : '') + ' / year';
   },
 
   _jobCard(job) {
+    const salary = this._formatSalary(job);
+    const snippet = this._escape(job.description).slice(0, 220);
     return `
       <article class="card hoverable" data-job-id="${job.id}">
         <div class="flex-between" style="gap:10px">
           <div>
-            <div class="card-title" style="font-size:19px">${job.title}</div>
-            <div class="card-sub">${job.company} · ${job.location}</div>
+            <div class="card-title" style="font-size:19px">${this._escape(job.title)}</div>
+            <div class="card-sub">${this._escape(job.company)} · ${this._escape(job.location)}</div>
           </div>
-          <span class="chip ${job.mode === 'Remote' ? 'green' : 'blue'}">${job.mode}</span>
+          ${job.contractTime ? `<span class="chip blue">${this._escape(job.contractTime.replace('_', '-'))}</span>` : ''}
         </div>
-        <p class="text-dim mt-1" style="font-size:13px;line-height:1.55">${job.description}</p>
-        <div class="flex gap-1 mt-1" style="flex-wrap:wrap">${job.skills.map(skill => `<span class="chip">${skill}</span>`).join('')}</div>
+        ${salary ? `<div class="chip green mt-1" style="display:inline-block">${salary}</div>` : ''}
+        <p class="text-dim mt-1" style="font-size:13px;line-height:1.55">${snippet}${job.description.length > 220 ? '…' : ''}</p>
         <div class="flex gap-1 mt-2" style="flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" data-details><i class="bi bi-building"></i> Company details</button>
-          <button class="btn btn-primary btn-sm" data-apply><i class="bi bi-file-earmark-person"></i> Analyze resume</button>
+          <button class="btn btn-ghost btn-sm" data-details><i class="bi bi-building"></i> Details</button>
+          ${job.applyUrl ? `<button class="btn btn-ghost btn-sm" data-view-original><i class="bi bi-box-arrow-up-right"></i> View original posting</button>` : ''}
+          <button class="btn btn-primary btn-sm" data-apply><i class="bi bi-file-earmark-person"></i> Analyze resume fit</button>
         </div>
       </article>
     `;
   },
 
-  _detailsFor(job) {
-    const title = job.title.toLowerCase();
-    const packageRange = title.includes('machine learning') || title.includes('data engineer') ? '8-16 LPA'
-      : title.includes('product') ? '7-13 LPA'
-        : title.includes('security') || title.includes('devops') ? '6-12 LPA'
-          : title.includes('analyst') || title.includes('ux') || title.includes('qa') ? '4.5-9 LPA'
-            : '5-11 LPA';
-    const rounds = title.includes('product') || title.includes('analyst')
-      ? ['Online aptitude and case assessment', 'Product or business case discussion', 'Panel interview', 'People and culture discussion']
-      : title.includes('qa') || title.includes('security') || title.includes('cloud')
-        ? ['Online aptitude and technical assessment', 'Technical interview', 'Practical troubleshooting round', 'People and culture discussion']
-        : ['Online aptitude and coding assessment', 'Technical interview', 'Role-specific deep dive', 'People and culture discussion'];
-    return {
-      packageRange,
-      pptDate: '16 Sep 2026',
-      testDate: '18 Sep 2026',
-      deadline: '14 Sep 2026',
-      openings: title.includes('engineer') || title.includes('developer') ? 'Multiple openings' : '2-5 openings',
-      eligibility: 'Final-year students and graduates with 0-2 years of experience',
-      rounds,
-      benefits: ['Mentorship and structured onboarding', 'Learning budget and certification support', 'Performance-based growth reviews'],
-      note: 'Dates and package are indicative demo details for placement preparation. Confirm the final schedule with the employer.'
-    };
-  },
-
   _openDetails(id) {
-    const job = JOB_OPENINGS.find(item => item.id === id);
+    const job = this.state.jobs.find(item => item.id === id);
     if (!job) return;
-    const details = this._detailsFor(job);
     const existing = document.getElementById('jobDetailsModal');
     if (existing) existing.remove();
+    const salary = this._formatSalary(job);
     const modal = document.createElement('div');
     modal.id = 'jobDetailsModal';
     modal.className = 'modal-overlay';
@@ -121,44 +185,27 @@ const Jobs = {
           <div class="job-details-heading">
             <div class="job-company-mark"><i class="bi bi-building"></i></div>
             <div>
-              <h2 id="jobDetailsTitle">${job.title}</h2>
-              <p class="text-dim">${job.company} · ${job.location} · ${job.mode}</p>
+              <h2 id="jobDetailsTitle">${this._escape(job.title)}</h2>
+              <p class="text-dim">${this._escape(job.company)} · ${this._escape(job.location)}</p>
             </div>
           </div>
           <button class="modal-close" id="closeJobDetails" aria-label="Close company details"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body">
-          <div class="job-detail-tabs" role="tablist" aria-label="Role information">
-            <button class="job-detail-tab active" role="tab" aria-selected="true" data-detail-tab="overview"><i class="bi bi-building"></i> Overview</button>
-            <button class="job-detail-tab" role="tab" aria-selected="false" data-detail-tab="process"><i class="bi bi-diagram-3"></i> Hiring process</button>
-            <button class="job-detail-tab" role="tab" aria-selected="false" data-detail-tab="preparation"><i class="bi bi-mortarboard"></i> Preparation</button>
+          <div class="job-detail-stats">
+            <div><span>Category</span><strong>${this._escape(job.category || 'Not specified')}</strong></div>
+            <div><span>Contract</span><strong>${this._escape((job.contractType || job.contractTime || 'Not specified').replace('_', '-'))}</strong></div>
+            <div><span>Salary</span><strong>${salary ? this._escape(salary) : 'Not disclosed'}</strong></div>
+            <div><span>Posted</span><strong>${job.created ? new Date(job.created).toLocaleDateString() : 'Unknown'}</strong></div>
           </div>
-          <div class="job-detail-panel active" data-detail-panel="overview" role="tabpanel">
-            <p class="job-company-description">${job.description}</p>
-            <div class="job-detail-stats">
-              <div><span>Package</span><strong>${details.packageRange}</strong></div>
-              <div><span>Openings</span><strong>${details.openings}</strong></div>
-              <div><span>Apply by</span><strong>${details.deadline}</strong></div>
-              <div><span>Work mode</span><strong>${job.mode}</strong></div>
-            </div>
-            <div class="job-detail-grid">
-              <section><h3>Eligibility</h3><p class="text-dim">${details.eligibility}</p></section>
-              <section><h3>Required skills</h3><div class="flex gap-1" style="flex-wrap:wrap">${job.skills.map(skill => `<span class="chip blue">${skill}</span>`).join('')}</div></section>
-            </div>
-          </div>
-          <div class="job-detail-panel" data-detail-panel="process" role="tabpanel" hidden>
-            <div class="job-detail-grid">
-              <section><h3>Hiring timeline</h3><dl class="job-timeline"><div><dt>PPT / briefing</dt><dd>${details.pptDate}</dd></div><div><dt>Online test</dt><dd>${details.testDate}</dd></div><div><dt>Interview window</dt><dd>22-25 Sep 2026</dd></div></dl></section>
-              <section class="job-rounds"><h3>Selection rounds</h3><ol>${details.rounds.map(round => `<li>${round}</li>`).join('')}</ol></section>
-            </div>
-          </div>
-          <div class="job-detail-panel" data-detail-panel="preparation" role="tabpanel" hidden>
-            <section class="job-rounds"><h3>Benefits and growth</h3><ul>${details.benefits.map(benefit => `<li>${benefit}</li>`).join('')}</ul></section>
-            <p class="job-details-note"><i class="bi bi-info-circle"></i> ${details.note}</p>
-          </div>
-          <div class="flex-between mt-2" style="gap:8px;flex-wrap:wrap">
-            <button class="btn btn-ghost" id="closeJobDetailsBottom">Close</button>
-            <button class="btn btn-primary" id="detailsAnalyzeBtn"><i class="bi bi-file-earmark-person"></i> Analyze my resume for this role</button>
+          <p class="job-company-description mt-2">${this._escape(job.description)}</p>
+          <div class="text-dim mt-1" style="font-size:12px">This is a real, live listing. Full details and the original application form are on the employer's or job board's own page.</div>
+        </div>
+        <div class="modal-foot flex-between">
+          <button class="btn btn-ghost" id="closeJobDetailsBottom">Close</button>
+          <div class="flex gap-1">
+            ${job.applyUrl ? `<button class="btn btn-ghost" id="viewOriginalFromDetails"><i class="bi bi-box-arrow-up-right"></i> View original posting</button>` : ''}
+            <button class="btn btn-primary" id="detailsAnalyzeBtn">Analyze resume fit</button>
           </div>
         </div>
       </div>
@@ -168,41 +215,37 @@ const Jobs = {
     const close = () => modal.remove();
     modal.querySelector('#closeJobDetails').addEventListener('click', close);
     modal.querySelector('#closeJobDetailsBottom').addEventListener('click', close);
-    modal.querySelectorAll('[data-detail-tab]').forEach(tab => tab.addEventListener('click', () => {
-      const target = tab.dataset.detailTab;
-      modal.querySelectorAll('[data-detail-tab]').forEach(item => {
-        const active = item === tab;
-        item.classList.toggle('active', active);
-        item.setAttribute('aria-selected', active ? 'true' : 'false');
-      });
-      modal.querySelectorAll('[data-detail-panel]').forEach(panel => {
-        const active = panel.dataset.detailPanel === target;
-        panel.classList.toggle('active', active);
-        panel.hidden = !active;
-      });
-    }));
+    modal.querySelector('#viewOriginalFromDetails')?.addEventListener('click', () => window.open(job.applyUrl, '_blank', 'noopener'));
     modal.querySelector('#detailsAnalyzeBtn').addEventListener('click', () => {
       close();
       this._openApplication(job.id);
     });
   },
 
-  _locate() {
+  async _locate() {
     if (!navigator.geolocation) {
       App.showToast('Geolocation is not supported by this browser.', 'error');
       return;
     }
     App.showToast('Requesting your location...', 'info');
-    navigator.geolocation.getCurrentPosition(position => {
-      this.state.location = { latitude: position.coords.latitude, longitude: position.coords.longitude };
-      this.state.locationLabel = `${position.coords.latitude.toFixed(2)}, ${position.coords.longitude.toFixed(2)}`;
-      this._renderHub();
-      App.showToast('Regional opportunities are ready.', 'success');
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const { latitude, longitude } = position.coords;
+      this.state.location = { latitude, longitude };
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&zoom=10`);
+        const data = await res.json();
+        const address = data.address || {};
+        this.state.locationLabel = address.city || address.town || address.county || address.state || `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
+      } catch {
+        this.state.locationLabel = `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
+      }
+      App.showToast(`Showing roles near ${this.state.locationLabel}.`, 'success');
+      this._search();
     }, () => App.showToast('Location permission was unavailable. You can still browse national roles.', 'error'), { timeout: 10000 });
   },
 
   _openApplication(id) {
-    const job = JOB_OPENINGS.find(item => item.id === id);
+    const job = this.state.jobs.find(item => item.id === id);
     if (!job) return;
     const existing = document.getElementById('jobApplyModal');
     if (existing) existing.remove();
@@ -212,8 +255,8 @@ const Jobs = {
     modal.innerHTML = `
       <div class="modal" style="max-width:620px">
         <div class="modal-head">
-          <h2>${job.title}</h2>
-          <p class="text-dim">${job.company} · ${job.location}</p>
+          <h2>${this._escape(job.title)}</h2>
+          <p class="text-dim">${this._escape(job.company)} · ${this._escape(job.location)}</p>
         </div>
         <div class="modal-body">
           <label class="field-label" for="jobResumeFile">Upload resume</label>
@@ -291,7 +334,7 @@ const Jobs = {
 
   _resultMarkup(data) {
     const score = Math.max(0, Math.min(100, Number(data.matchScore) || 0));
-    const escape = value => String(value || '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
+    const escape = this._escape;
     const recommendations = (data.recommendations || []).map(item => `
       <li class="recommendation-row">
         <strong>${escape(item.action)}</strong>

@@ -34,9 +34,18 @@ Use HTTPS, or `http://localhost`, for camera and microphone permissions.
 
 ## Hiring Hub
 
-The Hiring Hub provides national and regional demo openings. Regional mode uses browser geolocation and shows roles within 600 km when permission is available. Select **Analyze resume** on a listing, upload a PDF, DOCX, TXT, or RTF resume, and the Gemini ATS worker returns a match score, matched skills, and missing skills. Use **View Interview Experiences** to browse real rounds and tips shared by other students.
+The Hiring Hub shows real, currently-open job listings fetched live from Adzuna's job aggregation API (`/api/jobs`) — genuine vacancies from real companies and job boards, each with a real "View original posting" link to the actual listing. National mode searches all of India by keyword; Regional mode uses browser geolocation (reverse-geocoded to a city name) plus a 50km radius. Select **Analyze resume fit** on a listing, upload a PDF, DOCX, TXT, or RTF resume, and the Gemini ATS worker compares it against that job's real description, returning a match score, matched skills, and missing skills. Use **View Interview Experiences** to browse real rounds and tips shared by other students.
 
-The ATS endpoint uses the same server-side Gemini configuration shown above. Resume text is extracted in the browser before it is sent to `/api/job-apply`; the original file is not uploaded or stored by that endpoint.
+Requires two free, instantly-issued keys from https://developer.adzuna.com:
+
+```text
+ADZUNA_APP_ID=your_adzuna_app_id
+ADZUNA_APP_KEY=your_adzuna_app_key
+```
+
+Without these, `/api/jobs` returns a clear configuration error instead of showing any placeholder or fabricated listings — the Hiring Hub never falls back to fake data.
+
+The ATS endpoint (`/api/job-apply`) uses the same server-side Gemini configuration shown above. Resume text is extracted in the browser before it is sent; the original file is not uploaded or stored by that endpoint.
 
 ## Local recording collector (optional, currently unused by the UI)
 
