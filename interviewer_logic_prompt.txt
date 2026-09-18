@@ -1,9 +1,0 @@
-
-Interviewer Logic Flow:
-
-1. Receive input audio (user speech).
-2. Process audio with Speech-to-Text API (e.g., OpenAI Whisper).
-3. Send converted text to an LLM (Language Model) with a prompt instructing it to act as an interviewer (ask technical/personal questions based on resume context).
-4. Receive text response from LLM.
-5. Send text response to Text-to-Speech API.
-6. Output final audio response.
