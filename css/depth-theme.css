@@ -1,0 +1,160 @@
+/* ============================================================
+   PlacementPrep — "Depth" theme layer
+   Loaded AFTER css/fibery-theme.css. Overrides its flatter emerald/
+   paper palette with a richer, more dimensional look: gradient accents,
+   glass-morphic cards with layered shadows, and slow ambient background
+   motion — without touching any layout/structural CSS, so nothing else
+   in the app can break.
+   ============================================================ */
+
+:root {
+  /* Richer gradient-based accent palette, replacing the flat emerald */
+  --accent: #6d5ef7;
+  --accent-hover: #5843f0;
+  --accent-soft: rgba(109, 94, 247, 0.12);
+  --accent-ink: #ffffff;
+
+  --gradient-brand: linear-gradient(135deg, #6d5ef7 0%, #4f8ef7 50%, #17c9c9 100%);
+  --gradient-brand-soft: linear-gradient(135deg, rgba(109,94,247,0.14) 0%, rgba(79,142,247,0.14) 50%, rgba(23,201,201,0.14) 100%);
+  --glow-brand: 0 8px 26px rgba(109, 94, 247, 0.35), 0 2px 8px rgba(79, 142, 247, 0.25);
+
+  --purple: #8b5cf6;
+  --purple-soft: rgba(139, 92, 246, 0.12);
+  --blue: #4f8ef7;
+  --blue-soft: rgba(79, 142, 247, 0.12);
+  --cyan: #17c9c9;
+  --cyan-soft: rgba(23, 201, 201, 0.12);
+
+  /* Slightly cooler, less flat base surfaces */
+  --bg: #f3f2fb;
+  --bg-2: #ebe9f8;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-2: rgba(255, 255, 255, 0.55);
+  --border: rgba(109, 94, 247, 0.14);
+  --border-strong: rgba(109, 94, 247, 0.30);
+
+  /* Deeper, layered shadows for a real sense of elevation */
+  --shadow-xs: 0 1px 2px rgba(38, 30, 90, 0.06);
+  --shadow-sm: 0 2px 6px rgba(38, 30, 90, 0.08);
+  --shadow: 0 10px 28px rgba(38, 30, 90, 0.12), 0 2px 6px rgba(38, 30, 90, 0.08);
+  --shadow-lg: 0 20px 48px rgba(38, 30, 90, 0.16), 0 4px 10px rgba(38, 30, 90, 0.10);
+  --shadow-xl: 0 32px 70px rgba(38, 30, 90, 0.22), 0 8px 18px rgba(38, 30, 90, 0.12);
+
+  --radius-lg: 18px;
+}
+
+/* ---------- Ambient background: slow drifting gradient blobs ---------- */
+body {
+  background: var(--bg);
+  position: relative;
+}
+
+.ambient-blob {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.35;
+  z-index: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+.ambient-blob.b1 {
+  top: -10%; left: -8%;
+  width: 46vw; height: 46vw;
+  background: radial-gradient(circle, #6d5ef7 0%, transparent 70%);
+  animation: driftA 26s ease-in-out infinite alternate;
+}
+.ambient-blob.b2 {
+  bottom: -14%; right: -10%;
+  width: 50vw; height: 50vw;
+  background: radial-gradient(circle, #17c9c9 0%, transparent 70%);
+  animation: driftB 32s ease-in-out infinite alternate;
+}
+.ambient-blob.b3 {
+  top: 35%; right: 15%;
+  width: 30vw; height: 30vw;
+  background: radial-gradient(circle, #4f8ef7 0%, transparent 70%);
+  animation: driftC 22s ease-in-out infinite alternate;
+}
+
+@keyframes driftA { from { transform: translate(0, 0) scale(1); } to { transform: translate(4vw, 6vh) scale(1.12); } }
+@keyframes driftB { from { transform: translate(0, 0) scale(1); } to { transform: translate(-5vw, -4vh) scale(1.08); } }
+@keyframes driftC { from { transform: translate(0, 0) scale(1); } to { transform: translate(-3vw, 5vh) scale(0.94); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-blob { animation: none; }
+}
+
+/* Keep real app content above the ambient blobs */
+.app-layout, .sidebar, header, .modal-overlay, #toastContainer {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Glass-morphic depth cards ---------- */
+.card {
+  background: var(--surface);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s ease;
+}
+
+.card.hoverable:hover,
+.grid > .card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-xl);
+  transform: translateY(-6px) scale(1.012);
+}
+
+/* ---------- Gradient brand elements ---------- */
+.btn-primary {
+  background: var(--gradient-brand);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: var(--glow-brand);
+}
+.btn-primary:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 12px 32px rgba(109, 94, 247, 0.45), 0 4px 12px rgba(79, 142, 247, 0.3);
+  transform: translateY(-2px);
+}
+
+.card-title, .page-title, h1, h2 {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-accent { color: var(--accent) !important; }
+
+.chip.green {
+  background: linear-gradient(135deg, rgba(23,201,201,0.16), rgba(79,142,247,0.16));
+  color: #0e8f8f;
+  border-color: rgba(23,201,201,0.3);
+}
+.chip.blue {
+  background: var(--blue-soft);
+  color: var(--blue);
+  border-color: rgba(79,142,247,0.3);
+}
+.chip.purple {
+  background: var(--purple-soft);
+  color: var(--purple);
+  border-color: rgba(139,92,246,0.3);
+}
+
+/* Sidebar gets a subtle glass treatment too, matching the rest of the app */
+.sidebar {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-right: 1px solid var(--border);
+}
+
+.nav-link.active {
+  background: var(--gradient-brand-soft);
+  color: var(--accent-hover);
+}

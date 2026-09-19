@@ -24,6 +24,28 @@ const Animations = {
     if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return; // CDN failed — fail silently
     gsap.registerPlugin(ScrollTrigger);
     this.ready = true;
+    this._initParallax();
+  },
+
+  /** Ambient background blobs drift slower/faster than the page scroll,
+   *  a classic depth-of-field trick that makes the whole page feel 3D
+   *  rather than flat, without interfering with any real content. */
+  _initParallax() {
+    const blobs = document.querySelectorAll('.ambient-blob');
+    if (!blobs.length) return;
+    blobs.forEach((blob, i) => {
+      gsap.to(blob, {
+        y: i % 2 === 0 ? -140 : 140,
+        x: i % 2 === 0 ? 30 : -30,
+        ease: 'none',
+        scrollTrigger: {
+          trigger: document.body,
+          start: 'top top',
+          end: 'bottom bottom',
+          scrub: 1.4
+        }
+      });
+    });
   },
 
   /** Call this once, right after a view finishes (or starts) rendering into `container`. */
@@ -46,22 +68,23 @@ const Animations = {
     if (!cards.length) return;
     cards.forEach((c) => { c.dataset.animBound = '1'; });
 
-    gsap.set(cards, { opacity: 0, y: 18 });
+    gsap.set(cards, { opacity: 0, y: 34, scale: 0.97 });
     // ScrollTrigger.batch is safe to call repeatedly with different card
     // sets — each call creates its own triggers for just those elements,
     // and the dataset.animBound filter above stops any card being bound twice.
     ScrollTrigger.batch(cards, {
       start: 'top 92%',
       once: true,
-      onEnter: (batch) => gsap.to(batch, { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out', stagger: 0.07 })
+      onEnter: (batch) => gsap.to(batch, { opacity: 1, y: 0, scale: 1, duration: 0.75, ease: 'power3.out', stagger: 0.09 })
     });
 
     this._tiltGridCards(cards);
   },
 
-  /** A gentle mouse-follow 3D tilt, only on browsable item cards (job
-   *  listings, quiz questions, lecture cards) — cards that are direct
-   *  children of a .grid — not on big header/search cards. */
+  /** A smooth mouse-follow 3D tilt with a real "pop off the page" feel —
+   *  only on browsable item cards (job listings, quiz questions, lecture
+   *  cards) — cards that are direct children of a .grid, not big header/
+   *  search cards. */
   _tiltGridCards(cards) {
     cards.filter((c) => c.parentElement?.classList.contains('grid')).forEach((card) => {
       card.style.transformStyle = 'preserve-3d';
@@ -71,10 +94,17 @@ const Animations = {
         const rect = card.getBoundingClientRect();
         const px = (e.clientX - rect.left) / rect.width - 0.5;
         const py = (e.clientY - rect.top) / rect.height - 0.5;
-        gsap.to(card, { rotateY: px * 6, rotateX: -py * 6, transformPerspective: 600, duration: 0.3, ease: 'power1.out' });
+        gsap.to(card, {
+          rotateY: px * 10,
+          rotateX: -py * 10,
+          scale: 1.025,
+          transformPerspective: 700,
+          duration: 0.5,
+          ease: 'power3.out'
+        });
       });
       card.addEventListener('mouseleave', () => {
-        gsap.to(card, { rotateX: 0, rotateY: 0, duration: 0.4, ease: 'power2.out' });
+        gsap.to(card, { rotateX: 0, rotateY: 0, scale: 1, duration: 0.6, ease: 'elastic.out(1, 0.6)' });
       });
     });
   }
