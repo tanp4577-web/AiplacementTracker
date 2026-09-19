@@ -8,20 +8,22 @@
    ============================================================ */
 
 :root {
-  /* Richer gradient-based accent palette, replacing the flat emerald */
-  --accent: #6d5ef7;
-  --accent-hover: #5843f0;
-  --accent-soft: rgba(109, 94, 247, 0.12);
+  /* Palette based on Horizon UI's documented brand colors (brand.500/400/300),
+     a well-known MIT-licensed open-source Tailwind dashboard template —
+     replacing the flat emerald with its signature indigo/violet range. */
+  --accent: #4318ff;
+  --accent-hover: #3510cc;
+  --accent-soft: rgba(67, 24, 255, 0.12);
   --accent-ink: #ffffff;
 
-  --gradient-brand: linear-gradient(135deg, #6d5ef7 0%, #4f8ef7 50%, #17c9c9 100%);
-  --gradient-brand-soft: linear-gradient(135deg, rgba(109,94,247,0.14) 0%, rgba(79,142,247,0.14) 50%, rgba(23,201,201,0.14) 100%);
-  --glow-brand: 0 8px 26px rgba(109, 94, 247, 0.35), 0 2px 8px rgba(79, 142, 247, 0.25);
+  --gradient-brand: linear-gradient(135deg, #4318ff 0%, #7551ff 50%, #868cff 100%);
+  --gradient-brand-soft: linear-gradient(135deg, rgba(67,24,255,0.14) 0%, rgba(117,81,255,0.14) 50%, rgba(134,140,255,0.14) 100%);
+  --glow-brand: 0 8px 26px rgba(67, 24, 255, 0.35), 0 2px 8px rgba(117, 81, 255, 0.25);
 
-  --purple: #8b5cf6;
-  --purple-soft: rgba(139, 92, 246, 0.12);
-  --blue: #4f8ef7;
-  --blue-soft: rgba(79, 142, 247, 0.12);
+  --purple: #7551ff;
+  --purple-soft: rgba(117, 81, 255, 0.12);
+  --blue: #868cff;
+  --blue-soft: rgba(134, 140, 255, 0.12);
   --cyan: #17c9c9;
   --cyan-soft: rgba(23, 201, 201, 0.12);
 
@@ -52,8 +54,8 @@ body {
 .ambient-blob {
   position: fixed;
   border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.35;
+  filter: blur(60px);
+  opacity: 0.5;
   z-index: 0;
   pointer-events: none;
   will-change: transform;
@@ -61,7 +63,7 @@ body {
 .ambient-blob.b1 {
   top: -10%; left: -8%;
   width: 46vw; height: 46vw;
-  background: radial-gradient(circle, #6d5ef7 0%, transparent 70%);
+  background: radial-gradient(circle, #4318ff 0%, transparent 70%);
   animation: driftA 26s ease-in-out infinite alternate;
 }
 .ambient-blob.b2 {
@@ -73,7 +75,7 @@ body {
 .ambient-blob.b3 {
   top: 35%; right: 15%;
   width: 30vw; height: 30vw;
-  background: radial-gradient(circle, #4f8ef7 0%, transparent 70%);
+  background: radial-gradient(circle, #868cff 0%, transparent 70%);
   animation: driftC 22s ease-in-out infinite alternate;
 }
 
@@ -158,3 +160,54 @@ body {
   background: var(--gradient-brand-soft);
   color: var(--accent-hover);
 }
+
+/* ---------- Eliminate remaining hardcoded green ----------
+   fibery-theme.css hardcodes the old emerald (#0d9e6c) and its gradient
+   partner directly into these specific rules, as literal hex values —
+   not via var(--accent). Redefining --accent above never touched these;
+   they need direct overrides. This is why the UI still looked green
+   after the first pass. */
+:root {
+  --success: #17c9c9;
+  --success-soft: rgba(23, 201, 201, 0.12);
+}
+
+.brand-logo,
+.user-avatar,
+.chatbot-avatar {
+  background: var(--gradient-brand);
+}
+
+.brand-text h1 span,
+.grad-text {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.mini-fill,
+.progress-fill {
+  background: var(--gradient-brand);
+}
+
+.btn-accent {
+  background: var(--gradient-brand);
+  box-shadow: var(--glow-brand);
+}
+
+.msg.user {
+  background: var(--gradient-brand);
+}
+
+.auth-logo,
+.chatbot-fab {
+  background: var(--gradient-brand);
+  box-shadow: var(--glow-brand);
+}
+
+/* Skill-gap heatmap: shift from a green intensity scale to the brand's
+   blue → violet scale, so it matches the rest of the UI. */
+.heat-cell.l1 { background: #e3e0fd; border-color: #cdc7fc; }
+.heat-cell.l2 { background: #a8b3fb; border-color: #8b9bf9; }
+.heat-cell.l3 { background: #6d5ef7; border-color: #5843f0; }
+.heat-cell.l4 { background: #4318ff; border-color: #3510cc; }
