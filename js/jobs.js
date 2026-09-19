@@ -10,17 +10,32 @@
    source. That attribution link below is required — do not remove it.
    ================================================================== */
 const Jobs = {
+  // Common tech role/skill terms for the search box's suggestion dropdown.
+  // This is a UI convenience list for phrasing a search — it never appears
+  // as a job listing itself, so it doesn't fall under "no fabricated jobs".
+  SUGGESTED_TERMS: [
+    'Backend Developer', 'Backend Engineer', 'Frontend Developer', 'Full Stack Developer',
+    'Software Engineer', 'Data Scientist', 'Data Analyst', 'DevOps Engineer',
+    'Machine Learning Engineer', 'Product Manager', 'UI/UX Designer', 'QA Engineer',
+    'Mobile Developer', 'Cloud Engineer', 'Security Engineer', 'Java', 'Python',
+    'JavaScript', 'React', 'Node.js', 'SQL', 'AWS', 'Docker', 'Kubernetes'
+  ],
+
   state: {
     keyword: 'developer',
     jobs: [],
     loading: false,
     error: null,
     page: 1,
-    count: 0
+    count: 0,
+    suggestedRole: null,
+    suggestedSkills: []
   },
 
   render(container) {
     this.container = container;
+    this.state.suggestedRole = DB.getGlobal('lastResumeRole') || null;
+    this.state.suggestedSkills = DB.getGlobal('lastResumeSkills') || [];
     this._search();
   },
 
@@ -61,10 +76,22 @@ const Jobs = {
             <div class="card-sub">${loading ? 'Loading live listings…' : `${count} real, currently-open remote ${count === 1 ? 'role' : 'roles'} — live from the job market.`}</div>
           </div>
         </div>
-        <div class="flex gap-1 mt-2" style="flex-wrap:wrap">
-          <input type="search" id="jobKeywordInput" placeholder="Job title or skill (e.g. frontend developer, python)" value="${this._escape(this.state.keyword)}" style="flex:1;min-width:220px" />
+        <div class="flex gap-1 mt-2" style="flex-wrap:wrap;position:relative">
+          <div style="flex:1;min-width:220px;position:relative">
+            <input type="search" id="jobKeywordInput" placeholder="Job title or skill (e.g. frontend developer, python)" value="${this._escape(this.state.keyword)}" style="width:100%" autocomplete="off" />
+            <div id="jobSuggestDropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:20;max-height:220px;overflow-y:auto"></div>
+          </div>
           <button class="btn btn-primary" id="jobSearchBtn"><i class="bi bi-search" style="margin-right:4px"></i>Search</button>
         </div>
+        ${(this.state.suggestedRole || this.state.suggestedSkills.length) ? `
+          <div class="mt-2">
+            <div class="text-dim" style="font-size:11px;margin-bottom:4px">Suggested for you, based on your resume:</div>
+            <div class="flex gap-1" style="flex-wrap:wrap">
+              ${this.state.suggestedRole ? `<button class="chip green suggestion-chip" data-suggest="${this._escape(this.state.suggestedRole)}" type="button">${this._escape(this.state.suggestedRole)}</button>` : ''}
+              ${this.state.suggestedSkills.slice(0, 5).map(sk => `<button class="chip blue suggestion-chip" data-suggest="${this._escape(sk)}" type="button">${this._escape(sk)}</button>`).join('')}
+            </div>
+          </div>
+        ` : `<div class="text-dim mt-2" style="font-size:11px">Tip: analyze your resume in <a href="#resume">Resume Analyzer</a> first to get job suggestions matched to your skills.</div>`}
         <div class="text-dim mt-2" style="font-size:11px">Live remote job data via <a href="https://remoteok.com" target="_blank" rel="noopener">Remote OK</a> — real listings, real companies, real apply links.</div>
       </div>
 
@@ -79,9 +106,21 @@ const Jobs = {
       <div class="text-dim mt-2" style="font-size:12px">These are real remote positions sourced live from Remote OK. Salary figures, when shown, are in USD as published by the employer.</div>
     `;
 
+    const input = document.getElementById('jobKeywordInput');
+    const dropdown = document.getElementById('jobSuggestDropdown');
     document.getElementById('jobSearchBtn').addEventListener('click', () => this._onSearchClick());
-    document.getElementById('jobKeywordInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') this._onSearchClick();
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { this._onSearchClick(); dropdown.style.display = 'none'; }
+      if (e.key === 'Escape') dropdown.style.display = 'none';
+    });
+    input.addEventListener('input', () => this._renderSuggestDropdown(input, dropdown));
+    input.addEventListener('focus', () => this._renderSuggestDropdown(input, dropdown));
+    input.addEventListener('blur', () => setTimeout(() => { dropdown.style.display = 'none'; }, 150));
+    this.container.querySelectorAll('.suggestion-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        this.state.keyword = chip.dataset.suggest;
+        this._search();
+      });
     });
     document.getElementById('loadMoreJobsBtn')?.addEventListener('click', () => {
       this.state.page += 1;
@@ -101,6 +140,39 @@ const Jobs = {
     const input = document.getElementById('jobKeywordInput');
     this.state.keyword = (input?.value || '').trim();
     this._search();
+  },
+
+  /** Shows a small dropdown of matching role/skill terms as the user types.
+   *  Matches by "contains" against a curated term list, so partial words like
+   *  "back" surface "Backend Developer" / "Backend Engineer". */
+  _renderSuggestDropdown(input, dropdown) {
+    const value = input.value.trim().toLowerCase();
+    if (!value) {
+      dropdown.style.display = 'none';
+      return;
+    }
+    const matches = this.SUGGESTED_TERMS.filter(term => term.toLowerCase().includes(value)).slice(0, 6);
+    if (!matches.length) {
+      dropdown.style.display = 'none';
+      return;
+    }
+    dropdown.innerHTML = matches.map(term => `
+      <div class="suggest-item" data-term="${this._escape(term)}" style="padding:9px 12px;cursor:pointer;font-size:13.5px;border-bottom:1px solid var(--border)">
+        <i class="bi bi-search" style="margin-right:8px;color:var(--text-faint)"></i>${this._escape(term)}
+      </div>
+    `).join('');
+    dropdown.style.display = 'block';
+    dropdown.querySelectorAll('.suggest-item').forEach(item => {
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // fire before the input's blur hides the dropdown
+        input.value = item.dataset.term;
+        this.state.keyword = item.dataset.term;
+        dropdown.style.display = 'none';
+        this._search();
+      });
+      item.addEventListener('mouseenter', () => { item.style.background = 'var(--bg-2)'; });
+      item.addEventListener('mouseleave', () => { item.style.background = ''; });
+    });
   },
 
   _escape(value) {

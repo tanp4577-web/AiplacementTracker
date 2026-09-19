@@ -167,6 +167,8 @@ const Resume = {
     const targetRole = roleSel && roleSel.value ? roleSel.value : null;
     const result = LiveResumeAI.analyze(text, { targetRole });
     DB.setGlobal('lastResumeText', text);
+    DB.setGlobal('lastResumeSkills', result.foundSkills || []);
+    DB.setGlobal('lastResumeRole', result.roleMatched ? result.roleMatched.role : (targetRole || null));
 
     // Save progress
     const email = Auth.getEmail();
