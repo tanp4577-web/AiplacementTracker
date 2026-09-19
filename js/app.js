@@ -103,6 +103,7 @@ const App = {
       this._routeTimer = null;
       container.innerHTML = '';
       view.render(container);
+      if (typeof Animations !== 'undefined') Animations.applyTo(container);
     }, 200);
   },
 
