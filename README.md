@@ -34,11 +34,21 @@ Use HTTPS, or `http://localhost`, for camera and microphone permissions.
 
 ## Hiring Hub
 
-The Hiring Hub shows real, currently-open remote job listings fetched live from [Remote OK](https://remoteok.com)'s public JSON API (`/api/jobs`) — genuine vacancies from real companies, each with a real "View original posting" link to the actual listing. No API key or signup is required; the endpoint is public. Search by keyword (title or skill), and select **Analyze resume fit** on a listing to upload a PDF, DOCX, TXT, or RTF resume — the Gemini ATS worker compares it against that job's real description and returns a match score, matched skills, and missing skills. Use **View Interview Experiences** to browse real rounds and tips shared by other students.
+The Hiring Hub shows real, currently-open job listings from two live sources, switchable in the UI:
 
-RemoteOK's API Terms of Service require every site using this data to link back to remoteok.com and credit Remote OK as the source; that attribution is built into the Hiring Hub UI (job cards, the details modal, and the page header) and must not be removed.
+- **Remote (Global)** — [Remote OK](https://remoteok.com)'s public JSON API (`/api/jobs?source=remote`). No API key or signup required; works immediately.
+- **India (Local)** — [Adzuna](https://www.adzuna.in)'s job search API scoped to India (`/api/jobs?source=india`), covering local on-site jobs and internships (use the "Internships only" toggle, or search "internship"). Requires two free, instantly-issued keys from https://developer.adzuna.com:
 
-If RemoteOK's API is unreachable, `/api/jobs` returns a clear error instead of showing any placeholder or fabricated listings — the Hiring Hub never falls back to fake data.
+  ```text
+  ADZUNA_APP_ID=your_adzuna_app_id
+  ADZUNA_APP_KEY=your_adzuna_app_key
+  ```
+
+  Until these are set, the India tab shows a clear "not configured" message — the Hiring Hub never falls back to fake or hardcoded listings for either source.
+
+Every listing has a real "View original posting" link to the actual posting. Search by keyword (title or skill) — typing suggests matching role/skill terms, and after analyzing a resume in Resume Analyzer, the Hiring Hub shows one-click suggested searches based on your detected skills and matched role. Select **Analyze resume fit** on any listing to upload a PDF, DOCX, TXT, or RTF resume — the Gemini ATS worker compares it against that job's real description and returns a match score, matched skills, and missing skills. Use **View Interview Experiences** to browse real rounds and tips shared by other students.
+
+RemoteOK's API Terms of Service require every site using its data to link back to remoteok.com and credit Remote OK as the source; that attribution is built into the Hiring Hub UI and must not be removed.
 
 The ATS endpoint (`/api/job-apply`) uses the same server-side Gemini configuration shown above. Resume text is extracted in the browser before it is sent; the original file is not uploaded or stored by that endpoint.
 

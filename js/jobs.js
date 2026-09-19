@@ -1,18 +1,20 @@
-/* ============ Hiring Hub — REAL live job listings ============
-   Every job shown here comes from /api/jobs, which fetches RemoteOK's
-   public, key-free JSON API — genuine, currently-open remote vacancies
-   with a real "Apply" link to the original posting. No AI-generated or
-   fabricated job details (fake dates, invented interview rounds, etc.)
-   appear anywhere in this file.
+/* ============ Hiring Hub — REAL live job listings, two sources ============
+   Remote (global): RemoteOK's public, key-free JSON API. Works immediately,
+   no setup. RemoteOK's Terms of Service require attribution — the link
+   below is required, do not remove it.
 
-   Attribution: RemoteOK's API Terms of Service require every site using
-   this data to link back to remoteok.com and credit RemoteOK as the
-   source. That attribution link below is required — do not remove it.
-   ================================================================== */
+   India (local + internships): Adzuna's job search API scoped to India.
+   Requires ADZUNA_APP_ID / ADZUNA_APP_KEY (free, instant signup at
+   developer.adzuna.com) to be set in the server environment. Until then,
+   this tab shows a clear "not configured" message — it never falls back
+   to fake or hardcoded listings.
+
+   No AI-generated or fabricated job details (invented dates, fake
+   interview rounds, etc.) appear anywhere in this file.
+   ========================================================================= */
 const Jobs = {
   // Common tech role/skill terms for the search box's suggestion dropdown.
-  // This is a UI convenience list for phrasing a search — it never appears
-  // as a job listing itself, so it doesn't fall under "no fabricated jobs".
+  // A UI convenience list for phrasing a search — never shown as a listing.
   SUGGESTED_TERMS: [
     'Backend Developer', 'Backend Engineer', 'Frontend Developer', 'Full Stack Developer',
     'Software Engineer', 'Data Scientist', 'Data Analyst', 'DevOps Engineer',
@@ -22,10 +24,15 @@ const Jobs = {
   ],
 
   state: {
+    source: 'remote', // 'remote' | 'india'
     keyword: 'developer',
+    internshipOnly: false,
+    location: null,
+    locationLabel: '',
     jobs: [],
     loading: false,
     error: null,
+    needsSetup: false,
     page: 1,
     count: 0,
     suggestedRole: null,
@@ -39,22 +46,37 @@ const Jobs = {
     this._search();
   },
 
+  _effectiveKeyword() {
+    const base = (this.state.keyword || '').trim();
+    if (!this.state.internshipOnly) return base;
+    return base ? `${base} internship` : 'internship';
+  },
+
   async _search(append = false) {
     this.state.loading = true;
     this.state.error = null;
+    this.state.needsSetup = false;
     if (!append) this.state.page = 1;
     this._renderHub();
 
     const params = new URLSearchParams({
-      q: this.state.keyword || '',
+      source: this.state.source,
+      q: this._effectiveKeyword(),
       page: String(this.state.page),
       results_per_page: '20'
     });
+    if (this.state.source === 'india' && this.state.locationLabel) {
+      params.set('where', this.state.locationLabel);
+      params.set('distance', '50');
+    }
 
     try {
       const res = await fetch(`/api/jobs?${params.toString()}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not load job listings.');
+      if (!res.ok) {
+        this.state.needsSetup = !!data.needsSetup;
+        throw new Error(data.error || 'Could not load job listings.');
+      }
       this.state.jobs = append ? [...this.state.jobs, ...data.jobs] : data.jobs;
       this.state.count = data.count || this.state.jobs.length;
     } catch (err) {
@@ -67,15 +89,21 @@ const Jobs = {
   },
 
   _renderHub() {
-    const { jobs, loading, error, count } = this.state;
+    const { jobs, loading, error, count, source } = this.state;
+    const roleLabel = this.state.internshipOnly ? 'internship' : 'role';
     this.container.innerHTML = `
       <div class="card mb-2">
         <div class="flex-between" style="gap:16px;flex-wrap:wrap">
           <div>
             <div class="card-title"><i class="bi bi-briefcase text-accent" style="margin-right:4px"></i>Hiring Hub</div>
-            <div class="card-sub">${loading ? 'Loading live listings…' : `${count} real, currently-open remote ${count === 1 ? 'role' : 'roles'} — live from the job market.`}</div>
+            <div class="card-sub">${loading ? 'Loading live listings…' : `${count} real, currently-open ${roleLabel}${count === 1 ? '' : 's'} — live from the job market.`}</div>
+          </div>
+          <div class="flex gap-1" role="group" aria-label="Job source">
+            <button class="btn ${source === 'remote' ? 'btn-primary' : 'btn-ghost'}" id="remoteSourceBtn">Remote (Global)</button>
+            <button class="btn ${source === 'india' ? 'btn-primary' : 'btn-ghost'}" id="indiaSourceBtn">India (Local)</button>
           </div>
         </div>
+
         <div class="flex gap-1 mt-2" style="flex-wrap:wrap;position:relative">
           <div style="flex:1;min-width:220px;position:relative">
             <input type="search" id="jobKeywordInput" placeholder="Job title or skill (e.g. frontend developer, python)" value="${this._escape(this.state.keyword)}" style="width:100%" autocomplete="off" />
@@ -83,6 +111,20 @@ const Jobs = {
           </div>
           <button class="btn btn-primary" id="jobSearchBtn"><i class="bi bi-search" style="margin-right:4px"></i>Search</button>
         </div>
+
+        <div class="flex-between mt-2" style="gap:12px;flex-wrap:wrap">
+          <label class="flex gap-1 items-center" style="font-size:13px;cursor:pointer">
+            <input type="checkbox" id="internshipToggle" ${this.state.internshipOnly ? 'checked' : ''} />
+            Internships only
+          </label>
+          ${source === 'india' ? `
+            <div class="flex gap-1 items-center" style="flex-wrap:wrap">
+              <span class="chip ${this.state.location ? 'green' : 'orange'}"><i class="bi bi-geo-alt-fill"></i> ${this.state.location ? `Near ${this._escape(this.state.locationLabel)}` : 'All India'}</span>
+              <button class="btn btn-ghost btn-sm" id="locateJobsBtn"><i class="bi bi-crosshair" style="margin-right:4px"></i>Use my location</button>
+            </div>
+          ` : ''}
+        </div>
+
         ${(this.state.suggestedRole || this.state.suggestedSkills.length) ? `
           <div class="mt-2">
             <div class="text-dim" style="font-size:11px;margin-bottom:4px">Suggested for you, based on your resume:</div>
@@ -92,19 +134,43 @@ const Jobs = {
             </div>
           </div>
         ` : `<div class="text-dim mt-2" style="font-size:11px">Tip: analyze your resume in <a href="#resume">Resume Analyzer</a> first to get job suggestions matched to your skills.</div>`}
-        <div class="text-dim mt-2" style="font-size:11px">Live remote job data via <a href="https://remoteok.com" target="_blank" rel="noopener">Remote OK</a> — real listings, real companies, real apply links.</div>
+
+        <div class="text-dim mt-2" style="font-size:11px">${source === 'remote'
+          ? 'Live remote job data via <a href="https://remoteok.com" target="_blank" rel="noopener">Remote OK</a> — real listings, real companies, real apply links.'
+          : 'Live India job &amp; internship data via <a href="https://www.adzuna.in" target="_blank" rel="noopener">Adzuna</a> — real listings, real companies, real apply links.'}</div>
       </div>
 
-      ${error ? `<div class="empty-state"><h3>Couldn't load listings</h3><p>${this._escape(error)}</p></div>` : ''}
+      ${error ? `
+        <div class="empty-state">
+          <h3>${this.state.needsSetup ? 'India local listings need one-time setup' : "Couldn't load listings"}</h3>
+          <p>${this._escape(error)}</p>
+        </div>
+      ` : ''}
       ${!error && loading && jobs.length === 0 ? `<div class="empty-state"><h3>Loading live listings…</h3><p>Fetching real, currently-open roles.</p></div>` : ''}
-      ${!error && !loading && jobs.length === 0 ? `<div class="empty-state"><h3>No roles found</h3><p>Try a different keyword.</p></div>` : ''}
+      ${!error && !loading && jobs.length === 0 ? `<div class="empty-state"><h3>No roles found</h3><p>Try a different keyword${this.state.internshipOnly ? ', or turn off "Internships only"' : ''}.</p></div>` : ''}
 
       <div class="grid grid-2" id="jobsGrid">
         ${jobs.map(job => this._jobCard(job)).join('')}
       </div>
       ${!error && jobs.length > 0 && jobs.length < count ? `<div class="flex-between mt-2"><button class="btn btn-ghost" id="loadMoreJobsBtn" ${loading ? 'disabled' : ''}>${loading ? 'Loading…' : 'Load more'}</button></div>` : ''}
-      <div class="text-dim mt-2" style="font-size:12px">These are real remote positions sourced live from Remote OK. Salary figures, when shown, are in USD as published by the employer.</div>
+      <div class="text-dim mt-2" style="font-size:12px">These are real positions sourced live from the job market. Salary figures, when shown, are as published by the employer (or a clearly marked estimate).</div>
     `;
+
+    document.getElementById('remoteSourceBtn').addEventListener('click', () => {
+      if (this.state.source === 'remote') return;
+      this.state.source = 'remote';
+      this._search();
+    });
+    document.getElementById('indiaSourceBtn').addEventListener('click', () => {
+      if (this.state.source === 'india') return;
+      this.state.source = 'india';
+      this._search();
+    });
+    document.getElementById('internshipToggle').addEventListener('change', (e) => {
+      this.state.internshipOnly = e.target.checked;
+      this._search();
+    });
+    document.getElementById('locateJobsBtn')?.addEventListener('click', () => this._locate());
 
     const input = document.getElementById('jobKeywordInput');
     const dropdown = document.getElementById('jobSuggestDropdown');
@@ -136,6 +202,28 @@ const Jobs = {
     });
   },
 
+  async _locate() {
+    if (!navigator.geolocation) {
+      App.showToast('Geolocation is not supported by this browser.', 'error');
+      return;
+    }
+    App.showToast('Requesting your location...', 'info');
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const { latitude, longitude } = position.coords;
+      this.state.location = { latitude, longitude };
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&zoom=10`);
+        const data = await res.json();
+        const address = data.address || {};
+        this.state.locationLabel = address.city || address.town || address.county || address.state || '';
+      } catch {
+        this.state.locationLabel = '';
+      }
+      App.showToast(this.state.locationLabel ? `Showing roles near ${this.state.locationLabel}.` : 'Could not determine your city; showing all India.', this.state.locationLabel ? 'success' : 'error');
+      this._search();
+    }, () => App.showToast('Location permission was unavailable. Showing all-India results.', 'error'), { timeout: 10000 });
+  },
+
   _onSearchClick() {
     const input = document.getElementById('jobKeywordInput');
     this.state.keyword = (input?.value || '').trim();
@@ -164,7 +252,7 @@ const Jobs = {
     dropdown.style.display = 'block';
     dropdown.querySelectorAll('.suggest-item').forEach(item => {
       item.addEventListener('mousedown', (e) => {
-        e.preventDefault(); // fire before the input's blur hides the dropdown
+        e.preventDefault();
         input.value = item.dataset.term;
         this.state.keyword = item.dataset.term;
         dropdown.style.display = 'none';
@@ -181,11 +269,12 @@ const Jobs = {
 
   _formatSalary(job) {
     if (!job.salaryMin && !job.salaryMax) return null;
-    const fmt = (n) => '$' + Math.round(n).toLocaleString('en-US');
+    const symbol = job.currency === 'INR' ? '₹' : '$';
+    const fmt = (n) => symbol + Math.round(n).toLocaleString(job.currency === 'INR' ? 'en-IN' : 'en-US');
     const range = job.salaryMin && job.salaryMax && job.salaryMin !== job.salaryMax
       ? `${fmt(job.salaryMin)} – ${fmt(job.salaryMax)}`
       : fmt(job.salaryMin || job.salaryMax);
-    return range + ' USD / year';
+    return range + (job.salaryIsPredicted ? ' (estimated)' : '') + ` ${job.currency || 'USD'} / year`;
   },
 
   _jobCard(job) {
@@ -198,6 +287,7 @@ const Jobs = {
             <div class="card-title" style="font-size:19px">${this._escape(job.title)}</div>
             <div class="card-sub">${this._escape(job.company)} · ${this._escape(job.location)}</div>
           </div>
+          <span class="chip gray" title="Data source">${this._escape(job.sourceLabel)}</span>
         </div>
         ${salary ? `<div class="chip green mt-1" style="display:inline-block">${salary}</div>` : ''}
         <div class="flex gap-1 mt-1" style="flex-wrap:wrap">${job.tags.slice(0, 5).map(t => `<span class="chip blue">${this._escape(t)}</span>`).join('')}</div>
@@ -237,10 +327,10 @@ const Jobs = {
             <div><span>Tags</span><strong>${this._escape(job.tags.slice(0, 4).join(', ') || 'Not specified')}</strong></div>
             <div><span>Salary</span><strong>${salary ? this._escape(salary) : 'Not disclosed'}</strong></div>
             <div><span>Posted</span><strong>${job.created ? new Date(job.created).toLocaleDateString() : 'Unknown'}</strong></div>
-            <div><span>Source</span><strong><a href="${job.sourceUrl}" target="_blank" rel="noopener">Remote OK</a></strong></div>
+            <div><span>Source</span><strong><a href="${job.sourceUrl}" target="_blank" rel="noopener">${this._escape(job.sourceLabel)}</a></strong></div>
           </div>
           <p class="job-company-description mt-2" style="white-space:pre-line">${this._escape(job.description)}</p>
-          <div class="text-dim mt-1" style="font-size:12px">This is a real, live listing sourced from Remote OK. Full details and the original application form are on the linked original posting.</div>
+          <div class="text-dim mt-1" style="font-size:12px">This is a real, live listing sourced from ${this._escape(job.sourceLabel)}. Full details and the original application form are on the linked original posting.</div>
         </div>
         <div class="modal-foot flex-between">
           <button class="btn btn-ghost" id="closeJobDetailsBottom">Close</button>
@@ -313,7 +403,7 @@ const Jobs = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobTitle: job.title,
-          locationType: 'remote',
+          locationType: job.source,
           jobDescription: job.description,
           resumeText
         })
@@ -344,7 +434,7 @@ const Jobs = {
       const user = Auth.getCurrentUser();
       if (!user || !user.id) return;
       const apps = DB.getGlobal('job_applications') || [];
-      apps.unshift({ id: crypto.randomUUID(), user_id: user.id, job_title: job.title, location_type: 'remote', match_score: matchScore, applied_at: new Date().toISOString(), created_at: new Date().toISOString() });
+      apps.unshift({ id: crypto.randomUUID(), user_id: user.id, job_title: job.title, location_type: job.source, match_score: matchScore, applied_at: new Date().toISOString(), created_at: new Date().toISOString() });
       DB.setGlobal('job_applications', apps);
     } catch (error) {
       console.warn('Job application sync failed:', error);
