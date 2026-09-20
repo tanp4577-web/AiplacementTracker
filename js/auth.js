@@ -69,9 +69,25 @@ const Auth = {
       if (e.target === this.modal) this._hideModal();
     });
 
-    // Close on Escape
+    // Escape closes the dialog; Tab stays inside it while it is open.
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') this._hideModal();
+      if (!this.modal.classList.contains('show')) return;
+      if (e.key === 'Escape') {
+        this._hideModal();
+      } else if (e.key === 'Tab') {
+        const focusable = [...this.modal.querySelectorAll('button, input, [href], select, textarea, [tabindex]:not([tabindex="-1"])')]
+          .filter((el) => !el.disabled && !el.closest('.hidden'));
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     });
   },
 
@@ -81,6 +97,8 @@ const Auth = {
     const isSignup = mode === 'signup';
     this.tabLogin.classList.toggle('active', !isSignup);
     this.tabSignup.classList.toggle('active', isSignup);
+    this.tabLogin.setAttribute('aria-selected', String(!isSignup));
+    this.tabSignup.setAttribute('aria-selected', String(isSignup));
     this.nameField.classList.toggle('hidden', !isSignup);
     this.nameInput.required = isSignup;
     this.title.textContent = isSignup ? 'Create Your Account' : 'Sign in to PlacementPrep';
@@ -89,13 +107,23 @@ const Auth = {
   },
 
   _showModal() {
+    this._lastFocus = document.activeElement;
     this.modal.classList.add('show');
     this._setMode('login');
     setTimeout(() => this.emailInput && this.emailInput.focus(), 300);
   },
 
   _hideModal() {
+    const wasOpen = this.modal.classList.contains('show');
     this.modal.classList.remove('show');
+    // Signed out and the dialog was dismissed: keep a way back in.
+    if (!DB.getSession()) this._renderLoggedOut();
+    if (wasOpen && this._lastFocus && document.contains(this._lastFocus)) this._lastFocus.focus();
+  },
+
+  _renderLoggedOut() {
+    this.authArea.innerHTML = '<button type="button" class="btn btn-primary btn-sm" id="openSignInBtn">Sign in</button>';
+    document.getElementById('openSignInBtn').addEventListener('click', () => this._showModal());
   },
 
   async _handleSubmit() {

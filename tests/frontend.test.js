@@ -211,3 +211,167 @@ test('Hiring Hub: an API error shows a retry button instead of a blank page', as
   assert.ok(ctx.document.getElementById('retryJobsBtn'));
   assert.match(ctx.document.getElementById('c').textContent, /Could not fetch live job listings/);
 });
+
+/* ------------------------------------------------------- page-level quality */
+test('index.html: metadata, icons, skip link and accessible chatbot button are in place', () => {
+  const html = read('index.html');
+  assert.ok(!/font-awesome/i.test(html), 'unused Font Awesome stylesheet removed');
+  assert.ok(!/live HR interviews/i.test(html), 'meta description no longer promises a removed feature');
+  for (const needle of ['property="og:image"', 'name="twitter:card"', 'rel="manifest"', 'rel="icon"', 'rel="apple-touch-icon"', 'rel="canonical"', 'class="skip-link"', '<noscript>']) {
+    assert.ok(html.includes(needle), `missing ${needle}`);
+  }
+  const doc = new JSDOM(html).window.document;
+  const fab = doc.getElementById('chatbotFab');
+  assert.equal(fab.tagName, 'BUTTON');
+  assert.ok(fab.getAttribute('aria-label'));
+  assert.equal(fab.getAttribute('aria-expanded'), 'false');
+  assert.equal(doc.getElementById('viewContainer').getAttribute('tabindex'), '-1', 'skip link has a focus target');
+  assert.match(doc.querySelector('meta[name="description"]').content, /^.{50,170}$/);
+});
+
+test('icons, manifest, robots and sitemap exist and reference real files', () => {
+  const manifest = JSON.parse(read('manifest.webmanifest'));
+  assert.equal(manifest.display, 'standalone');
+  for (const icon of manifest.icons) assert.ok(fs.existsSync(path.join(root, icon.src.replace(/^\//, ''))), `${icon.src} exists`);
+  for (const file of ['favicon.svg', 'og-image.png', 'apple-touch-icon.png', 'robots.txt', 'sitemap.xml']) {
+    assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
+  }
+  assert.match(read('robots.txt'), /Sitemap: https:\/\/aiplacement-tracker\.vercel\.app\/sitemap\.xml/);
+});
+
+/* ------------------------------------------------------------ storage fallback */
+test('storage blocked by the browser: the app keeps working from memory and warns once', () => {
+  const toasts = [];
+  const { window, run } = boot(['js/storage.js'], {
+    html: '<div></div>',
+    extra: 'const App = { showToast(msg) { window.__toasts.push(msg); } };'
+  });
+  window.__toasts = toasts;
+  Object.defineProperty(window, 'localStorage', { get() { throw new Error('SecurityError: storage blocked'); }, configurable: true });
+
+  run(`DB.saveUser('a@b.co', { name: 'Ana' }); DB.setSession({ email: 'a@b.co', name: 'Ana' });`);
+  assert.equal(run(`DB.getUser('a@b.co').name`), 'Ana');
+  assert.equal(run(`DB.getSession().email`), 'a@b.co');
+  run(`DB.saveProgress('a@b.co', { resumeScore: 40 });`);
+  assert.equal(run(`DB.getProgress('a@b.co').resumeScore`), 40);
+  assert.equal(toasts.length, 1, 'the user is told once, not on every save');
+  run(`DB.resetAll()`); // must not throw
+  assert.equal(run(`DB.getSession()`), null);
+});
+
+/* ---------------------------------------------------------------- backup/restore */
+test('backup: round-trips progress between accounts and never exports passwords', () => {
+  const { run } = boot(['js/storage.js'], { html: '<div></div>', extra: APP_STUB });
+  run(`
+    DB.saveUser('ana@example.com', { name: 'Ana', pass: 'a'.repeat(64) });
+    DB.saveProgress('ana@example.com', { resumeScore: 72, aptitude: { completed: 2, correct: 15, total: 20, history: [] }, coding: { solved: ['two-sum', 'fizzbuzz'], totalAttempts: 5 } });
+    DB.setGlobal('lastResumeText', 'my resume text');
+  `);
+  const json = run(`JSON.stringify(DB.exportBackup('ana@example.com'))`);
+  assert.ok(!json.includes('aaaaaaaa'), 'password hash is not part of the backup');
+
+  const result = run(`DB.importBackup('guest@local', ${json})`);
+  assert.equal(result.ok, true);
+  assert.equal(run(`DB.getProgress('guest@local').resumeScore`), 72);
+  assert.deepEqual(JSON.parse(run(`JSON.stringify(DB.getProgress('guest@local').coding.solved)`)), ['two-sum', 'fizzbuzz']);
+  assert.equal(run(`DB.getGlobal('lastResumeText')`), 'my resume text');
+});
+
+test('backup: rejects foreign files and sanitises hostile values', () => {
+  const { run } = boot(['js/storage.js'], { html: '<div></div>', extra: APP_STUB });
+  assert.equal(run(`DB.importBackup('a@b.co', { hello: 'world' })`).ok, false);
+  assert.equal(run(`DB.importBackup('a@b.co', { app: 'placementprep', version: 2, progress: {} })`).ok, false);
+  assert.equal(run(`DB.importBackup('', { app: 'placementprep', version: 1, progress: {} })`).ok, false, 'needs a signed-in profile');
+
+  const hostile = { app: 'placementprep', version: 1, progress: { resumeScore: 99999, readiness: -5, aptitude: { correct: 'lots', total: -1, history: new Array(5000).fill(1) }, coding: { solved: [{ evil: true }, 'ok'] }, activity: new Array(5000).fill({}) }, globals: { 'bad key!': 1, good_key: 'yes' } };
+  assert.equal(run(`DB.importBackup('a@b.co', ${JSON.stringify(hostile)}).ok`), true);
+  assert.equal(run(`DB.getProgress('a@b.co').resumeScore`), 100);
+  assert.equal(run(`DB.getProgress('a@b.co').readiness`), 0);
+  assert.equal(run(`DB.getProgress('a@b.co').aptitude.correct`), 0);
+  assert.equal(run(`DB.getProgress('a@b.co').aptitude.history.length`), 200);
+  assert.deepEqual(JSON.parse(run(`JSON.stringify(DB.getProgress('a@b.co').coding.solved)`)), ['ok']);
+  assert.equal(run(`DB.getProgress('a@b.co').activity.length`), 200);
+  assert.equal(run(`DB.getGlobal('good_key')`), 'yes');
+  assert.equal(run(`DB.getGlobal('bad key!')`), null);
+});
+
+/* ------------------------------------------------------------------ auth dialog */
+test('sign-in dialog: Escape leaves a Sign in button, tabs report state, focus stays inside', async () => {
+  const { window, document, run } = boot(['js/sanitize.js', 'js/storage.js', 'js/auth.js'], { extra: APP_STUB });
+  await run('Auth.init()');
+  const modal = document.getElementById('authModal');
+  assert.ok(modal.classList.contains('show'));
+  assert.equal(document.getElementById('tabLogin').getAttribute('aria-selected'), 'true');
+  document.getElementById('tabSignup').click();
+  assert.equal(document.getElementById('tabSignup').getAttribute('aria-selected'), 'true');
+  assert.equal(document.getElementById('tabLogin').getAttribute('aria-selected'), 'false');
+  document.getElementById('tabLogin').click();
+
+  // Tab from the last control wraps to the first
+  document.getElementById('authGuestBtn').focus();
+  const tab = new window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+  document.dispatchEvent(tab);
+  assert.equal(tab.defaultPrevented, true);
+  assert.equal(document.activeElement.id, 'tabLogin');
+
+  document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(modal.classList.contains('show'), false);
+  const signIn = document.getElementById('openSignInBtn');
+  assert.ok(signIn, 'a way back in is offered');
+  signIn.click();
+  assert.ok(modal.classList.contains('show'));
+});
+
+/* ------------------------------------------------------------------- dashboard */
+function bootDashboard() {
+  const ctx = boot(['js/sanitize.js', 'js/storage.js', 'js/auth.js', 'js/dashboard.js'], { extra: APP_STUB });
+  ctx.window.requestAnimationFrame = () => 0;
+  return ctx;
+}
+
+test('dashboard: signed-out visitors get real buttons, including guest mode', async () => {
+  const { document, run } = bootDashboard();
+  await run('Auth.init()');
+  run(`Auth._hideModal(); Dashboard.render(document.getElementById('viewContainer'))`);
+  document.getElementById('dashGuestBtn').click();
+  await tick();
+  assert.equal(run('Auth.getEmail()'), 'guest@local');
+});
+
+test('dashboard: new users see a start checklist, the exact readiness formula and a backup card', async () => {
+  const { document, run } = bootDashboard();
+  await run('Auth.init()');
+  run(`DB.setSession({ email: 'guest@local', name: 'Guest', guest: true }); Dashboard.render(document.getElementById('viewContainer'))`);
+  assert.ok(document.getElementById('startHereCard'));
+  assert.match(document.getElementById('viewContainer').textContent, /aptitude accuracy .* 25%.*coding .* 30%.*interview experiences shared .* 20%/s);
+  assert.match(document.getElementById('dataBackupCard').textContent, /guest profile/);
+  assert.ok(document.getElementById('exportDataBtn') && document.getElementById('importDataBtn'));
+
+  run(`DB.saveProgress('guest@local', { resumeScore: 80 }); Dashboard.render(document.getElementById('viewContainer'))`);
+  assert.equal(document.getElementById('startHereCard'), null, 'checklist disappears once there is progress');
+});
+
+test('dashboard: importing a backup file restores progress; bad files are refused with a message', async () => {
+  const toasts = [];
+  const { window, run } = bootDashboard();
+  await run('Auth.init()');
+  window.__toasts = toasts;
+  run(`DB.setSession({ email: 'guest@local', name: 'Guest', guest: true }); App.showToast = (m) => window.__toasts.push(m);`);
+  const file = (text, size = text.length) => ({ size, text: async () => text });
+
+  const good = JSON.stringify({ app: 'placementprep', version: 1, progress: { resumeScore: 64 }, globals: {} });
+  window.__file = file(good);
+  await run(`Dashboard._importData('guest@local', window.__file)`);
+  assert.equal(run(`DB.getProgress('guest@local').resumeScore`), 64);
+  assert.ok(toasts.some((t) => /restored/i.test(t)));
+
+  toasts.length = 0;
+  window.__file = file('not json');
+  await run(`Dashboard._importData('guest@local', window.__file)`);
+  assert.ok(toasts.some((t) => /not valid JSON/i.test(t)));
+
+  toasts.length = 0;
+  window.__file = file('{}', 5 * 1024 * 1024);
+  await run(`Dashboard._importData('guest@local', window.__file)`);
+  assert.ok(toasts.some((t) => /too large/i.test(t)));
+});

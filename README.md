@@ -16,7 +16,7 @@ Suggested: docs/screenshots/dashboard.png, hiring-hub.png, resume-analyzer.png
 
 | Module | What it does |
 | --- | --- |
-| **Dashboard** | Readiness overview across all modules |
+| **Dashboard** | Readiness overview across all modules, with the exact score formula, a "Start here" checklist for new users, and **Export / Import backup** so local progress is never trapped in one browser |
 | **Resume Analyzer** | Extracts text from PDF / DOCX / TXT / RTF in the browser and scores it against a target role |
 | **Aptitude Quiz** | AI-generated questions (Gemini) with OpenTriviaDB and offline question banks as fallbacks |
 | **Coding Practice** | Practice problems, including C++ questions with test cases run through the Wandbox compiler |
@@ -133,13 +133,19 @@ Attribution is required: Remote OK, Remotive and Jobicy listings link back to th
 - Third-party and AI-generated text is escaped with `Sanitize.html()` (`js/sanitize.js`) before it is placed in the DOM; tests cover this.
 - **Known limitation:** sign-in is local to the browser (a password hash in `localStorage`), so it is a profile, not server-side authentication. The `/admin` page is likewise a local demo — anyone can promote their own local account. Do not store sensitive data in it.
 
+## Quality checklist
+
+- Accessible: skip link, visible keyboard focus, labelled chatbot button, focus kept inside the sign-in dialog, per-page titles, faint text darkened to meet WCAG AA contrast.
+- Resilient: if the browser blocks storage the app keeps working from memory and tells the user once.
+- Shareable and installable: favicon, Open Graph / Twitter preview image, web manifest, `robots.txt`, `sitemap.xml`, and a `<noscript>` message.
+- Lean: the unused Font Awesome stylesheet was removed.
+
 ## Roadmap
 
 - [ ] Real authentication and a database so progress syncs across devices
 - [ ] Application tracker (applied → online assessment → interview → offer)
 - [ ] Move the frontend to ES modules and add browser end-to-end tests
 - [ ] Multi-language coding runner (Java, Python)
-- [ ] Show the readiness-score formula in the UI
 
 ## Contributing
 

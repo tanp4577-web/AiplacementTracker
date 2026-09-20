@@ -261,3 +261,49 @@ body {
 .heat-cell.l2 { background: #a8b3fb; border-color: #8b9bf9; }
 .heat-cell.l3 { background: #6d5ef7; border-color: #5843f0; }
 .heat-cell.l4 { background: #4318ff; border-color: #3510cc; }
+
+/* ---------- Accessibility & resilience additions ---------- */
+/* Faint text was ~3:1 on the page background; 4.5:1 is the WCAG AA minimum for body text. */
+:root {
+  --text-faint: #66656d;
+}
+
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 10000;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-160%);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.noscript-note {
+  padding: 14px 18px;
+  background: #fff4d6;
+  color: #4a3b00;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* The chatbot launcher is a real <button> now: keep the same look. */
+button.chatbot-fab {
+  padding: 0;
+  font: inherit;
+}
+
+/* Visible keyboard focus everywhere (mouse clicks are unaffected). */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+#viewContainer:focus {
+  outline: none;
+}

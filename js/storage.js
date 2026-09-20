@@ -2,17 +2,57 @@
 const DB = {
   _prefix: 'prepportal_',
 
+  // Some browsers (private tabs, blocked cookies, full storage) throw on every
+  // localStorage call. Keep the app working for the session from memory instead.
+  _mem: {},
+  _warned: false,
+
   _get(key) {
-    try { return JSON.parse(localStorage.getItem(this._prefix + key)); }
-    catch { return null; }
+    const full = this._prefix + key;
+    try {
+      if (Object.hasOwn(this._mem, full)) return JSON.parse(this._mem[full]);
+      return JSON.parse(localStorage.getItem(full));
+    } catch {
+      return null;
+    }
   },
 
   _set(key, val) {
-    localStorage.setItem(this._prefix + key, JSON.stringify(val));
+    const full = this._prefix + key;
+    const text = JSON.stringify(val);
+    try {
+      localStorage.setItem(full, text);
+      delete this._mem[full];
+    } catch {
+      this._mem[full] = text;
+      this._warnStorageBlocked();
+    }
   },
 
   _del(key) {
-    localStorage.removeItem(this._prefix + key);
+    const full = this._prefix + key;
+    delete this._mem[full];
+    try { localStorage.removeItem(full); } catch { /* storage unavailable */ }
+  },
+
+  _warnStorageBlocked() {
+    if (this._warned) return;
+    this._warned = true;
+    if (typeof App !== 'undefined' && App.showToast) {
+      App.showToast('Your browser is blocking storage, so progress only lasts until you close this tab.', 'error');
+    }
+  },
+
+  /** All keys (without the prefix) this app has stored, in storage or memory. */
+  _keys() {
+    const keys = new Set(Object.keys(this._mem).map((k) => k.slice(this._prefix.length)));
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(this._prefix)) keys.add(key.slice(this._prefix.length));
+      }
+    } catch { /* storage unavailable */ }
+    return [...keys];
   },
 
   /* ---------- User Accounts ---------- */
@@ -102,16 +142,54 @@ const DB = {
   /* ---------- Nuke ---------- */
   resetAll() {
     const session = this.getSession();
-    if (session) {
-      this._del(this._progressKey(session.email));
-    }
+    if (session) this._del(this._progressKey(session.email));
     this._del('session');
-    /* Clean any other prepportal_ keys from localStorage */
-    const toRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith(this._prefix)) toRemove.push(key);
+    /* Clean every other prepportal_ key */
+    this._keys().forEach((k) => this._del(k));
+  },
+
+  /* ---------- Backup / restore (works without any server) ---------- */
+  /** Progress for one account plus the app-wide data (resume text, interview experiences...). Never includes passwords. */
+  exportBackup(email) {
+    const globals = {};
+    this._keys().filter((k) => k.startsWith('g_')).forEach((k) => { globals[k.slice(2)] = this._get(k); });
+    return { app: 'placementprep', version: 1, exportedAt: new Date().toISOString(), progress: this.getProgress(email), globals };
+  },
+
+  /** Validate and restore a backup into `email`'s account. Returns { ok: true } or { ok: false, error }. */
+  importBackup(email, backup) {
+    const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+    if (!email) return { ok: false, error: 'Sign in (or continue as guest) before importing.' };
+    if (!isObj(backup) || backup.app !== 'placementprep' || backup.version !== 1 || !isObj(backup.progress)) {
+      return { ok: false, error: 'This file is not a PlacementPrep backup.' };
     }
-    toRemove.forEach(k => localStorage.removeItem(k));
+    const base = this.getProgress(email);
+    const p = backup.progress;
+    const num = (v) => (Number.isFinite(v) && v >= 0 ? v : 0);
+    const progress = {
+      ...base,
+      aptitude: {
+        completed: num(p.aptitude && p.aptitude.completed),
+        correct: num(p.aptitude && p.aptitude.correct),
+        total: num(p.aptitude && p.aptitude.total),
+        history: Array.isArray(p.aptitude && p.aptitude.history) ? p.aptitude.history.slice(-200) : []
+      },
+      coding: {
+        solved: Array.isArray(p.coding && p.coding.solved) ? p.coding.solved.filter((x) => typeof x === 'string' || typeof x === 'number').slice(0, 500) : [],
+        totalAttempts: num(p.coding && p.coding.totalAttempts)
+      },
+      interview: isObj(p.interview) ? p.interview : base.interview,
+      resumeScore: Math.min(num(p.resumeScore), 100),
+      skills: isObj(p.skills) ? p.skills : {},
+      activity: Array.isArray(p.activity) ? p.activity.slice(-200) : [],
+      readiness: Math.min(num(p.readiness), 100)
+    };
+    this._set(this._progressKey(email), progress);
+    if (isObj(backup.globals)) {
+      for (const [key, value] of Object.entries(backup.globals)) {
+        if (/^[A-Za-z0-9_-]{1,60}$/.test(key)) this.setGlobal(key, value);
+      }
+    }
+    return { ok: true };
   }
 };
