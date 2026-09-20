@@ -172,18 +172,18 @@ const Aptitude = {
     this.container.innerHTML = `
       <div class="quiz-meta">
         <div class="chip blue">Question ${qNum} / ${total}</div>
-        <div class="chip purple">${q.category || 'General'}</div>
+        <div class="chip purple">${Sanitize.html(q.category || 'General')}</div>
         <div class="chip orange">Streak: ${this.state.streak}</div>
         <div class="chip green">Score: ${this.state.score}</div>
       </div>
       <div class="card question-card">
         <div class="progress mb-2"><div class="progress-fill" style="width:${(qNum / total) * 100}%"></div></div>
-        <h3 style="font-size:17px;margin-bottom:18px;line-height:1.5">${q.question}</h3>
+        <h3 style="font-size:17px;margin-bottom:18px;line-height:1.5">${Sanitize.html(q.question)}</h3>
         <div class="options" id="options">
           ${q.options.map((opt, i) => `
             <button class="option-btn" data-idx="${i}">
               <span class="option-letter">${String.fromCharCode(65 + i)}</span>
-              <span>${opt}</span>
+              <span>${Sanitize.html(opt)}</span>
             </button>
           `).join('')}
         </div>
@@ -233,7 +233,7 @@ const Aptitude = {
     document.getElementById('feedback').innerHTML = `
       <div class="explanation" style="${isCorrect ? 'border-color:rgba(63,174,111,0.3);background:rgba(63,174,111,0.06)' : ''}">
         <b style="color:${isCorrect ? 'var(--success)' : 'var(--danger)'}">${isCorrect ? '[OK] Correct!' : '[X] Incorrect'}</b>
-        <div class="mt-1">${q.explanation || 'No explanation available.'}</div>
+        <div class="mt-1">${Sanitize.html(q.explanation || 'No explanation available.')}</div>
       </div>
     `;
   },
@@ -310,10 +310,10 @@ const Aptitude = {
         <div class="card mb-1" style="padding:16px">
           <div class="flex-between mb-1">
             <span class="chip ${'purple'}">Q${i + 1}</span>
-            <span class="chip green">Correct: ${q.options[q.correct]}</span>
+            <span class="chip green">Correct: ${Sanitize.html(q.options[q.correct])}</span>
           </div>
-          <div style="font-size:13.5px;margin-bottom:8px">${q.question}</div>
-          <div class="text-dim" style="font-size:12.5px">${q.explanation || ''}</div>
+          <div style="font-size:13.5px;margin-bottom:8px">${Sanitize.html(q.question)}</div>
+          <div class="text-dim" style="font-size:12.5px">${Sanitize.html(q.explanation || '')}</div>
         </div>
       `;
     }).join('');

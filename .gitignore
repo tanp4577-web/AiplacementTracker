@@ -1,5 +1,6 @@
 .vercel
 .env*
+!.env.example
 node_modules/
 
 # Temp verification artifacts
@@ -9,3 +10,10 @@ check_*.css
 served_styles.css
 verify_hdr.txt
 *.log
+
+# local Flask recorder output and Python env
+.venv/
+__pycache__/
+recordings/
+*.webm
+*.wav

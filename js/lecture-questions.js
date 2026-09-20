@@ -256,7 +256,7 @@ const LectureQuestions = {
         <div class="card test-case" style="background:rgba(230,162,60,0.08);border-color:rgba(230,162,60,0.4)">
           <div class="test-title"><span><i class="bi bi-exclamation-triangle"></i> Offline mode</span><span class="text-warning">Network unavailable</span></div>
           <div class="test-io">
-            <div style="color:var(--text)">Could not reach the online C++ compiler (${e.message}).</div>
+            <div style="color:var(--text)">Could not reach the online C++ compiler (${Sanitize.html(e.message)}).</div>
             <div style="margin-top:4px">Expected output: <code style="color:var(--success)">${this.state.active.expectedOutput}</code></div>
           </div>
         </div>

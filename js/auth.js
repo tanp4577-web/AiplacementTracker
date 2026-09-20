@@ -21,14 +21,16 @@ const Auth = {
     this.passInput = document.getElementById('authPass');
     this.submitBtn = document.getElementById('authSubmitBtn');
     this.errorDiv = document.getElementById('authError');
+    this.guestBtn = document.getElementById('authGuestBtn');
     this.authArea = document.getElementById('authArea');
 
     this._bindEvents();
 
     // Check if already logged in
     const session = DB.getSession();
-    if (session && DB.getUser(session.email)) {
-      this._renderLoggedIn(DB.getUser(session.email));
+    const sessionUser = session && (session.guest ? session : DB.getUser(session.email));
+    if (sessionUser) {
+      this._renderLoggedIn(sessionUser);
     } else {
       DB.clearSession();
       this._showModal();
@@ -49,6 +51,7 @@ const Auth = {
     this.tabLogin.addEventListener('click', () => this._setMode('login'));
     this.tabSignup.addEventListener('click', () => this._setMode('signup'));
     this.submitBtn.addEventListener('click', () => this._handleSubmit());
+    if (this.guestBtn) this.guestBtn.addEventListener('click', () => this._loginAsGuest());
 
     // Enter key support
     this.passInput.addEventListener('keydown', (e) => {
@@ -118,8 +121,10 @@ const Auth = {
       return;
     }
 
-    if (pass.length < 4) {
-      this._showError('Password must be at least 4 characters.');
+    // New accounts need 8+ characters; the login check stays at 4 so people with
+    // older, shorter passwords can still sign in.
+    if (pass.length < (isSignup ? 8 : 4)) {
+      this._showError(isSignup ? 'Password must be at least 8 characters.' : 'Password must be at least 4 characters.');
       return;
     }
 
@@ -161,6 +166,12 @@ const Auth = {
     } finally {
       this.submitBtn.disabled = false;
     }
+  },
+
+  /** Try the app without an account. Progress is kept in this browser only. */
+  async _loginAsGuest() {
+    await this._login({ id: 'guest', name: 'Guest', email: 'guest@local', role: 'student', guest: true },
+      'Welcome! Guest progress is saved in this browser only.');
   },
 
   async _login(user, msg) {

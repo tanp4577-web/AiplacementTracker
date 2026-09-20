@@ -1,17 +1,18 @@
-/* ============ Hiring Hub — REAL live job listings, two sources ============
-   Remote (global): RemoteOK's public, key-free JSON API. Works immediately,
-   no setup. RemoteOK's Terms of Service require attribution — the link
-   below is required, do not remove it.
+/* ============ Hiring Hub — REAL live job listings ============
+   India (default): local jobs + internships.
+     - With ADZUNA_APP_ID / ADZUNA_APP_KEY set on the server (free keys from
+       developer.adzuna.com) it searches Adzuna India by keyword and city.
+     - Without them, or if Adzuna is down, /api/jobs falls back to real remote
+       roles open to candidates in India and returns a `notice` that is shown
+       above the results, so the tab is never empty.
+     - Direct search links (Internshala, LinkedIn, Naukri, Indeed, Google Jobs)
+       are always shown and pre-filled with the keyword / city.
+   Remote (global): Remote OK + Remotive public feeds, no key needed. Both
+   require a link back to the original listing and crediting the source —
+   the per-listing source link and the footer credit below are required.
 
-   India (local + internships): Adzuna's job search API scoped to India.
-   Requires ADZUNA_APP_ID / ADZUNA_APP_KEY (free, instant signup at
-   developer.adzuna.com) to be set in the server environment. Until then,
-   this tab shows a clear "not configured" message — it never falls back
-   to fake or hardcoded listings.
-
-   No AI-generated or fabricated job details (invented dates, fake
-   interview rounds, etc.) appear anywhere in this file.
-   ========================================================================= */
+   No AI-generated or fabricated job details appear anywhere in this file.
+   ================================================================ */
 const Jobs = {
   // Common tech role/skill terms for the search box's suggestion dropdown.
   // A UI convenience list for phrasing a search — never shown as a listing.
@@ -23,16 +24,23 @@ const Jobs = {
     'JavaScript', 'React', 'Node.js', 'SQL', 'AWS', 'Docker', 'Kubernetes'
   ],
 
+  // Suggestions for the city box; any city can still be typed.
+  CITIES: [
+    'Bengaluru', 'Hyderabad', 'Pune', 'Mumbai', 'Delhi', 'Noida', 'Gurugram', 'Chennai', 'Kolkata',
+    'Ahmedabad', 'Jaipur', 'Chandigarh', 'Kochi', 'Coimbatore', 'Vellore', 'Madurai', 'Tiruchirappalli',
+    'Indore', 'Bhubaneswar', 'Nagpur', 'Lucknow', 'Thiruvananthapuram', 'Visakhapatnam'
+  ],
+
   state: {
-    source: 'remote', // 'remote' | 'india'
+    source: 'india', // 'india' | 'remote'
     keyword: 'developer',
     internshipOnly: false,
-    location: null,
-    locationLabel: '',
+    city: '',
     jobs: [],
     loading: false,
     error: null,
-    needsSetup: false,
+    mode: null, // 'adzuna' | 'remote-fallback' | 'remote'
+    notice: '',
     page: 1,
     count: 0,
     suggestedRole: null,
@@ -46,39 +54,32 @@ const Jobs = {
     this._search();
   },
 
-  _effectiveKeyword() {
-    const base = (this.state.keyword || '').trim();
-    if (!this.state.internshipOnly) return base;
-    return base ? `${base} internship` : 'internship';
-  },
-
   async _search(append = false) {
     this.state.loading = true;
     this.state.error = null;
-    this.state.needsSetup = false;
     if (!append) this.state.page = 1;
     this._renderHub();
 
     const params = new URLSearchParams({
       source: this.state.source,
-      q: this._effectiveKeyword(),
+      q: (this.state.keyword || '').trim(),
       page: String(this.state.page),
       results_per_page: '20'
     });
-    if (this.state.source === 'india' && this.state.locationLabel) {
-      params.set('where', this.state.locationLabel);
+    if (this.state.internshipOnly) params.set('internship', '1');
+    if (this.state.source === 'india' && this.state.city) {
+      params.set('where', this.state.city);
       params.set('distance', '50');
     }
 
     try {
       const res = await fetch(`/api/jobs?${params.toString()}`);
       const data = await res.json();
-      if (!res.ok) {
-        this.state.needsSetup = !!data.needsSetup;
-        throw new Error(data.error || 'Could not load job listings.');
-      }
+      if (!res.ok) throw new Error(data.error || 'Could not load job listings.');
       this.state.jobs = append ? [...this.state.jobs, ...data.jobs] : data.jobs;
       this.state.count = data.count || this.state.jobs.length;
+      this.state.mode = data.mode || null;
+      this.state.notice = data.notice || '';
     } catch (err) {
       this.state.error = err.message || 'Could not load job listings.';
       if (!append) this.state.jobs = [];
@@ -88,25 +89,55 @@ const Jobs = {
     }
   },
 
+  /** Pre-filled searches on the sites students actually use for local jobs and internships.
+   *  These only open each site's own results page — nothing is scraped. */
+  _externalSearchLinks() {
+    const kw = (this.state.keyword || '').trim();
+    const city = (this.state.city || '').trim();
+    const intern = this.state.internshipOnly;
+    const enc = encodeURIComponent;
+    const slug = (text) => String(text || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const what = [kw, intern ? 'internship' : ''].filter(Boolean).join(' ');
+
+    const internshala = `https://internshala.com/${intern ? 'internships' : 'jobs'}/${kw ? `keywords-${slug(kw)}/` : ''}`;
+    const naukri = what
+      ? `https://www.naukri.com/${slug(what)}-jobs${city ? `-in-${slug(city)}` : ''}`
+      : `https://www.naukri.com/jobs${city ? `-in-${slug(city)}` : ''}`;
+    return [
+      { label: 'Internshala', href: internshala },
+      { label: 'LinkedIn', href: `https://www.linkedin.com/jobs/search/?keywords=${enc(kw)}&location=${enc(city || 'India')}${intern ? '&f_JT=I' : ''}` },
+      { label: 'Naukri', href: naukri },
+      { label: 'Indeed India', href: `https://in.indeed.com/jobs?q=${enc(what)}&l=${enc(city)}` },
+      { label: 'Google Jobs', href: `https://www.google.com/search?q=${enc(`${what || 'jobs'} ${intern ? '' : 'jobs '}${city || 'India'}`.trim())}&ibp=htl;jobs` }
+    ];
+  },
+
   _renderHub() {
-    const { jobs, loading, error, count, source } = this.state;
+    const { jobs, loading, error, count, source, mode, notice } = this.state;
+    const esc = (v) => this._escape(v);
     const roleLabel = this.state.internshipOnly ? 'internship' : 'role';
+    const fallback = source === 'india' && mode === 'remote-fallback';
+    const sourceNote = source === 'india' && mode === 'adzuna'
+      ? 'Live India job &amp; internship data via <a href="https://www.adzuna.in" target="_blank" rel="noopener">Adzuna</a> — real listings, real companies, real apply links.'
+      : 'Live remote roles via <a href="https://remoteok.com" target="_blank" rel="noopener">Remote OK</a> and <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a> — real listings, real companies, real apply links.';
+    const links = source === 'india' ? this._externalSearchLinks() : [];
+
     this.container.innerHTML = `
       <div class="card mb-2" id="jobsHeaderCard">
         <div class="flex-between" style="gap:16px;flex-wrap:wrap">
           <div>
             <div class="card-title"><i class="bi bi-briefcase text-accent" style="margin-right:4px"></i>Hiring Hub</div>
-            <div class="card-sub">${loading ? 'Loading live listings…' : `${count} real, currently-open ${roleLabel}${count === 1 ? '' : 's'} — live from the job market.`}</div>
+            <div class="card-sub">${loading ? 'Loading live listings…' : `${count} real, currently-open ${roleLabel}${count === 1 ? '' : 's'}${fallback ? ' (remote, open to candidates in India)' : ''} — live from the job market.`}</div>
           </div>
           <div class="flex gap-1" role="group" aria-label="Job source">
-            <button class="btn ${source === 'remote' ? 'btn-primary' : 'btn-ghost'}" id="remoteSourceBtn">Remote (Global)</button>
             <button class="btn ${source === 'india' ? 'btn-primary' : 'btn-ghost'}" id="indiaSourceBtn">India (Local)</button>
+            <button class="btn ${source === 'remote' ? 'btn-primary' : 'btn-ghost'}" id="remoteSourceBtn">Remote (Global)</button>
           </div>
         </div>
 
         <div class="flex gap-1 mt-2" style="flex-wrap:wrap;position:relative">
           <div style="flex:1;min-width:220px;position:relative">
-            <input type="search" id="jobKeywordInput" placeholder="Job title or skill (e.g. frontend developer, python)" value="${this._escape(this.state.keyword)}" style="width:100%" autocomplete="off" />
+            <input type="search" id="jobKeywordInput" placeholder="Job title or skill (e.g. frontend developer, python)" value="${esc(this.state.keyword)}" style="width:100%" autocomplete="off" />
             <div id="jobSuggestDropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:20;max-height:220px;overflow-y:auto"></div>
           </div>
           <button class="btn btn-primary" id="jobSearchBtn"><i class="bi bi-search" style="margin-right:4px"></i>Search</button>
@@ -119,41 +150,53 @@ const Jobs = {
           </label>
           ${source === 'india' ? `
             <div class="flex gap-1 items-center" style="flex-wrap:wrap">
-              <span class="chip ${this.state.location ? 'green' : 'orange'}"><i class="bi bi-geo-alt-fill"></i> ${this.state.location ? `Near ${this._escape(this.state.locationLabel)}` : 'All India'}</span>
+              <input type="text" id="jobCityInput" list="indiaCityList" placeholder="City (blank = all India)" value="${esc(this.state.city)}" autocomplete="off" aria-label="City" style="min-width:190px" />
+              <datalist id="indiaCityList">${this.CITIES.map(c => `<option value="${esc(c)}"></option>`).join('')}</datalist>
               <button class="btn btn-ghost btn-sm" id="locateJobsBtn"><i class="bi bi-crosshair" style="margin-right:4px"></i>Use my location</button>
+              ${this.state.city ? '<button class="btn btn-ghost btn-sm" id="clearCityBtn">Clear city</button>' : ''}
             </div>
           ` : ''}
         </div>
+
+        ${links.length ? `
+          <div class="mt-2" id="externalSearchLinks">
+            <div class="text-dim" style="font-size:11px;margin-bottom:4px">Search directly for ${this.state.internshipOnly ? 'internships' : 'jobs'}${this.state.city ? ` in ${esc(this.state.city)}` : ' across India'} (opens in a new tab):</div>
+            <div class="flex gap-1" style="flex-wrap:wrap">
+              ${links.map(l => `<a class="chip blue" href="${esc(l.href)}" target="_blank" rel="noopener noreferrer">${esc(l.label)} <i class="bi bi-box-arrow-up-right"></i></a>`).join('')}
+            </div>
+          </div>
+        ` : ''}
 
         ${(this.state.suggestedRole || this.state.suggestedSkills.length) ? `
           <div class="mt-2">
             <div class="text-dim" style="font-size:11px;margin-bottom:4px">Suggested for you, based on your resume:</div>
             <div class="flex gap-1" style="flex-wrap:wrap">
-              ${this.state.suggestedRole ? `<button class="chip green suggestion-chip" data-suggest="${this._escape(this.state.suggestedRole)}" type="button">${this._escape(this.state.suggestedRole)}</button>` : ''}
-              ${this.state.suggestedSkills.slice(0, 5).map(sk => `<button class="chip blue suggestion-chip" data-suggest="${this._escape(sk)}" type="button">${this._escape(sk)}</button>`).join('')}
+              ${this.state.suggestedRole ? `<button class="chip green suggestion-chip" data-suggest="${esc(this.state.suggestedRole)}" type="button">${esc(this.state.suggestedRole)}</button>` : ''}
+              ${this.state.suggestedSkills.slice(0, 5).map(sk => `<button class="chip blue suggestion-chip" data-suggest="${esc(sk)}" type="button">${esc(sk)}</button>`).join('')}
             </div>
           </div>
         ` : `<div class="text-dim mt-2" style="font-size:11px">Tip: analyze your resume in <a href="#resume">Resume Analyzer</a> first to get job suggestions matched to your skills.</div>`}
 
-        <div class="text-dim mt-2" style="font-size:11px">${source === 'remote'
-          ? 'Live remote job data via <a href="https://remoteok.com" target="_blank" rel="noopener">Remote OK</a> — real listings, real companies, real apply links.'
-          : 'Live India job &amp; internship data via <a href="https://www.adzuna.in" target="_blank" rel="noopener">Adzuna</a> — real listings, real companies, real apply links.'}</div>
+        <div class="text-dim mt-2" style="font-size:11px">${sourceNote}</div>
       </div>
+
+      ${notice ? `<div class="card mb-2" role="status" id="jobsNotice" style="border-left:3px solid var(--warning, #e6a23c)"><div style="font-size:13px;line-height:1.5">${esc(notice)}</div></div>` : ''}
 
       ${error ? `
         <div class="empty-state">
-          <h3>${this.state.needsSetup ? 'India local listings need one-time setup' : "Couldn't load listings"}</h3>
-          <p>${this._escape(error)}</p>
+          <h3>Couldn't load listings</h3>
+          <p>${esc(error)}</p>
+          <button class="btn btn-ghost btn-sm" id="retryJobsBtn">Try again</button>
         </div>
       ` : ''}
       ${!error && loading && jobs.length === 0 ? `<div class="empty-state"><h3>Loading live listings…</h3><p>Fetching real, currently-open roles.</p></div>` : ''}
-      ${!error && !loading && jobs.length === 0 ? `<div class="empty-state"><h3>No roles found</h3><p>Try a different keyword${this.state.internshipOnly ? ', or turn off "Internships only"' : ''}.</p></div>` : ''}
+      ${!error && !loading && jobs.length === 0 ? `<div class="empty-state"><h3>No roles found</h3><p>Try a broader keyword${this.state.internshipOnly ? ', turn off "Internships only"' : ''}${this.state.city ? ', or clear the city' : ''} — or use the search links above.</p></div>` : ''}
 
       <div class="grid grid-2" id="jobsGrid">
         ${jobs.map(job => this._jobCard(job)).join('')}
       </div>
       ${!error && jobs.length > 0 && jobs.length < count ? `<div class="flex-between mt-2"><button class="btn btn-ghost" id="loadMoreJobsBtn" ${loading ? 'disabled' : ''}>${loading ? 'Loading…' : 'Load more'}</button></div>` : ''}
-      <div class="text-dim mt-2" style="font-size:12px">These are real positions sourced live from the job market. Salary figures, when shown, are as published by the employer (or a clearly marked estimate).</div>
+      <div class="text-dim mt-2" style="font-size:12px">These are real positions sourced live from the job market. Salary figures, when shown, are as published by the employer (or a clearly marked estimate). Listings are credited to and link back to their original source.</div>
     `;
 
     document.getElementById('remoteSourceBtn').addEventListener('click', () => {
@@ -171,6 +214,23 @@ const Jobs = {
       this._search();
     });
     document.getElementById('locateJobsBtn')?.addEventListener('click', () => this._locate());
+    document.getElementById('retryJobsBtn')?.addEventListener('click', () => this._search());
+    document.getElementById('clearCityBtn')?.addEventListener('click', () => {
+      this.state.city = '';
+      this._search();
+    });
+    const cityInput = document.getElementById('jobCityInput');
+    if (cityInput) {
+      const applyCity = () => {
+        const value = cityInput.value.trim();
+        if (value !== this.state.city) {
+          this.state.city = value;
+          this._search();
+        }
+      };
+      cityInput.addEventListener('change', applyCity);
+      cityInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCity(); });
+    }
 
     const input = document.getElementById('jobKeywordInput');
     const dropdown = document.getElementById('jobSuggestDropdown');
@@ -197,31 +257,33 @@ const Jobs = {
       card.querySelector('[data-details]')?.addEventListener('click', () => this._openDetails(card.dataset.jobId));
       card.querySelector('[data-view-original]')?.addEventListener('click', () => {
         const job = this.state.jobs.find(j => j.id === card.dataset.jobId);
-        if (job?.applyUrl) window.open(job.applyUrl, '_blank', 'noopener');
+        const url = job ? this._safeUrl(job.applyUrl) : '';
+        if (url) window.open(url, '_blank', 'noopener');
       });
     });
   },
 
   async _locate() {
     if (!navigator.geolocation) {
-      App.showToast('Geolocation is not supported by this browser.', 'error');
+      App.showToast('Geolocation is not supported by this browser. Type your city instead.', 'error');
       return;
     }
     App.showToast('Requesting your location...', 'info');
     navigator.geolocation.getCurrentPosition(async (position) => {
       const { latitude, longitude } = position.coords;
-      this.state.location = { latitude, longitude };
+      let city = '';
       try {
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&zoom=10`);
         const data = await res.json();
         const address = data.address || {};
-        this.state.locationLabel = address.city || address.town || address.county || address.state || '';
+        city = address.city || address.town || address.county || address.state_district || address.state || '';
       } catch {
-        this.state.locationLabel = '';
+        city = '';
       }
-      App.showToast(this.state.locationLabel ? `Showing roles near ${this.state.locationLabel}.` : 'Could not determine your city; showing all India.', this.state.locationLabel ? 'success' : 'error');
+      this.state.city = city;
+      App.showToast(city ? `Showing roles near ${city}.` : 'Could not determine your city — type it in the City box instead.', city ? 'success' : 'error');
       this._search();
-    }, () => App.showToast('Location permission was unavailable. Showing all-India results.', 'error'), { timeout: 10000 });
+    }, () => App.showToast('Location permission was unavailable. Type your city instead.', 'error'), { timeout: 10000 });
   },
 
   _onSearchClick() {
@@ -263,12 +325,22 @@ const Jobs = {
     });
   },
 
+  /** Only http(s) links are ever used for href / window.open. */
+  _safeUrl(value) {
+    try {
+      const url = new URL(String(value || ''));
+      return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
+    } catch {
+      return '';
+    }
+  },
+
   _escape(value) {
     return String(value || '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
   },
 
   _formatSalary(job) {
-    if (!job.salaryMin && !job.salaryMax) return null;
+    if (!job.salaryMin && !job.salaryMax) return job.salaryText ? String(job.salaryText) : null;
     const symbol = job.currency === 'INR' ? '₹' : '$';
     const fmt = (n) => symbol + Math.round(n).toLocaleString(job.currency === 'INR' ? 'en-IN' : 'en-US');
     const range = job.salaryMin && job.salaryMax && job.salaryMin !== job.salaryMax
@@ -279,19 +351,20 @@ const Jobs = {
 
   _jobCard(job) {
     const salary = this._formatSalary(job);
-    const snippet = this._escape(job.description).slice(0, 220);
+    const description = String(job.description || '');
+    const snippet = this._escape(description.slice(0, 220));
     return `
-      <article class="card hoverable" data-job-id="${job.id}">
+      <article class="card hoverable" data-job-id="${this._escape(job.id)}">
         <div class="flex-between" style="gap:10px">
           <div>
             <div class="card-title" style="font-size:19px">${this._escape(job.title)}</div>
             <div class="card-sub">${this._escape(job.company)} · ${this._escape(job.location)}</div>
           </div>
-          <span class="chip gray" title="Data source">${this._escape(job.sourceLabel)}</span>
+          <span class="flex gap-1">${job.isInternship ? '<span class="chip orange">Internship</span>' : ''}<span class="chip gray" title="Data source">${this._escape(job.sourceLabel)}</span></span>
         </div>
-        ${salary ? `<div class="chip green mt-1" style="display:inline-block">${salary}</div>` : ''}
-        <div class="flex gap-1 mt-1" style="flex-wrap:wrap">${job.tags.slice(0, 5).map(t => `<span class="chip blue">${this._escape(t)}</span>`).join('')}</div>
-        <p class="text-dim mt-1" style="font-size:13px;line-height:1.55">${snippet}${job.description.length > 220 ? '…' : ''}</p>
+        ${salary ? `<div class="chip green mt-1" style="display:inline-block">${this._escape(salary)}</div>` : ''}
+        <div class="flex gap-1 mt-1" style="flex-wrap:wrap">${(job.tags || []).slice(0, 5).map(t => `<span class="chip blue">${this._escape(t)}</span>`).join('')}</div>
+        <p class="text-dim mt-1" style="font-size:13px;line-height:1.55">${snippet}${description.length > 220 ? '…' : ''}</p>
         <div class="flex gap-1 mt-2" style="flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" data-details><i class="bi bi-building"></i> Details</button>
           ${job.applyUrl ? `<button class="btn btn-ghost btn-sm" data-view-original><i class="bi bi-box-arrow-up-right"></i> View original posting</button>` : ''}
@@ -324,10 +397,10 @@ const Jobs = {
         </div>
         <div class="modal-body">
           <div class="job-detail-stats">
-            <div><span>Tags</span><strong>${this._escape(job.tags.slice(0, 4).join(', ') || 'Not specified')}</strong></div>
+            <div><span>Tags</span><strong>${this._escape((job.tags || []).slice(0, 4).join(', ') || 'Not specified')}</strong></div>
             <div><span>Salary</span><strong>${salary ? this._escape(salary) : 'Not disclosed'}</strong></div>
             <div><span>Posted</span><strong>${job.created ? new Date(job.created).toLocaleDateString() : 'Unknown'}</strong></div>
-            <div><span>Source</span><strong><a href="${job.sourceUrl}" target="_blank" rel="noopener">${this._escape(job.sourceLabel)}</a></strong></div>
+            <div><span>Source</span><strong>${this._safeUrl(job.sourceUrl) ? `<a href="${this._escape(this._safeUrl(job.sourceUrl))}" target="_blank" rel="noopener noreferrer">${this._escape(job.sourceLabel)}</a>` : this._escape(job.sourceLabel)}</strong></div>
           </div>
           <p class="job-company-description mt-2" style="white-space:pre-line">${this._escape(job.description)}</p>
           <div class="text-dim mt-1" style="font-size:12px">This is a real, live listing sourced from ${this._escape(job.sourceLabel)}. Full details and the original application form are on the linked original posting.</div>
