@@ -17,22 +17,36 @@
 //   Without them, this returns a clear configuration error — never a
 //   fallback to fake data.
 
+import { guard, send } from './_lib/guard.js';
+
 const REMOTEOK_URL = 'https://remoteok.com/api';
 const ADZUNA_BASE = 'https://api.adzuna.com/v1/api/jobs';
 const ADZUNA_COUNTRY = 'in';
 
+// RemoteOK's full feed is large and rarely changes, so keep it warm in memory
+// per serverless instance and let Vercel's edge cache absorb repeat searches.
+let remoteCache = { at: 0, raw: null };
+const REMOTE_TTL_MS = 5 * 60 * 1000;
+
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  const ctx = await guard(req, res, {
+    route: 'jobs',
+    methods: ['GET'],
+    limit: { max: 60, windowSec: 600 },
+    globalDaily: 5000
+  });
+  if (!ctx) return;
 
   const source = req.query?.source === 'india' ? 'india' : 'remote';
   try {
     const result = source === 'india' ? await fetchIndia(req.query) : await fetchRemote(req.query);
-    return res.status(result.status || 200).json(result.body);
+    const status = result.status || 200;
+    // Successful listings are public data: let the edge cache absorb repeat searches.
+    const cache = status === 200 ? { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } : {};
+    return send(res, status, result.body, cache);
   } catch (err) {
     console.error('api/jobs error:', err.message);
-    return res.status(502).json({ error: 'Could not fetch live job listings right now. Please try again shortly.' });
+    return send(res, 502, { error: 'Could not fetch live job listings right now. Please try again shortly.' });
   }
 }
 
@@ -42,11 +56,16 @@ async function fetchRemote(query) {
   const pageNum = Math.max(1, Number(page) || 1);
   const perPage = Math.max(1, Math.min(50, Number(results_per_page) || 20));
 
-  const r = await fetch(REMOTEOK_URL, {
-    headers: { 'User-Agent': 'AiplacementTracker-StudentProject/1.0 (+https://aiplacement-tracker.vercel.app)' }
-  });
-  if (!r.ok) throw new Error(`RemoteOK API responded ${r.status}`);
-  const raw = await r.json();
+  let raw = remoteCache.raw;
+  if (!raw || Date.now() - remoteCache.at > REMOTE_TTL_MS) {
+    const r = await fetch(REMOTEOK_URL, {
+      headers: { 'User-Agent': 'AiplacementTracker-StudentProject/1.0 (+https://aiplacement-tracker.vercel.app)' },
+      signal: AbortSignal.timeout(10_000)
+    });
+    if (!r.ok) throw new Error(`RemoteOK API responded ${r.status}`);
+    raw = await r.json();
+    remoteCache = { at: Date.now(), raw };
+  }
 
   let jobs = Array.isArray(raw)
     ? raw.filter((item) => item && item.id && item.position).map(normalizeRemoteOkJob)
@@ -126,7 +145,7 @@ async function fetchIndia(query) {
   if (distance) params.set('distance', String(Math.max(1, Math.min(300, Number(distance) || 50))));
 
   const url = `${ADZUNA_BASE}/${ADZUNA_COUNTRY}/search/${pageNum}?${params.toString()}`;
-  const r = await fetch(url);
+  const r = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!r.ok) {
     const text = await r.text().catch(() => '');
     throw new Error(`Adzuna API responded ${r.status}: ${text.slice(0, 200)}`);

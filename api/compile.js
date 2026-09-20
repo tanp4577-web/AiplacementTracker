@@ -1,61 +1,60 @@
 /* ============================================================================
-   Vercel Serverless Function — C++ & Code Compiler Proxy
+   Vercel Serverless Function — C++ Compiler Proxy (Wandbox)
    ----------------------------------------------------------------------------
    Endpoint: POST /api/compile
    Body:     { code: string, stdin?: string, compiler?: string }
    Response: { program?: string, compiler_error?: string, stderr?: string }
+   Protected by api/_lib/guard.js. The compiler must be on the allow-list, and
+   code/stdin sizes are capped so this can't be used as a free general-purpose
+   proxy to Wandbox.
    ========================================================================== */
+import { guard, getBody, send } from './_lib/guard.js';
+
+const ALLOWED_COMPILERS = new Set(['gcc-head', 'gcc-13.2.0', 'gcc-14.1.0', 'clang-head']);
+const MAX_CODE_CHARS = 30_000;
+const MAX_STDIN_CHARS = 5_000;
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  const ctx = await guard(req, res, {
+    route: 'compile',
+    maxBodyBytes: 60_000,
+    limit: { max: 30, windowSec: 600 },
+    globalDaily: 3000
+  });
+  if (!ctx) return;
 
-  if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  let body = {};
-  try {
-    body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-  } catch (e) {
-    return res.status(400).json({ error: 'Invalid JSON' });
-  }
-
+  const body = getBody(req);
   const code = typeof body.code === 'string' ? body.code : '';
   const stdin = typeof body.stdin === 'string' ? body.stdin : '';
   const compiler = typeof body.compiler === 'string' ? body.compiler : 'gcc-head';
 
-  if (!code.trim()) {
-    return res.status(400).json({ error: 'Code is required' });
-  }
+  if (!code.trim()) return send(res, 400, { error: 'Code is required' });
+  if (code.length > MAX_CODE_CHARS) return send(res, 413, { error: 'Code is too long' });
+  if (stdin.length > MAX_STDIN_CHARS) return send(res, 413, { error: 'Input is too long' });
+  if (!ALLOWED_COMPILERS.has(compiler)) return send(res, 400, { error: 'Unsupported compiler' });
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-
     const response = await fetch('https://wandbox.org/api/compile.json', {
       method: 'POST',
-      signal: controller.signal,
+      signal: AbortSignal.timeout(15_000),
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        compiler,
-        code,
-        options: 'warning,gnu++17',
-        stdin
-      })
+      body: JSON.stringify({ compiler, code, options: 'warning,gnu++17', stdin })
     });
-    clearTimeout(timeout);
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: `Compiler upstream error: HTTP ${response.status}` });
+      return send(res, 502, { error: `Compiler upstream error: HTTP ${response.status}` });
     }
 
     const data = await response.json();
-    return res.status(200).json(data);
+    // Pass Wandbox's response through unchanged (the frontend reads several of
+    // its fields), but cap every string so a huge program output can't flood clients.
+    const out = {};
+    for (const [key, value] of Object.entries(data && typeof data === 'object' ? data : {})) {
+      out[key] = typeof value === 'string' ? value.slice(0, 20_000) : value;
+    }
+    return send(res, 200, out);
   } catch (err) {
-    return res.status(502).json({
-      error: 'Compilation service temporarily unavailable',
-      detail: err.message
-    });
+    console.error('Compile API error:', err.message);
+    return send(res, 502, { error: 'Compilation service temporarily unavailable' });
   }
 }
