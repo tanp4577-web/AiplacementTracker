@@ -87,8 +87,12 @@ body {
   .ambient-blob { animation: none; }
 }
 
-/* Keep real app content above the ambient blobs */
-.app-layout, .sidebar, header, .modal-overlay, #toastContainer {
+/* Keep real app content above the ambient blobs. NOTE: .modal-overlay is
+   deliberately excluded here — it needs its own position:fixed (set in
+   style.css) to center itself full-screen; overriding it to `relative`
+   broke sign-in/modal centering entirely. Its z-index is already far
+   higher than the blobs, so it needs no help from this rule. */
+.app-layout, .sidebar, header, #toastContainer {
   position: relative;
   z-index: 1;
 }
