@@ -12,30 +12,41 @@
 //   It falls back to real remote roles that accept candidates in India, from the
 //   two key-free feeds below, and says so in `notice`.  mode = "remote-fallback".
 //
-// source=remote: the same two key-free feeds, worldwide.
+// source=remote: the same key-free feeds, worldwide.
 //   - Remote OK (remoteok.com/api)     — requires a link back to remoteok.com
 //   - Remotive  (remotive.com/api)     — requires a link back to the Remotive
 //     listing and crediting Remotive; do not repost its jobs to other job boards.
-//   The frontend shows both attributions on every listing. Do not remove them.
+//   - Jobicy    (jobicy.com/api/v2)    — no key; credit Jobicy with a direct link
+//     and send applicants to the listing's own URL. Its jobs carry an explicit
+//     "internship" type, which makes internships findable without any key.
+//     Fair use: cache, and never poll more than once an hour (each feed is
+//     cached for 3 hours here).
+//   The frontend shows the source and a link on every listing. Do not remove them.
 import { guard, send } from './_lib/guard.js';
 
 const REMOTEOK_URL = 'https://remoteok.com/api';
 const REMOTIVE_URL = 'https://remotive.com/api/remote-jobs';
+const JOBICY_URL = 'https://jobicy.com/api/v2/remote-jobs';
 const ADZUNA_BASE = 'https://api.adzuna.com/v1/api/jobs';
 const ADZUNA_COUNTRY = 'in';
 const USER_AGENT = 'AiplacementTracker-StudentProject/1.0 (+https://aiplacement-tracker.vercel.app)';
 
-// Both public feeds return everything in one response, so keep the normalised
+// The public feeds return everything in one response, so keep each normalised
 // result warm per serverless instance (and let the edge cache absorb repeats).
-// Remotive asks API users not to poll it often, so it gets a long TTL. If a feed
-// errors, the last good copy is served instead of failing the whole page.
-const FEED_TTL_MS = { remoteok: 10 * 60 * 1000, remotive: 6 * 60 * 60 * 1000 };
-const feedCache = { remoteok: { at: 0, jobs: null }, remotive: { at: 0, jobs: null } };
+// Remotive and Jobicy ask API users not to poll often, so they get long TTLs.
+// If a feed errors, the last good copy is served instead of failing the page.
+const FEED_TTL_MS = {
+  remoteok: 10 * 60 * 1000,
+  remotive: 6 * 60 * 60 * 1000,
+  'jobicy-apac': 3 * 60 * 60 * 1000,
+  'jobicy-anywhere': 3 * 60 * 60 * 1000,
+  'jobicy-internship': 3 * 60 * 60 * 1000
+};
+const feedCache = Object.fromEntries(Object.keys(FEED_TTL_MS).map((name) => [name, { at: 0, jobs: null }]));
 
 /** Test hook: forget cached feeds. */
 export function _resetFeedCache() {
-  feedCache.remoteok = { at: 0, jobs: null };
-  feedCache.remotive = { at: 0, jobs: null };
+  for (const name of Object.keys(feedCache)) feedCache[name] = { at: 0, jobs: null };
 }
 
 const hasAdzunaKeys = () => Boolean(process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY);
@@ -150,6 +161,39 @@ function normalizeRemotiveJob(job) {
   return { ...job2, isInternship: isInternship(job2) };
 }
 
+const asStrings = (v) => (Array.isArray(v) ? v : typeof v === 'string' ? [v] : []).filter((x) => typeof x === 'string' && x.trim());
+
+function normalizeJobicyJob(job) {
+  const types = asStrings(job.jobType).map((t) => t.toLowerCase());
+  const level = typeof job.jobLevel === 'string' && job.jobLevel && job.jobLevel !== 'Any' ? [job.jobLevel] : [];
+  const url = safeUrl(job.url);
+  const currency = typeof job.salaryCurrency === 'string' && /^[A-Z]{3}$/.test(job.salaryCurrency) ? job.salaryCurrency : 'USD';
+  const period = String(job.salaryPeriod || 'yearly').toLowerCase();
+  const min = typeof job.salaryMin === 'number' && job.salaryMin > 0 ? job.salaryMin : null;
+  const max = typeof job.salaryMax === 'number' && job.salaryMax > 0 ? job.salaryMax : null;
+  const yearly = period === 'yearly' || period === 'annual';
+  const job2 = {
+    id: safeId('jobicy', job.id),
+    source: 'remote',
+    currency,
+    title: stripHtml(job.jobTitle) || 'Untitled role',
+    company: stripHtml(job.companyName) || 'Company not disclosed',
+    location: stripHtml(job.jobGeo) || 'Anywhere',
+    tags: [...asStrings(job.jobIndustry).map(stripHtml), ...types, ...level].slice(0, 8),
+    description: stripHtml(job.jobDescription || job.jobExcerpt).slice(0, 4000),
+    salaryMin: yearly ? min : null,
+    salaryMax: yearly ? max : null,
+    // Hourly/monthly pay is shown as text so it is never mislabelled "per year".
+    salaryText: !yearly && (min || max) ? `${currency} ${[min, max].filter(Boolean).join(' – ')} ${period}` : '',
+    salaryIsPredicted: false,
+    created: job.pubDate || null,
+    applyUrl: url,
+    sourceUrl: url,
+    sourceLabel: 'Jobicy'
+  };
+  return { ...job2, isInternship: isInternship(job2) };
+}
+
 async function loadFeed(name, url, extract) {
   const slot = feedCache[name];
   if (slot.jobs && Date.now() - slot.at < FEED_TTL_MS[name]) return slot.jobs;
@@ -168,19 +212,22 @@ async function loadFeed(name, url, extract) {
   }
 }
 
-const loadRemoteOk = () =>
-  loadFeed('remoteok', REMOTEOK_URL, (raw) =>
-    Array.isArray(raw) ? raw.filter((item) => item && item.id && item.position).map(normalizeRemoteOkJob) : []
-  );
+const extractJobicy = (raw) =>
+  raw && Array.isArray(raw.jobs) ? raw.jobs.filter((item) => item && item.id && item.jobTitle).map(normalizeJobicyJob) : [];
 
-const loadRemotive = () =>
-  loadFeed('remotive', REMOTIVE_URL, (raw) =>
-    raw && Array.isArray(raw.jobs) ? raw.jobs.filter((item) => item && item.id && item.title).map(normalizeRemotiveJob) : []
-  );
+const feedLoaders = [
+  () => loadFeed('remoteok', REMOTEOK_URL, (raw) => (Array.isArray(raw) ? raw.filter((item) => item && item.id && item.position).map(normalizeRemoteOkJob) : [])),
+  () => loadFeed('remotive', REMOTIVE_URL, (raw) => (raw && Array.isArray(raw.jobs) ? raw.jobs.filter((item) => item && item.id && item.title).map(normalizeRemotiveJob) : [])),
+  // Jobicy: roles open to APAC (includes India), roles open to anywhere, and roles
+  // that mention internships. `geo`/`tag` are Jobicy's documented filters.
+  () => loadFeed('jobicy-apac', `${JOBICY_URL}?count=200&geo=apac`, extractJobicy),
+  () => loadFeed('jobicy-anywhere', `${JOBICY_URL}?count=200&geo=anywhere`, extractJobicy),
+  () => loadFeed('jobicy-internship', `${JOBICY_URL}?count=200&tag=internship`, extractJobicy)
+];
 
-/** Merge both feeds; one failing is fine, both failing throws. */
+/** Merge every feed; some failing is fine, all failing throws. */
 async function loadRemoteJobs() {
-  const results = await Promise.allSettled([loadRemoteOk(), loadRemotive()]);
+  const results = await Promise.allSettled(feedLoaders.map((load) => load()));
   const ok = results.filter((r) => r.status === 'fulfilled');
   if (!ok.length) throw new Error(results.map((r) => r.reason && r.reason.message).join('; '));
   results.filter((r) => r.status === 'rejected').forEach((r) => console.error('api/jobs feed failed:', r.reason.message));

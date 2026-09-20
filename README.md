@@ -21,7 +21,7 @@ Suggested: docs/screenshots/dashboard.png, hiring-hub.png, resume-analyzer.png
 | **Aptitude Quiz** | AI-generated questions (Gemini) with OpenTriviaDB and offline question banks as fallbacks |
 | **Coding Practice** | Practice problems, including C++ questions with test cases run through the Wandbox compiler |
 | **Interview Experiences** | Interview rounds and tips you add, filterable by company and difficulty (stored in your browser) |
-| **Hiring Hub** | **India (Local)** tab for city jobs and internships (Adzuna), never blank: without Adzuna keys it shows remote roles open to India plus pre-filled searches on Internshala, LinkedIn, Naukri, Indeed and Google Jobs. **Remote (Global)** tab merges Remote OK and Remotive. **Analyze resume fit** returns an ATS match score, matched/missing skills, learning actions and practice interview questions |
+| **Hiring Hub** | **India (Local)** tab for city jobs and internships (Adzuna), never blank: without Adzuna keys it shows remote roles open to India plus pre-filled searches on Internshala, LinkedIn, Naukri, Indeed and Google Jobs. **Remote (Global)** tab merges Remote OK, Remotive and Jobicy (Jobicy tags internships explicitly). **Analyze resume fit** returns an ATS match score, matched/missing skills, learning actions and practice interview questions |
 | **Skill Gap** | Compares your skills to target roles |
 | **Company Patterns** | Typical hiring rounds per company |
 | **YouTube Lectures** | Curated lecture playlists with watch tracking |
@@ -37,7 +37,7 @@ flowchart LR
   B -->|/api/*| G[guard.js<br/>same-origin · size cap · rate limit · daily cap]
   G --> C[chat · aptitude · job-apply<br/>Gemini]
   G --> S[stt<br/>Groq Whisper]
-  G --> J[jobs<br/>Remote OK · Adzuna]
+  G --> J[jobs<br/>Remote OK · Remotive · Jobicy · Adzuna]
   G --> W[compile<br/>Wandbox]
   G -.-> U[(Upstash Redis<br/>rate-limit counters)]
   B -.->|fallbacks| P[Pollinations · OpenTriviaDB · Wandbox]
@@ -92,7 +92,7 @@ All routes are same-origin only, size-capped and rate-limited per client IP (def
 | `/api/job-apply` | POST | Resume-vs-job ATS analysis (resume capped at 20,000 chars) | 8 |
 | `/api/stt` | POST | Speech-to-text, audio up to 4 MB | 30 |
 | `/api/compile` | POST | C++ compile/run through Wandbox (allow-listed compilers, 30,000-char code cap) | 30 |
-| `/api/jobs` | GET | Live listings: `source=india` (Adzuna, or remote-for-India fallback) or `source=remote` (Remote OK + Remotive); supports `q`, `where`, `distance`, `internship=1`, `page`. Edge-cached 1–5 minutes | 60 |
+| `/api/jobs` | GET | Live listings: `source=india` (Adzuna, or remote-for-India fallback) or `source=remote` (Remote OK + Remotive + Jobicy); supports `q`, `where`, `distance`, `internship=1`, `page`. Edge-cached 1–5 minutes | 60 |
 | `/api/tts` | POST | Placeholder that tells the client to use browser speech | 60 |
 
 Each AI route also has a global per-day ceiling so a misbehaving client can't run up your bill. Tune the numbers in each route's `guard()` call.
@@ -104,7 +104,7 @@ The **India (Local)** tab is the app's main feature. It has three levels, and it
 | Situation | What the tab shows |
 | --- | --- |
 | Adzuna keys set and working | Real on-site jobs and internships in India, searchable by keyword and city (`mode: adzuna`) |
-| No keys, or Adzuna is down | Remote roles that accept candidates in India from Remote OK and Remotive, a notice explaining why, and pre-filled search links for Internshala, LinkedIn, Naukri, Indeed and Google Jobs (`mode: remote-fallback`) |
+| No keys, or Adzuna is down | Remote roles and internships open to candidates in India from Remote OK, Remotive and Jobicy (all key-free), a notice explaining why, and pre-filled search links for Internshala, LinkedIn, Naukri, Indeed and Google Jobs (`mode: remote-fallback`) |
 | Both remote feeds down | The last good copy is served; only if none exists does the tab show an error with a **Try again** button |
 
 To get real local jobs and internships (about 5 minutes, free):
@@ -115,7 +115,7 @@ To get real local jobs and internships (about 5 minutes, free):
 
 Adzuna's free tier has a daily call limit, so the India route allows 300 Adzuna searches a day in total and answers repeat searches from the edge cache. Change the number in `api/jobs.js` if your plan allows more.
 
-Attribution is required: Remote OK and Remotive listings link back to the original posting and credit the source, and Remotive asks not to be polled often (its feed is cached for 6 hours). Do not remove those credits.
+Attribution is required: Remote OK, Remotive and Jobicy listings link back to the original posting and credit the source. Remotive and Jobicy ask not to be polled often, so their feeds are cached for 6 and 3 hours. Do not remove those credits.
 
 ## Privacy and data
 

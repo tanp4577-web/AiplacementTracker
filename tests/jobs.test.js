@@ -20,6 +20,21 @@ const remotiveFeed = {
     { id: 203, url: 'https://remotive.com/remote-jobs/x/usa-only-203', title: 'Data Analyst', company_name: 'Hooli', category: 'Data', tags: [], candidate_required_location: 'USA Only', publication_date: '2026-09-05T08:30:00', description: 'US only' }
   ]
 };
+const jobicyApac = {
+  jobs: [
+    { id: 301, url: 'https://jobicy.com/jobs/301-data-analyst-intern', jobTitle: 'Data Analyst Intern', companyName: 'Stark', jobIndustry: ['Data Science'], jobType: ['Internship'], jobGeo: 'APAC', jobLevel: 'Any', jobExcerpt: 'Learn data', jobDescription: '<p>Analyse <b>data</b></p>', pubDate: '2026-09-20T08:00:00+00:00' },
+    { id: 302, url: 'https://jobicy.com/jobs/302-support-engineer', jobTitle: 'Support Engineer', companyName: 'Wayne', jobIndustry: ['Technical Support'], jobType: ['Full-Time'], jobGeo: 'APAC', jobLevel: 'Junior', jobDescription: '<p>Help customers</p>', pubDate: '2026-09-16T08:00:00+00:00', salaryMin: 30, salaryMax: 40, salaryCurrency: 'USD', salaryPeriod: 'hourly' }
+  ]
+};
+const jobicyAnywhere = {
+  jobs: [{ id: 303, url: 'https://jobicy.com/jobs/303-product-designer', jobTitle: 'Product Designer', companyName: 'Oscorp', jobIndustry: ['Design'], jobType: ['Full-Time'], jobGeo: 'Anywhere', jobLevel: 'Senior', jobDescription: '<p>Design things</p>', pubDate: '2026-09-12T08:00:00+00:00', salaryMin: 70000, salaryMax: 90000, salaryCurrency: 'EUR', salaryPeriod: 'yearly' }]
+};
+const jobicyIntern = {
+  jobs: [
+    { id: 304, url: 'https://jobicy.com/jobs/304-marketing-intern', jobTitle: 'Marketing Intern', companyName: 'Daily Bugle', jobIndustry: ['Marketing'], jobType: ['Internship'], jobGeo: 'USA', jobLevel: 'Any', jobDescription: 'US students only', pubDate: '2026-09-14T08:00:00+00:00' },
+    { id: 301, url: 'https://jobicy.com/jobs/301-data-analyst-intern', jobTitle: 'Data Analyst Intern', companyName: 'Stark', jobIndustry: ['Data Science'], jobType: ['Internship'], jobGeo: 'APAC', jobLevel: 'Any', jobDescription: 'duplicate of the APAC feed entry', pubDate: '2026-09-20T08:00:00+00:00' }
+  ]
+};
 const adzunaFeed = {
   count: 2,
   results: [
@@ -35,6 +50,12 @@ function routeFetch({ fail = [] } = {}) {
     if (fail.includes(host)) return jsonResponse({ error: 'boom' }, 500);
     if (host === 'remoteok.com') return jsonResponse(remoteOkFeed);
     if (host === 'remotive.com') return jsonResponse(remotiveFeed);
+    if (host === 'jobicy.com') {
+      if (url.includes('geo=apac')) return jsonResponse(jobicyApac);
+      if (url.includes('geo=anywhere')) return jsonResponse(jobicyAnywhere);
+      if (url.includes('tag=internship')) return jsonResponse(jobicyIntern);
+      throw new Error(`unexpected Jobicy query ${url}`);
+    }
     if (host === 'api.adzuna.com') return jsonResponse(adzunaFeed);
     throw new Error(`unexpected fetch to ${url}`);
   });
@@ -90,13 +111,13 @@ test('jobs: GET only and same-origin only', async () => {
 });
 
 /* -------------------------------------------------------------- remote source */
-test('remote: merges both feeds, drops duplicates, newest first, strips HTML, blocks unsafe links', async () => {
+test('remote: merges all feeds, drops duplicates, newest first, strips HTML, blocks unsafe links', async () => {
   net = routeFetch();
   const res = await get({ source: 'remote' });
   assert.equal(res.statusCode, 200);
   const body = res.json();
   assert.equal(body.mode, 'remote');
-  assert.deepEqual(body.jobs.map((j) => j.title), ['Software Engineering Intern', 'Backend Developer', 'Python Developer', 'Frontend Developer', 'Data Analyst']);
+  assert.deepEqual(body.jobs.map((j) => j.title), ['Data Analyst Intern', 'Software Engineering Intern', 'Backend Developer', 'Python Developer', 'Support Engineer', 'Marketing Intern', 'Product Designer', 'Frontend Developer', 'Data Analyst']);
   assert.equal(body.jobs.find((j) => j.company === 'Acme').sourceLabel, 'Remote OK', 'first feed wins the duplicate');
   assert.equal(body.jobs.find((j) => j.id === 'remote_101').description, 'Build APIs & services');
   assert.equal(body.jobs.find((j) => j.id === 'remote_101').applyUrl, 'https://remoteok.com/remote-jobs/101', 'javascript: apply_url replaced by the listing URL');
@@ -109,8 +130,8 @@ test('remote: keyword and internship filters', async () => {
   let body = (await get({ source: 'remote', q: 'python' })).json();
   assert.deepEqual(body.jobs.map((j) => j.title), ['Software Engineering Intern', 'Python Developer']);
   body = (await get({ source: 'remote', internship: '1' })).json();
-  assert.deepEqual(body.jobs.map((j) => j.title), ['Software Engineering Intern']);
-  assert.equal(body.jobs[0].isInternship, true);
+  assert.deepEqual(body.jobs.map((j) => j.title), ['Data Analyst Intern', 'Software Engineering Intern', 'Marketing Intern']);
+  assert.ok(body.jobs.every((j) => j.isInternship));
 });
 
 /* --------------------------------------------------- india without Adzuna keys */
@@ -124,9 +145,12 @@ test('india without keys: never empty — falls back to remote roles open to Ind
   assert.equal(body.needsSetup, true);
   assert.match(body.notice, /not connected/);
   const titles = body.jobs.map((j) => j.title);
-  assert.ok(titles.includes('Python Developer') && titles.includes('Backend Developer'));
-  assert.ok(!titles.includes('Frontend Developer'), 'US-only roles are excluded');
-  assert.ok(!titles.includes('Data Analyst'), 'USA-only roles are excluded');
+  for (const wanted of ['Python Developer', 'Backend Developer', 'Data Analyst Intern', 'Support Engineer', 'Product Designer']) {
+    assert.ok(titles.includes(wanted), `${wanted} is open to India`);
+  }
+  for (const excluded of ['Frontend Developer', 'Data Analyst', 'Marketing Intern']) {
+    assert.ok(!titles.includes(excluded), `${excluded} is US-only and must be excluded`);
+  }
   assert.ok(!net.calls.some((c) => c.url.includes('adzuna')), 'no Adzuna call without keys');
   assert.match(res.headers['Cache-Control'], /s-maxage=60/, 'fallback answers are cached only briefly');
 });
@@ -134,7 +158,7 @@ test('india without keys: never empty — falls back to remote roles open to Ind
 test('india without keys: internships-only narrows the fallback list', async () => {
   net = routeFetch();
   const body = (await get({ internship: '1' })).json();
-  assert.deepEqual(body.jobs.map((j) => j.title), ['Software Engineering Intern']);
+  assert.deepEqual(body.jobs.map((j) => j.title), ['Data Analyst Intern', 'Software Engineering Intern']);
 });
 
 /* ---------------------------------------------------------- india with Adzuna */
@@ -180,15 +204,15 @@ test('india with keys: Adzuna outage falls back to remote roles with an explanat
 });
 
 /* ---------------------------------------------------------------- resilience */
-test('one remote feed failing still returns the other feed', async () => {
-  net = routeFetch({ fail: ['remotive.com'] });
+test('some feeds failing still returns the others', async () => {
+  net = routeFetch({ fail: ['remotive.com', 'jobicy.com'] });
   const body = (await get({ source: 'remote' })).json();
   assert.ok(body.jobs.length > 0);
   assert.ok(body.jobs.every((j) => j.sourceLabel === 'Remote OK'));
 });
 
 test('both feeds failing with nothing cached gives a generic 502', async () => {
-  net = routeFetch({ fail: ['remoteok.com', 'remotive.com'] });
+  net = routeFetch({ fail: ['remoteok.com', 'remotive.com', 'jobicy.com'] });
   const res = await get({ source: 'remote' });
   assert.equal(res.statusCode, 502);
   assert.ok(!res.body.includes('boom'));
@@ -199,13 +223,43 @@ test('feeds are cached, and stale copies are served if a refresh fails', async (
   net = routeFetch();
   await get({ source: 'remote' });
   await get({ source: 'remote', q: 'python' });
-  assert.equal(net.calls.length, 2, 'two feeds fetched once, then reused');
+  assert.equal(net.calls.length, 5, 'each of the five feeds is fetched once, then reused');
   net.restore();
 
-  mock.timers.tick(11 * 60 * 1000); // RemoteOK's 10-minute TTL has passed, Remotive's 6 hours have not
+  mock.timers.tick(11 * 60 * 1000); // RemoteOK's 10-minute TTL has passed; Remotive's 6 hours and Jobicy's 3 hours have not
   net = routeFetch({ fail: ['remoteok.com'] });
   const res = await get({ source: 'remote' });
   assert.equal(res.statusCode, 200);
   assert.ok(res.json().jobs.some((j) => j.sourceLabel === 'Remote OK'), 'stale RemoteOK copy still served');
-  assert.equal(net.calls.length, 1, 'Remotive was not refetched inside its 6-hour TTL');
+  assert.equal(net.calls.length, 1, 'Remotive and Jobicy were not refetched inside their TTLs');
+});
+
+/* -------------------------------------------------------------------- Jobicy */
+test('jobicy: uses the documented key-free filters, credits Jobicy and keeps its canonical URL', async () => {
+  net = routeFetch();
+  const body = (await get({ source: 'remote' })).json();
+
+  const jobicyCalls = net.calls.map((c) => new URL(c.url)).filter((u) => u.host === 'jobicy.com');
+  assert.deepEqual(jobicyCalls.map((u) => u.search).sort(), ['?count=200&geo=anywhere', '?count=200&geo=apac', '?count=200&tag=internship']);
+  assert.ok(jobicyCalls.every((u) => u.pathname === '/api/v2/remote-jobs'));
+  assert.ok(net.calls.every((c) => !/key|token|auth/i.test(c.url)), 'no credentials are sent to any feed');
+
+  const intern = body.jobs.find((j) => j.id === 'jobicy_301');
+  assert.equal(intern.sourceLabel, 'Jobicy');
+  assert.equal(intern.applyUrl, 'https://jobicy.com/jobs/301-data-analyst-intern');
+  assert.equal(intern.isInternship, true, 'jobType "Internship" marks a role as an internship');
+  assert.equal(intern.description, 'Analyse data');
+  assert.ok(intern.tags.includes('internship'));
+  assert.equal(body.jobs.filter((j) => j.company === 'Stark').length, 1, 'duplicate across Jobicy feeds is removed');
+});
+
+test('jobicy: hourly pay is shown as text, yearly pay keeps its own currency', async () => {
+  net = routeFetch();
+  const body = (await get({ source: 'remote' })).json();
+  const hourly = body.jobs.find((j) => j.id === 'jobicy_302');
+  assert.equal(hourly.salaryMin, null, 'hourly rates must never be labelled "per year"');
+  assert.equal(hourly.salaryText, 'USD 30 – 40 hourly');
+  const yearly = body.jobs.find((j) => j.id === 'jobicy_303');
+  assert.equal(yearly.currency, 'EUR');
+  assert.equal(yearly.salaryMin, 70000);
 });
