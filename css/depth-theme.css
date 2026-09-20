@@ -211,6 +211,37 @@ body {
   color: var(--accent-hover);
 }
 
+/* ---------- Company avatar badges (Hiring Hub cards) ---------- */
+.job-avatar {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 17px;
+  box-shadow: 0 4px 10px rgba(38, 30, 90, 0.18);
+}
+
+/* ---------- Skeleton loading shimmer (replaces plain "Loading..." text) ---------- */
+.skeleton-block {
+  background: linear-gradient(90deg, rgba(109,94,247,0.08) 25%, rgba(109,94,247,0.18) 37%, rgba(109,94,247,0.08) 63%);
+  background-size: 400% 100%;
+  border-radius: 6px;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+}
+.skeleton-card { pointer-events: none; }
+@keyframes skeletonShimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block { animation: none; }
+}
+
 /* ---------- Eliminate remaining hardcoded green ----------
    fibery-theme.css hardcodes the old emerald (#0d9e6c) and its gradient
    partner directly into these specific rules, as literal hex values —

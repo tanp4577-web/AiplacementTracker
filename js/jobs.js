@@ -35,6 +35,8 @@ const Jobs = {
     source: 'india', // 'india' | 'remote'
     keyword: 'developer',
     internshipOnly: false,
+    showSavedOnly: false,
+    sortBy: 'newest', // 'newest' | 'relevance'
     city: '',
     jobs: [],
     loading: false,
@@ -113,8 +115,14 @@ const Jobs = {
   },
 
   _renderHub() {
-    const { jobs, loading, error, count, source, mode, notice } = this.state;
+    const { loading, error, source, mode, notice } = this.state;
     const esc = (v) => this._escape(v);
+    const savedJobs = Object.values(DB.getGlobal('saved_jobs') || {});
+    const jobs = this.state.showSavedOnly ? savedJobs : this.state.jobs;
+    const count = this.state.showSavedOnly ? savedJobs.length : this.state.count;
+    const sortedJobs = this.state.sortBy === 'newest'
+      ? [...jobs].sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0))
+      : jobs;
     const roleLabel = this.state.internshipOnly ? 'internship' : 'role';
     const fallback = source === 'india' && mode === 'remote-fallback';
     const sourceNote = source === 'india' && mode === 'adzuna'
@@ -127,14 +135,16 @@ const Jobs = {
         <div class="flex-between" style="gap:16px;flex-wrap:wrap">
           <div>
             <div class="card-title"><i class="bi bi-briefcase text-accent" style="margin-right:4px"></i>Hiring Hub</div>
-            <div class="card-sub">${loading ? 'Loading live listings…' : `${count} real, currently-open ${roleLabel}${count === 1 ? '' : 's'}${fallback ? ' (remote, open to candidates in India)' : ''} — live from the job market.`}</div>
+            <div class="card-sub">${this.state.showSavedOnly ? `${count} job${count === 1 ? '' : 's'} you've saved` : (loading ? 'Loading live listings…' : `${count} real, currently-open ${roleLabel}${count === 1 ? '' : 's'}${fallback ? ' (remote, open to candidates in India)' : ''} — live from the job market.`)}</div>
           </div>
           <div class="flex gap-1" role="group" aria-label="Job source">
-            <button class="btn ${source === 'india' ? 'btn-primary' : 'btn-ghost'}" id="indiaSourceBtn">India (Local)</button>
-            <button class="btn ${source === 'remote' ? 'btn-primary' : 'btn-ghost'}" id="remoteSourceBtn">Remote (Global)</button>
+            <button class="btn ${source === 'india' && !this.state.showSavedOnly ? 'btn-primary' : 'btn-ghost'}" id="indiaSourceBtn">India (Local)</button>
+            <button class="btn ${source === 'remote' && !this.state.showSavedOnly ? 'btn-primary' : 'btn-ghost'}" id="remoteSourceBtn">Remote (Global)</button>
+            <button class="btn ${this.state.showSavedOnly ? 'btn-primary' : 'btn-ghost'}" id="savedJobsBtn"><i class="bi bi-bookmark-fill" style="margin-right:4px"></i>Saved${savedJobs.length ? ` (${savedJobs.length})` : ''}</button>
           </div>
         </div>
 
+        ${!this.state.showSavedOnly ? `
         <div class="flex gap-1 mt-2" style="flex-wrap:wrap;position:relative">
           <div style="flex:1;min-width:220px;position:relative">
             <input type="search" id="jobKeywordInput" placeholder="Job title or skill (e.g. frontend developer, python)" value="${esc(this.state.keyword)}" style="width:100%" autocomplete="off" />
@@ -144,10 +154,19 @@ const Jobs = {
         </div>
 
         <div class="flex-between mt-2" style="gap:12px;flex-wrap:wrap">
-          <label class="flex gap-1 items-center" style="font-size:13px;cursor:pointer">
-            <input type="checkbox" id="internshipToggle" ${this.state.internshipOnly ? 'checked' : ''} />
-            Internships only
-          </label>
+          <div class="flex gap-2" style="flex-wrap:wrap;align-items:center">
+            <label class="flex gap-1 items-center" style="font-size:13px;cursor:pointer">
+              <input type="checkbox" id="internshipToggle" ${this.state.internshipOnly ? 'checked' : ''} />
+              Internships only
+            </label>
+            <label class="flex gap-1 items-center" style="font-size:13px">
+              Sort:
+              <select id="jobSortSelect" style="font-size:13px;padding:4px 8px">
+                <option value="relevance" ${this.state.sortBy === 'relevance' ? 'selected' : ''}>Best match</option>
+                <option value="newest" ${this.state.sortBy === 'newest' ? 'selected' : ''}>Newest first</option>
+              </select>
+            </label>
+          </div>
           ${source === 'india' ? `
             <div class="flex gap-1 items-center" style="flex-wrap:wrap">
               <input type="text" id="jobCityInput" list="indiaCityList" placeholder="City (blank = all India)" value="${esc(this.state.city)}" autocomplete="off" aria-label="City" style="min-width:190px" />
@@ -178,26 +197,42 @@ const Jobs = {
         ` : `<div class="text-dim mt-2" style="font-size:11px">Tip: analyze your resume in <a href="#resume">Resume Analyzer</a> first to get job suggestions matched to your skills.</div>`}
 
         <div class="text-dim mt-2" style="font-size:11px">${sourceNote}</div>
+        ` : `<div class="text-dim mt-2" style="font-size:12px">Jobs you save stay here even after you close the tab — stored privately in your browser.</div>`}
       </div>
 
-      ${notice ? `<div class="card mb-2" role="status" id="jobsNotice" style="border-left:3px solid var(--warning, #e6a23c)"><div style="font-size:13px;line-height:1.5">${esc(notice)}</div></div>` : ''}
+      ${notice && !this.state.showSavedOnly ? `<div class="card mb-2" role="status" id="jobsNotice" style="border-left:3px solid var(--warning, #e6a23c)"><div style="font-size:13px;line-height:1.5">${esc(notice)}</div></div>` : ''}
 
-      ${error ? `
+      ${error && !this.state.showSavedOnly ? `
         <div class="empty-state">
           <h3>Couldn't load listings</h3>
           <p>${esc(error)}</p>
           <button class="btn btn-ghost btn-sm" id="retryJobsBtn">Try again</button>
         </div>
       ` : ''}
-      ${!error && loading && jobs.length === 0 ? `<div class="empty-state"><h3>Loading live listings…</h3><p>Fetching real, currently-open roles.</p></div>` : ''}
-      ${!error && !loading && jobs.length === 0 ? `<div class="empty-state"><h3>No roles found</h3><p>Try a broader keyword${this.state.internshipOnly ? ', turn off "Internships only"' : ''}${this.state.city ? ', or clear the city' : ''} — or use the search links above.</p></div>` : ''}
+      ${!error && loading && jobs.length === 0 && !this.state.showSavedOnly ? `
+        <div class="grid grid-2" aria-hidden="true">
+          ${Array(4).fill(0).map(() => this._skeletonCard()).join('')}
+        </div>
+      ` : ''}
+      ${!error && !loading && sortedJobs.length === 0 ? `<div class="empty-state"><h3>${this.state.showSavedOnly ? 'No saved jobs yet' : 'No roles found'}</h3><p>${this.state.showSavedOnly ? 'Tap "Save" on any job to keep it here for later.' : `Try a broader keyword${this.state.internshipOnly ? ', turn off "Internships only"' : ''}${this.state.city ? ', or clear the city' : ''} — or use the search links above.`}</p></div>` : ''}
 
+      ${!loading || jobs.length > 0 || this.state.showSavedOnly ? `
       <div class="grid grid-2" id="jobsGrid">
-        ${jobs.map(job => this._jobCard(job)).join('')}
+        ${sortedJobs.map(job => this._jobCard(job)).join('')}
       </div>
-      ${!error && jobs.length > 0 && jobs.length < count ? `<div class="flex-between mt-2"><button class="btn btn-ghost" id="loadMoreJobsBtn" ${loading ? 'disabled' : ''}>${loading ? 'Loading…' : 'Load more'}</button></div>` : ''}
-      <div class="text-dim mt-2" style="font-size:12px">These are real positions sourced live from the job market. Salary figures, when shown, are as published by the employer (or a clearly marked estimate). Listings are credited to and link back to their original source.</div>
+      ` : ''}
+      ${!this.state.showSavedOnly && !error && jobs.length > 0 && jobs.length < count ? `<div class="flex-between mt-2"><button class="btn btn-ghost" id="loadMoreJobsBtn" ${loading ? 'disabled' : ''}>${loading ? 'Loading…' : 'Load more'}</button></div>` : ''}
+      ${!this.state.showSavedOnly ? `<div class="text-dim mt-2" style="font-size:12px">These are real positions sourced live from the job market. Salary figures, when shown, are as published by the employer (or a clearly marked estimate). Listings are credited to and link back to their original source.</div>` : ''}
     `;
+
+    document.getElementById('savedJobsBtn').addEventListener('click', () => {
+      this.state.showSavedOnly = !this.state.showSavedOnly;
+      this._renderHub();
+    });
+    if (this.state.showSavedOnly) {
+      this.container.querySelectorAll('[data-job-id]').forEach(card => this._bindCardEvents(card));
+      return; // saved-only view has no search controls to wire
+    }
 
     document.getElementById('remoteSourceBtn').addEventListener('click', () => {
       if (this.state.source === 'remote') return;
@@ -212,6 +247,10 @@ const Jobs = {
     document.getElementById('internshipToggle').addEventListener('change', (e) => {
       this.state.internshipOnly = e.target.checked;
       this._search();
+    });
+    document.getElementById('jobSortSelect').addEventListener('change', (e) => {
+      this.state.sortBy = e.target.value;
+      this._renderHub();
     });
     document.getElementById('locateJobsBtn')?.addEventListener('click', () => this._locate());
     document.getElementById('retryJobsBtn')?.addEventListener('click', () => this._search());
@@ -252,15 +291,44 @@ const Jobs = {
       this.state.page += 1;
       this._search(true);
     });
-    this.container.querySelectorAll('[data-job-id]').forEach(card => {
-      card.querySelector('[data-apply]')?.addEventListener('click', () => this._openApplication(card.dataset.jobId));
-      card.querySelector('[data-details]')?.addEventListener('click', () => this._openDetails(card.dataset.jobId));
-      card.querySelector('[data-view-original]')?.addEventListener('click', () => {
-        const job = this.state.jobs.find(j => j.id === card.dataset.jobId);
-        const url = job ? this._safeUrl(job.applyUrl) : '';
-        if (url) window.open(url, '_blank', 'noopener');
-      });
+    this.container.querySelectorAll('[data-job-id]').forEach(card => this._bindCardEvents(card));
+  },
+
+  _bindCardEvents(card) {
+    const jobId = card.dataset.jobId;
+    const findJob = () => this.state.jobs.find(j => j.id === jobId) || (DB.getGlobal('saved_jobs') || {})[jobId];
+    card.querySelector('[data-apply]')?.addEventListener('click', () => this._openApplication(jobId));
+    card.querySelector('[data-details]')?.addEventListener('click', () => this._openDetails(jobId));
+    card.querySelector('[data-save]')?.addEventListener('click', () => {
+      const job = findJob();
+      if (job) this._toggleSave(job);
     });
+    card.querySelector('[data-view-original]')?.addEventListener('click', () => {
+      const job = findJob();
+      const url = job ? this._safeUrl(job.applyUrl) : '';
+      if (url) window.open(url, '_blank', 'noopener');
+    });
+  },
+
+  /** A shimmering placeholder card shown while the first page of results
+   *  loads, instead of a blank "Loading..." message — no real data is
+   *  invented, it's purely a visual placeholder shape. */
+  _skeletonCard() {
+    return `
+      <div class="card skeleton-card">
+        <div class="flex gap-2">
+          <div class="skeleton-block" style="width:44px;height:44px;border-radius:50%"></div>
+          <div style="flex:1">
+            <div class="skeleton-block" style="width:70%;height:16px;margin-bottom:8px"></div>
+            <div class="skeleton-block" style="width:45%;height:12px"></div>
+          </div>
+        </div>
+        <div class="skeleton-block" style="width:30%;height:22px;border-radius:999px;margin-top:12px"></div>
+        <div class="skeleton-block" style="width:100%;height:12px;margin-top:12px"></div>
+        <div class="skeleton-block" style="width:90%;height:12px;margin-top:6px"></div>
+        <div class="skeleton-block" style="width:60%;height:12px;margin-top:6px"></div>
+      </div>
+    `;
   },
 
   async _locate() {
@@ -339,6 +407,59 @@ const Jobs = {
     return String(value || '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
   },
 
+  _relativeTime(dateStr) {
+    if (!dateStr) return null;
+    const then = new Date(dateStr).getTime();
+    if (isNaN(then)) return null;
+    const diffMs = Date.now() - then;
+    const days = Math.floor(diffMs / 86400000);
+    if (days <= 0) return 'Posted today';
+    if (days === 1) return 'Posted yesterday';
+    if (days < 30) return `Posted ${days} days ago`;
+    const months = Math.floor(days / 30);
+    return `Posted ${months} month${months === 1 ? '' : 's'} ago`;
+  },
+
+  _companyAvatar(company) {
+    const name = String(company || '?').trim();
+    const initial = this._escape(name.charAt(0).toUpperCase() || '?');
+    // Deterministic color from the company name, so the same company always
+    // gets the same badge color across a session — not random per render.
+    const palette = ['#4318ff', '#7551ff', '#17c9c9', '#ff6b6b', '#f5a623', '#0ea5e9'];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+    const color = palette[hash % palette.length];
+    return `<div class="job-avatar" style="background:${color}" aria-hidden="true">${initial}</div>`;
+  },
+
+  _isSaved(jobId) {
+    const saved = DB.getGlobal('saved_jobs') || {};
+    return !!saved[jobId];
+  },
+
+  _toggleSave(job) {
+    const saved = DB.getGlobal('saved_jobs') || {};
+    if (saved[job.id]) {
+      delete saved[job.id];
+      App.showToast('Removed from saved jobs', 'info');
+    } else {
+      saved[job.id] = { ...job, savedAt: new Date().toISOString() };
+      App.showToast('Saved — find it under "Saved Jobs"', 'success');
+    }
+    DB.setGlobal('saved_jobs', saved);
+    if (this.state.showSavedOnly) this._renderHub();
+    else {
+      // just refresh this one card's bookmark icon, no need to re-render everything
+      const btn = this.container.querySelector(`[data-job-id="${CSS.escape(job.id)}"] [data-save]`);
+      if (btn) {
+        const isSaved = this._isSaved(job.id);
+        btn.innerHTML = isSaved ? '<i class="bi bi-bookmark-fill"></i> Saved' : '<i class="bi bi-bookmark"></i> Save';
+        btn.classList.toggle('btn-primary', isSaved);
+        btn.classList.toggle('btn-ghost', !isSaved);
+      }
+    }
+  },
+
   _formatSalary(job) {
     if (!job.salaryMin && !job.salaryMax) return job.salaryText ? String(job.salaryText) : null;
     const symbol = { INR: '₹', USD: '$', EUR: '€', GBP: '£' }[job.currency] || `${job.currency || ''} `;
@@ -353,12 +474,18 @@ const Jobs = {
     const salary = this._formatSalary(job);
     const description = String(job.description || '');
     const snippet = this._escape(description.slice(0, 220));
+    const posted = this._relativeTime(job.created);
+    const saved = this._isSaved(job.id);
     return `
       <article class="card hoverable" data-job-id="${this._escape(job.id)}">
         <div class="flex-between" style="gap:10px">
-          <div>
-            <div class="card-title" style="font-size:19px">${this._escape(job.title)}</div>
-            <div class="card-sub">${this._escape(job.company)} · ${this._escape(job.location)}</div>
+          <div class="flex gap-2" style="align-items:flex-start">
+            ${this._companyAvatar(job.company)}
+            <div>
+              <div class="card-title" style="font-size:19px">${this._escape(job.title)}</div>
+              <div class="card-sub">${this._escape(job.company)} · ${this._escape(job.location)}</div>
+              ${posted ? `<div class="text-dim" style="font-size:11.5px;margin-top:2px"><i class="bi bi-clock-history"></i> ${posted}</div>` : ''}
+            </div>
           </div>
           <span class="flex gap-1">${job.isInternship ? '<span class="chip orange">Internship</span>' : ''}<span class="chip gray" title="Data source">${this._escape(job.sourceLabel)}</span></span>
         </div>
@@ -366,6 +493,7 @@ const Jobs = {
         <div class="flex gap-1 mt-1" style="flex-wrap:wrap">${(job.tags || []).slice(0, 5).map(t => `<span class="chip blue">${this._escape(t)}</span>`).join('')}</div>
         <p class="text-dim mt-1" style="font-size:13px;line-height:1.55">${snippet}${description.length > 220 ? '…' : ''}</p>
         <div class="flex gap-1 mt-2" style="flex-wrap:wrap">
+          <button class="btn ${saved ? 'btn-primary' : 'btn-ghost'} btn-sm" data-save>${saved ? '<i class="bi bi-bookmark-fill"></i> Saved' : '<i class="bi bi-bookmark"></i> Save'}</button>
           <button class="btn btn-ghost btn-sm" data-details><i class="bi bi-building"></i> Details</button>
           ${job.applyUrl ? `<button class="btn btn-ghost btn-sm" data-view-original><i class="bi bi-box-arrow-up-right"></i> View original posting</button>` : ''}
           <button class="btn btn-primary btn-sm" data-apply><i class="bi bi-file-earmark-person"></i> Analyze resume fit</button>
@@ -375,7 +503,7 @@ const Jobs = {
   },
 
   _openDetails(id) {
-    const job = this.state.jobs.find(item => item.id === id);
+    const job = this.state.jobs.find(item => item.id === id) || (DB.getGlobal('saved_jobs') || {})[id];
     if (!job) return;
     const existing = document.getElementById('jobDetailsModal');
     if (existing) existing.remove();
@@ -427,7 +555,7 @@ const Jobs = {
   },
 
   _openApplication(id) {
-    const job = this.state.jobs.find(item => item.id === id);
+    const job = this.state.jobs.find(item => item.id === id) || (DB.getGlobal('saved_jobs') || {})[id];
     if (!job) return;
     const existing = document.getElementById('jobApplyModal');
     if (existing) existing.remove();
