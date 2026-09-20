@@ -109,6 +109,18 @@ body {
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s ease;
 }
 
+/* Repeated list-item cards (job listings, quiz questions, lecture cards —
+   anything inside a .grid) skip the per-element blur. Blurring 15-20 cards
+   at once is genuinely expensive on weaker devices/phones; a plain
+   semi-opaque surface with the same border/shadow looks nearly identical
+   without the GPU cost, since only a handful of these are usually
+   visible on screen at a time anyway. */
+.grid > .card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(255, 255, 255, 0.88);
+}
+
 .card.hoverable:hover,
 .grid > .card:hover {
   border-color: var(--border-strong);
@@ -130,6 +142,7 @@ body {
 }
 
 .card-title, .page-title, h1, h2 {
+  color: var(--accent); /* fallback for forced-colors/high-contrast mode, and any browser without background-clip:text support */
   background: var(--gradient-brand);
   -webkit-background-clip: text;
   background-clip: text;

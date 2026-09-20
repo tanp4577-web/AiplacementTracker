@@ -5,7 +5,6 @@ const App = {
   _routeTimer: null,
 
   init() {
-    console.log('App.init() called');
     // Register views
     this.views = {
       dashboard: { render: (c) => Dashboard.render(c), title: 'Dashboard', subtitle: 'Your placement readiness overview' },
@@ -53,8 +52,8 @@ const App = {
     });
 
     // Reset button
-    document.getElementById('resetDataBtn').addEventListener('click', () => {
-      if (confirm('Reset all progress? This cannot be undone.')) {
+    document.getElementById('resetDataBtn').addEventListener('click', async () => {
+      if (await this.confirm('Reset all progress? This cannot be undone.', { title: 'Reset progress', confirmLabel: 'Reset' })) {
         DB.resetAll();
         this.showToast('Progress reset', 'info');
         this.refreshAll();
@@ -146,6 +145,41 @@ const App = {
       toast.style.opacity = '0';
       setTimeout(() => toast.remove(), 300);
     }, 3000);
+  },
+
+  /** Styled replacement for the native confirm() dialog, matching the
+   *  app's own modal look instead of a jarring browser popup. Returns a
+   *  Promise<boolean> — use with `await`. */
+  confirm(message, { title = 'Please confirm', confirmLabel = 'Confirm', cancelLabel = 'Cancel' } = {}) {
+    return new Promise((resolve) => {
+      const existing = document.getElementById('appConfirmModal');
+      if (existing) existing.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'appConfirmModal';
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="modal" style="max-width:420px" role="alertdialog" aria-modal="true">
+          <div class="modal-head">
+            <h2>${title}</h2>
+          </div>
+          <div class="modal-body">
+            <p>${message}</p>
+          </div>
+          <div class="modal-foot flex-between">
+            <button class="btn btn-ghost" id="appConfirmCancel">${cancelLabel}</button>
+            <button class="btn btn-primary" id="appConfirmOk">${confirmLabel}</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      requestAnimationFrame(() => modal.classList.add('show'));
+
+      const finish = (result) => { modal.remove(); resolve(result); };
+      modal.querySelector('#appConfirmOk').addEventListener('click', () => finish(true));
+      modal.querySelector('#appConfirmCancel').addEventListener('click', () => finish(false));
+      modal.addEventListener('click', (e) => { if (e.target === modal) finish(false); });
+    });
   }
 };
 
