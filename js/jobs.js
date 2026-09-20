@@ -119,7 +119,7 @@ const Jobs = {
     const fallback = source === 'india' && mode === 'remote-fallback';
     const sourceNote = source === 'india' && mode === 'adzuna'
       ? 'Live India job &amp; internship data via <a href="https://www.adzuna.in" target="_blank" rel="noopener">Adzuna</a> — real listings, real companies, real apply links.'
-      : 'Live remote roles via <a href="https://remoteok.com" target="_blank" rel="noopener">Remote OK</a> and <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a> — real listings, real companies, real apply links.';
+      : 'Live remote roles via <a href="https://remoteok.com" target="_blank" rel="noopener">Remote OK</a>, <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a> and <a href="https://jobicy.com" target="_blank" rel="noopener">Jobicy</a> — real listings, real companies, real apply links.';
     const links = source === 'india' ? this._externalSearchLinks() : [];
 
     this.container.innerHTML = `
@@ -341,7 +341,7 @@ const Jobs = {
 
   _formatSalary(job) {
     if (!job.salaryMin && !job.salaryMax) return job.salaryText ? String(job.salaryText) : null;
-    const symbol = job.currency === 'INR' ? '₹' : '$';
+    const symbol = { INR: '₹', USD: '$', EUR: '€', GBP: '£' }[job.currency] || `${job.currency || ''} `;
     const fmt = (n) => symbol + Math.round(n).toLocaleString(job.currency === 'INR' ? 'en-IN' : 'en-US');
     const range = job.salaryMin && job.salaryMax && job.salaryMin !== job.salaryMax
       ? `${fmt(job.salaryMin)} – ${fmt(job.salaryMax)}`
