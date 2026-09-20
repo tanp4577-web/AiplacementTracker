@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://aiplacement-tracker.vercel.app/sitemap.xml

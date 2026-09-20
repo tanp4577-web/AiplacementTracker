@@ -88,6 +88,7 @@ const App = {
 
     // Update page title
     document.getElementById('pageTitle').textContent = view.title;
+    document.title = `${view.title} · PlacementPrep`;
     document.getElementById('pageSubtitle').textContent = view.subtitle;
 
     // Update active nav

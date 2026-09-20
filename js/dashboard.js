@@ -11,9 +11,15 @@ const Dashboard = {
             <i class="bi bi-person-lock" style="font-size:48px"></i>
           </div>
           <h3 style="font-size:20px;margin-bottom:8px">Sign in to view your dashboard</h3>
-          <p class="text-dim" style="max-width:440px;margin:0 auto">Create an account or sign in to track your placement readiness, analyze skill gaps, and view study streaks.</p>
+          <p class="text-dim" style="max-width:440px;margin:0 auto">Create an account or sign in to track your placement readiness, analyze skill gaps, and view study streaks. Or try everything as a guest.</p>
+          <div class="flex gap-2 flex-wrap" style="justify-content:center;margin-top:18px">
+            <button type="button" class="btn btn-primary" id="dashSignInBtn">Sign in</button>
+            <button type="button" class="btn btn-ghost" id="dashGuestBtn">Continue as guest</button>
+          </div>
         </div>
       `;
+      document.getElementById('dashSignInBtn').addEventListener('click', () => Auth._showModal());
+      document.getElementById('dashGuestBtn').addEventListener('click', () => Auth._loginAsGuest());
       return;
     }
 
@@ -47,7 +53,7 @@ const Dashboard = {
           </div>
           <div class="hero-msg">
             <h3 id="readinessMessage">${this._readinessMessage(readiness)}</h3>
-            <p>Your overall placement readiness is calculated from resume quality, aptitude accuracy, coding progress, shared interview experiences, and skill gap coverage.</p>
+            <p>Readiness = resume score &times; 25% + aptitude accuracy &times; 25% + coding (3 problems solved = 100%) &times; 30% + interview experiences shared (3 = 100%) &times; 20%.</p>
             <div class="flex gap-2 mt-3 flex-wrap items-center">
               <span class="chip blue"><i class="bi bi-fire"></i> ${this._daysActive(prog)} day streak</span>
               <span class="chip green"><i class="bi bi-patch-check"></i> ${prog.aptitude.completed || 0} quizzes taken</span>
@@ -61,6 +67,19 @@ const Dashboard = {
           </div>
         </div>
       </div>
+
+      ${readiness === 0 ? `
+        <div class="card mb-3" id="startHereCard">
+          <div class="card-title"><i class="bi bi-rocket-takeoff text-accent" style="margin-right:4px"></i>Start here</div>
+          <div class="card-sub">Three quick steps to get your readiness score moving</div>
+          <div class="flex gap-2 mt-2 flex-wrap">
+            <a href="#resume" class="btn btn-primary btn-sm">1 · Analyze your resume</a>
+            <a href="#aptitude" class="btn btn-outline btn-sm">2 · Take an aptitude quiz</a>
+            <a href="#coding" class="btn btn-outline btn-sm">3 · Solve a coding problem</a>
+            <a href="#jobs" class="btn btn-ghost btn-sm">Browse jobs &amp; internships</a>
+          </div>
+        </div>
+      ` : ''}
 
       <div class="grid grid-4 mb-3">
         <div class="card text-center">
@@ -106,7 +125,25 @@ const Dashboard = {
           <div id="recentExperiencesCard">${this._renderTopics([])}</div>
         </div>
       </div>
+
+      <div class="card mt-3" id="dataBackupCard">
+        <div class="card-title"><i class="bi bi-hdd text-accent" style="margin-right:4px"></i>Your data</div>
+        <div class="card-sub">Progress is saved only in this browser${Auth.getCurrentUser() && Auth.getCurrentUser().guest ? ' (guest profile)' : ''}. Download a backup to keep it safe or move it to another device.</div>
+        <div class="flex gap-2 mt-2 flex-wrap">
+          <button type="button" class="btn btn-outline btn-sm" id="exportDataBtn"><i class="bi bi-download" style="margin-right:4px"></i>Export backup</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="importDataBtn"><i class="bi bi-upload" style="margin-right:4px"></i>Import backup</button>
+          <input type="file" id="importDataInput" accept="application/json,.json" hidden />
+        </div>
+      </div>
     `;
+
+    document.getElementById('exportDataBtn').addEventListener('click', () => this._exportData(email));
+    const importInput = document.getElementById('importDataInput');
+    document.getElementById('importDataBtn').addEventListener('click', () => importInput.click());
+    importInput.addEventListener('change', () => {
+      if (importInput.files && importInput.files[0]) this._importData(email, importInput.files[0]);
+      importInput.value = '';
+    });
 
     const renderCharts = () => {
       const barEl = document.getElementById('aptBarCanvas');
@@ -121,6 +158,41 @@ const Dashboard = {
     this._resizeHandler = () => renderCharts();
     window.addEventListener('resize', this._resizeHandler);
     this._loadInterviewExperiences(email, prog);
+  },
+
+  _exportData(email) {
+    const backup = DB.exportBackup(email);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `placementprep-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    App.showToast('Backup downloaded', 'success');
+  },
+
+  async _importData(email, file) {
+    if (file.size > 2 * 1024 * 1024) {
+      App.showToast('That file is too large to be a PlacementPrep backup.', 'error');
+      return;
+    }
+    let backup;
+    try {
+      backup = JSON.parse(await file.text());
+    } catch {
+      App.showToast('That file is not valid JSON.', 'error');
+      return;
+    }
+    const result = DB.importBackup(email, backup);
+    if (!result.ok) {
+      App.showToast(result.error, 'error');
+      return;
+    }
+    App.showToast('Backup restored', 'success');
+    App.refreshAll();
   },
 
   async _loadInterviewExperiences(email, prog) {
