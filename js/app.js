@@ -139,7 +139,11 @@ const App = {
       error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
       info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
     };
-    toast.innerHTML = `<span>${icons[type] || icons.info}</span> ${msg}`;
+    // Icon is trusted static SVG; the message may contain third-party text
+    // (e.g. a geocoded city name), so it is inserted as plain text.
+    const iconEl = document.createElement('span');
+    iconEl.innerHTML = icons[type] || icons.info;
+    toast.append(iconEl, document.createTextNode(' ' + msg));
     container.appendChild(toast);
     setTimeout(() => {
       toast.style.opacity = '0';
@@ -161,14 +165,14 @@ const App = {
       modal.innerHTML = `
         <div class="modal" style="max-width:420px" role="alertdialog" aria-modal="true">
           <div class="modal-head">
-            <h2>${title}</h2>
+            <h2>${Sanitize.html(title)}</h2>
           </div>
           <div class="modal-body">
-            <p>${message}</p>
+            <p>${Sanitize.html(message)}</p>
           </div>
           <div class="modal-foot flex-between">
-            <button class="btn btn-ghost" id="appConfirmCancel">${cancelLabel}</button>
-            <button class="btn btn-primary" id="appConfirmOk">${confirmLabel}</button>
+            <button class="btn btn-ghost" id="appConfirmCancel">${Sanitize.html(cancelLabel)}</button>
+            <button class="btn btn-primary" id="appConfirmOk">${Sanitize.html(confirmLabel)}</button>
           </div>
         </div>
       `;

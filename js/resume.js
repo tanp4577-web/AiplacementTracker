@@ -23,7 +23,7 @@ const Resume = {
           <label class="field-label" for="targetRole">Target Role</label>
           <select id="targetRole">
             <option value="">-- General Software Engineering --</option>
-            ${typeof ROLE_NAMES !== 'undefined' ? ROLE_NAMES.map(r => `<option value="${r}">${r}</option>`).join('') : ''}
+            ${typeof ROLE_NAMES !== 'undefined' ? ROLE_NAMES.map(r => `<option value="${Sanitize.html(r)}">${Sanitize.html(r)}</option>`).join('') : ''}
           </select>
 
           <div class="drop-zone mt-3" id="dropZone">
@@ -41,7 +41,7 @@ const Resume = {
             <label class="field-label" for="resumeText" style="margin:0">Resume Text Content</label>
             <span class="text-faint" id="resumeWordCounter" style="font-size:11.5px">0 words</span>
           </div>
-          <textarea id="resumeText" class="mt-2" placeholder="Paste your resume summary, experience bullets, or full profile text here..." style="min-height:160px">${DB.getGlobal('lastResumeText') || ''}</textarea>
+          <textarea id="resumeText" class="mt-2" placeholder="Paste your resume summary, experience bullets, or full profile text here..." style="min-height:160px">${Sanitize.html(DB.getGlobal('lastResumeText') || '')}</textarea>
 
           <div class="flex gap-2 mt-3 items-center">
             <button class="btn btn-primary" id="analyzeBtn"><i class="bi bi-lightning-charge-fill" style="margin-right:4px"></i>Analyze Resume</button>
@@ -191,7 +191,7 @@ const Resume = {
           <b style="color:var(--warning)">Quality Alert</b>
         </div>
         <ul class="text-dim mt-2" style="font-size:12px;padding-left:18px">
-          ${(result.flagReasons || []).map(r => `<li>${r}</li>`).join('')}
+          ${(result.flagReasons || []).map(r => `<li>${Sanitize.html(r)}</li>`).join('')}
         </ul>
       </div>
     ` : '';
@@ -200,7 +200,7 @@ const Resume = {
     const parts = result.parts || { content: 0, skills: 0, structure: 0, quantified: 0, grammar: 0 };
     const partDefs = [
       { key: 'content', label: 'Content Depth', hint: 'Coherence, details, no filler' },
-      { key: 'skills', label: 'Skills Coverage', hint: result.roleMatched ? `${result.roleMatched.role} (${result.roleMatched.matchPct}% match)` : 'Core technical keywords' },
+      { key: 'skills', label: 'Skills Coverage', hint: result.roleMatched ? `${Sanitize.html(result.roleMatched.role)} (${Sanitize.html(result.roleMatched.matchPct)}% match)` : 'Core technical keywords' },
       { key: 'structure', label: 'Section Structure', hint: 'Standard headings & layout completeness' },
       { key: 'quantified', label: 'Impact & Metrics', hint: 'Percentages, metrics, measurable results' },
       { key: 'grammar', label: 'Grammar & Clarity', hint: 'Spelling and syntax correctness' }
@@ -212,7 +212,7 @@ const Resume = {
       return `
         <div class="resume-part" style="background:var(--bg-2);border:1px solid var(--border);padding:10px 12px;border-radius:var(--radius-sm);margin-bottom:8px">
           <div class="flex-between" style="font-size:12.5px;margin-bottom:4px">
-            <b>${p.label}</b>
+            <b>${Sanitize.html(p.label)}</b>
             <span style="color:${col};font-weight:600;font-family:var(--font-mono)">${v}%</span>
           </div>
           <div class="progress" style="height:5px;background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden">
@@ -236,23 +236,23 @@ const Resume = {
     const sectionHTML = result.sections.map(s => `
       <div class="flex gap-2 items-center" style="font-size:12px">
         <i class="bi ${s.present ? 'bi-check-circle-fill text-success' : 'bi-dash-circle text-faint'}"></i>
-        <span style="color:${s.present ? 'var(--text)' : 'var(--text-faint)'}">${s.name}</span>
+        <span style="color:${s.present ? 'var(--text)' : 'var(--text-faint)'}">${Sanitize.html(s.name)}</span>
       </div>
     `).join('');
 
     // Skills & Action Verbs
     const skillsHTML = result.foundSkills.length > 0
-      ? result.foundSkills.slice(0, 10).map(sk => `<span class="chip blue">${sk}</span>`).join(' ')
+      ? result.foundSkills.slice(0, 10).map(sk => `<span class="chip blue">${Sanitize.html(sk)}</span>`).join(' ')
       : '<span class="text-dim" style="font-size:12px">No specific technical keywords detected.</span>';
 
     const verbsHTML = result.foundVerbs.length > 0
-      ? result.foundVerbs.slice(0, 8).map(v => `<span class="chip green">${v}</span>`).join(' ')
+      ? result.foundVerbs.slice(0, 8).map(v => `<span class="chip green">${Sanitize.html(v)}</span>`).join(' ')
       : '<span class="text-dim" style="font-size:12px">Add action verbs (e.g. Architected, Built, Optimized).</span>';
 
     const recsHTML = result.recommendations.map(r => `
       <div class="flex gap-2 items-start" style="background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:8px 10px;font-size:12px;margin-bottom:6px">
         <i class="bi bi-lightbulb-fill text-warning" style="margin-top:2px;flex-shrink:0"></i>
-        <div style="line-height:1.4">${r}</div>
+        <div style="line-height:1.4">${Sanitize.html(r)}</div>
       </div>
     `).join('');
 
