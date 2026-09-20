@@ -58,6 +58,12 @@ const Animations = {
     ScrollTrigger.getAll().forEach((t) => t.kill());
     if (this._observer) this._observer.disconnect();
 
+    // Tracks stable element ids already animated *within this view*, so a
+    // header/summary card that gets fully recreated across a view's own
+    // internal re-renders (e.g. Hiring Hub's loading -> loaded pass) only
+    // plays its entrance animation once, not once per re-render.
+    this._seenIds = new Set();
+
     this._animateNewCards(container);
 
     this._observer = new MutationObserver(() => this._animateNewCards(container));
@@ -65,9 +71,18 @@ const Animations = {
   },
 
   _animateNewCards(container) {
-    const cards = Array.from(container.querySelectorAll('.card')).filter((c) => !c.dataset.animBound);
+    const candidates = Array.from(container.querySelectorAll('.card')).filter((c) => !c.dataset.animBound);
+    if (!candidates.length) return;
+
+    const cards = candidates.filter((c) => {
+      c.dataset.animBound = '1';
+      if (c.id) {
+        if (this._seenIds.has(c.id)) return false; // same stable card as an earlier render pass — skip re-animating
+        this._seenIds.add(c.id);
+      }
+      return true;
+    });
     if (!cards.length) return;
-    cards.forEach((c) => { c.dataset.animBound = '1'; });
 
     gsap.set(cards, { opacity: 0, y: 34, scale: 0.97 });
     // ScrollTrigger.batch is safe to call repeatedly with different card

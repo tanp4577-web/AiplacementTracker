@@ -92,7 +92,7 @@ const Jobs = {
     const { jobs, loading, error, count, source } = this.state;
     const roleLabel = this.state.internshipOnly ? 'internship' : 'role';
     this.container.innerHTML = `
-      <div class="card mb-2">
+      <div class="card mb-2" id="jobsHeaderCard">
         <div class="flex-between" style="gap:16px;flex-wrap:wrap">
           <div>
             <div class="card-title"><i class="bi bi-briefcase text-accent" style="margin-right:4px"></i>Hiring Hub</div>
