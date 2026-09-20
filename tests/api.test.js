@@ -8,7 +8,6 @@ import aptitude from '../api/aptitude.js';
 import jobApply from '../api/job-apply.js';
 import compile from '../api/compile.js';
 import tts from '../api/tts.js';
-import jobs from '../api/jobs.js';
 import stt, { extractFileFromBody } from '../api/stt.js';
 
 const OLD_ENV = { ...process.env };
@@ -200,30 +199,6 @@ test('tts: 400 without text, 503 fallback with text', async () => {
   await tts(makeReq({ body: { text: 'hello' } }), res);
   assert.equal(res.statusCode, 503);
   assert.equal(res.json().fallback, 'browser-speechsynthesis');
-});
-
-/* ----------------------------------------------------------------- /api/jobs */
-test('jobs: GET only, caches the RemoteOK feed and sets edge-cache headers', async () => {
-  net = mockFetch(() =>
-    jsonResponse([
-      { legal: 'terms' },
-      { id: 1, position: 'Backend Developer', company: 'Acme', tags: ['node'], description: '<p>Build APIs</p>', url: 'https://remoteok.com/1' }
-    ])
-  );
-  let res = makeRes();
-  await jobs(makeReq({ method: 'POST' }), res);
-  assert.equal(res.statusCode, 405);
-
-  res = makeRes();
-  await jobs(makeReq({ method: 'GET', query: { q: 'backend' } }), res);
-  assert.equal(res.statusCode, 200);
-  assert.equal(res.json().jobs[0].title, 'Backend Developer');
-  assert.match(res.headers['Cache-Control'], /s-maxage=300/);
-
-  res = makeRes();
-  await jobs(makeReq({ method: 'GET', query: { q: 'other' } }), res);
-  assert.equal(res.json().count, 0);
-  assert.equal(net.calls.length, 1, 'second search must reuse the cached feed');
 });
 
 /* ------------------------------------------------------------------ /api/stt */

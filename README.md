@@ -21,7 +21,7 @@ Suggested: docs/screenshots/dashboard.png, hiring-hub.png, resume-analyzer.png
 | **Aptitude Quiz** | AI-generated questions (Gemini) with OpenTriviaDB and offline question banks as fallbacks |
 | **Coding Practice** | Practice problems, including C++ questions with test cases run through the Wandbox compiler |
 | **Interview Experiences** | Interview rounds and tips you add, filterable by company and difficulty (stored in your browser) |
-| **Hiring Hub** | Live listings from Remote OK (global remote) and Adzuna (India, incl. internships); **Analyze resume fit** returns an ATS match score, matched/missing skills, learning actions and practice interview questions |
+| **Hiring Hub** | **India (Local)** tab for city jobs and internships (Adzuna), never blank: without Adzuna keys it shows remote roles open to India plus pre-filled searches on Internshala, LinkedIn, Naukri, Indeed and Google Jobs. **Remote (Global)** tab merges Remote OK and Remotive. **Analyze resume fit** returns an ATS match score, matched/missing skills, learning actions and practice interview questions |
 | **Skill Gap** | Compares your skills to target roles |
 | **Company Patterns** | Typical hiring rounds per company |
 | **YouTube Lectures** | Curated lecture playlists with watch tracking |
@@ -74,7 +74,7 @@ Set these in **Vercel → Project → Settings → Environment Variables** (Prod
 | --- | --- | --- |
 | `GEMINI_API_KEY` (or `LLM_API_KEY`) | Yes | Chat, aptitude generator, Hiring Hub ATS |
 | `GROQ_API_KEY` | For voice input | `/api/stt` speech-to-text (Whisper) |
-| `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | For the India jobs tab | Free keys from https://developer.adzuna.com |
+| `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | For real local jobs and internships | Free keys from https://developer.adzuna.com (see [Hiring Hub setup](#hiring-hub-setup)) |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Recommended | Shared rate-limit counters across serverless instances |
 | `GEMINI_MODEL`, `GEMINI_BASE_URL` | No | Default to `gemini-3.5-flash-lite` and the public Gemini v1beta endpoint |
 | `ALLOWED_ORIGINS` | No | Extra origins allowed to call `/api` (same-origin always works) |
@@ -92,10 +92,30 @@ All routes are same-origin only, size-capped and rate-limited per client IP (def
 | `/api/job-apply` | POST | Resume-vs-job ATS analysis (resume capped at 20,000 chars) | 8 |
 | `/api/stt` | POST | Speech-to-text, audio up to 4 MB | 30 |
 | `/api/compile` | POST | C++ compile/run through Wandbox (allow-listed compilers, 30,000-char code cap) | 30 |
-| `/api/jobs` | GET | Live job listings (Remote OK / Adzuna), edge-cached for 5 minutes | 60 |
+| `/api/jobs` | GET | Live listings: `source=india` (Adzuna, or remote-for-India fallback) or `source=remote` (Remote OK + Remotive); supports `q`, `where`, `distance`, `internship=1`, `page`. Edge-cached 1–5 minutes | 60 |
 | `/api/tts` | POST | Placeholder that tells the client to use browser speech | 60 |
 
 Each AI route also has a global per-day ceiling so a misbehaving client can't run up your bill. Tune the numbers in each route's `guard()` call.
+
+## Hiring Hub setup
+
+The **India (Local)** tab is the app's main feature. It has three levels, and it never shows an empty page:
+
+| Situation | What the tab shows |
+| --- | --- |
+| Adzuna keys set and working | Real on-site jobs and internships in India, searchable by keyword and city (`mode: adzuna`) |
+| No keys, or Adzuna is down | Remote roles that accept candidates in India from Remote OK and Remotive, a notice explaining why, and pre-filled search links for Internshala, LinkedIn, Naukri, Indeed and Google Jobs (`mode: remote-fallback`) |
+| Both remote feeds down | The last good copy is served; only if none exists does the tab show an error with a **Try again** button |
+
+To get real local jobs and internships (about 5 minutes, free):
+
+1. Sign up at https://developer.adzuna.com and create an application to get an **App ID** and **App Key**.
+2. In Vercel open **Project → Settings → Environment Variables** and add `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` for Production (and Preview if you test there).
+3. Redeploy. The banner about "on-site local listings" disappears and the source note changes to "via Adzuna".
+
+Adzuna's free tier has a daily call limit, so the India route allows 300 Adzuna searches a day in total and answers repeat searches from the edge cache. Change the number in `api/jobs.js` if your plan allows more.
+
+Attribution is required: Remote OK and Remotive listings link back to the original posting and credit the source, and Remotive asks not to be polled often (its feed is cached for 6 hours). Do not remove those credits.
 
 ## Privacy and data
 
@@ -103,7 +123,7 @@ Each AI route also has a global per-day ceiling so a misbehaving client can't ru
 - Resume files are parsed in the browser. Only the extracted **text** is sent to `/api/job-apply` (Gemini); the original file is not uploaded or stored.
 - Chat messages go to `/api/chat` (Gemini). If that fails, the client may fall back to Pollinations, a third-party public service.
 - Voice answers are sent to `/api/stt` (Groq Whisper) for transcription.
-- Remote OK requires attribution: the Hiring Hub links back to remoteok.com on every listing. Do not remove it.
+- Remote OK and Remotive require attribution: the Hiring Hub links back to the original listing and credits the source. Do not remove it.
 - `app.py` is an optional local Flask helper for recordings (`http://localhost:5000/upload-proof`). Nothing in the current UI calls it.
 
 ## Security notes
