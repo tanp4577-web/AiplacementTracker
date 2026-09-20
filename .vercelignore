@@ -4,3 +4,8 @@ recordings/
 .env*
 __pycache__/
 temp-deploy/
+
+# not needed at runtime
+tests/
+.github/
+eslint.config.js
