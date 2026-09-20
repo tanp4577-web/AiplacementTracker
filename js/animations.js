@@ -16,6 +16,7 @@
    ========================================================================= */
 const Animations = {
   reduced: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  isTouch: window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768,
   ready: false,
   _observer: null,
 
@@ -24,7 +25,7 @@ const Animations = {
     if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return; // CDN failed — fail silently
     gsap.registerPlugin(ScrollTrigger);
     this.ready = true;
-    this._initParallax();
+    if (!this.isTouch) this._initParallax(); // scroll-linked parallax is desktop-only; skip the extra scroll listener on phones
   },
 
   /** Ambient background blobs drift slower/faster than the page scroll,
@@ -82,10 +83,11 @@ const Animations = {
   },
 
   /** A smooth mouse-follow 3D tilt with a real "pop off the page" feel —
-   *  only on browsable item cards (job listings, quiz questions, lecture
-   *  cards) — cards that are direct children of a .grid, not big header/
-   *  search cards. */
+   *  desktop only (mousemove never fires on touch, so this would be dead
+   *  weight on phones) — only on browsable item cards (job listings, quiz
+   *  questions, lecture cards) that are direct children of a .grid. */
   _tiltGridCards(cards) {
+    if (this.isTouch) return;
     cards.filter((c) => c.parentElement?.classList.contains('grid')).forEach((card) => {
       card.style.transformStyle = 'preserve-3d';
       card.style.willChange = 'transform';
