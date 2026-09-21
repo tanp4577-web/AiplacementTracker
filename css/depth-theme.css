@@ -64,24 +64,21 @@ body {
   top: -10%; left: -8%;
   width: 46vw; height: 46vw;
   background: radial-gradient(circle, #097a54 0%, transparent 70%);
-  animation: driftA 26s ease-in-out infinite alternate;
+  animation: none;
 }
 .ambient-blob.b2 {
   bottom: -14%; right: -10%;
   width: 50vw; height: 50vw;
   background: radial-gradient(circle, #17c9c9 0%, transparent 70%);
-  animation: driftB 32s ease-in-out infinite alternate;
+  animation: none;
 }
 .ambient-blob.b3 {
   top: 35%; right: 15%;
   width: 30vw; height: 30vw;
   background: radial-gradient(circle, #57a689 0%, transparent 70%);
-  animation: driftC 22s ease-in-out infinite alternate;
+  animation: none;
 }
 
-@keyframes driftA { from { transform: translate(0, 0) scale(1); } to { transform: translate(4vw, 6vh) scale(1.12); } }
-@keyframes driftB { from { transform: translate(0, 0) scale(1); } to { transform: translate(-5vw, -4vh) scale(1.08); } }
-@keyframes driftC { from { transform: translate(0, 0) scale(1); } to { transform: translate(-3vw, 5vh) scale(0.94); } }
 
 @media (prefers-reduced-motion: reduce) {
   .ambient-blob { animation: none; }
@@ -156,7 +153,7 @@ body {
 .grid > .card:hover {
   border-color: var(--border-strong);
   box-shadow: var(--shadow-xl);
-  transform: translateY(-6px) scale(1.012);
+  transform: none;
 }
 
 /* ---------- Gradient brand elements ---------- */
