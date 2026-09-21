@@ -570,7 +570,7 @@ select {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
 }
 
 .menu-toggle:hover {
@@ -713,7 +713,7 @@ select {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
   white-space: nowrap;
   user-select: none;
   box-shadow: var(--shadow-xs);
@@ -992,7 +992,7 @@ select {
   background: var(--surface-2);
   color: var(--text-dim);
   border: 1px solid var(--border);
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
   white-space: nowrap;
   letter-spacing: -0.01em;
 }
@@ -1292,7 +1292,7 @@ textarea {
   justify-content: center;
   color: var(--text);
   box-shadow: var(--shadow-xs);
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
 }
 
 .cam-btn:hover,
@@ -1641,7 +1641,7 @@ textarea {
   font-size: 13px;
   font-weight: 500;
   text-align: left;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
   cursor: pointer;
 }
 
@@ -1917,7 +1917,7 @@ textarea {
   justify-content: center;
   color: var(--text-dim);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
 }
 
 .yt-player-close:hover {
@@ -2013,7 +2013,7 @@ textarea {
   border: none;
   background: transparent;
   border-bottom: 2.5px solid transparent;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
   text-align: center;
   cursor: pointer;
   letter-spacing: -0.01em;

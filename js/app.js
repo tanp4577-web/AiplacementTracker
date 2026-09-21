@@ -36,19 +36,20 @@ const App = {
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         link.classList.add('active');
         // Close mobile menu
-        document.getElementById('sidebar').classList.remove('open');
-        document.getElementById('overlay').classList.remove('show');
+        App._setMenu(false);
       });
     });
 
     // Mobile menu toggle
     document.getElementById('menuToggle').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('open');
-      document.getElementById('overlay').classList.toggle('show');
+      App._setMenu(!document.getElementById('sidebar').classList.contains('open'));
     });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') App._setMenu(false); });
+    // Rotating to a wide screen must not leave the phone menu open.
+    const wide = window.matchMedia('(min-width: 901px)');
+    if (wide.addEventListener) wide.addEventListener('change', (e) => { if (e.matches) App._setMenu(false); });
     document.getElementById('overlay').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.remove('open');
-      document.getElementById('overlay').classList.remove('show');
+      App._setMenu(false);
     });
 
     // Reset button
@@ -127,6 +128,14 @@ const App = {
     const r = prog.readiness || 0;
     document.getElementById('miniReadiness').style.width = r + '%';
     document.getElementById('miniReadinessVal').textContent = Math.round(r) + '%';
+  },
+
+  /** Opens/closes the phone menu: drawer, backdrop, page scroll lock and aria state stay in sync. */
+  _setMenu(open) {
+    document.getElementById('sidebar').classList.toggle('open', open);
+    document.getElementById('overlay').classList.toggle('show', open);
+    document.body.classList.toggle('menu-open', open);
+    document.getElementById('menuToggle').setAttribute('aria-expanded', String(open));
   },
 
   showToast(msg, type = 'info') {

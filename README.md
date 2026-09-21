@@ -116,7 +116,6 @@ Attribution is required: Remote OK, Remotive and Jobicy listings link back to th
 - Resume files are parsed in the browser. Only the extracted **text** is sent to `/api/job-apply` (Gemini); the original file is not uploaded or stored.
 - Chat messages go to `/api/chat` (Gemini). If that fails, the client may fall back to Pollinations, a third-party public service.
 - Remote OK and Remotive require attribution: the Hiring Hub links back to the original listing and credits the source. Do not remove it.
-- `app.py` is an optional local Flask helper for recordings (`http://localhost:5000/upload-proof`). Nothing in the current UI calls it.
 
 ## Security notes
 

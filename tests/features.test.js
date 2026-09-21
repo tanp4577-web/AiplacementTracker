@@ -549,3 +549,43 @@ test('skill gap: adding a skill by hand closes a gap and persists', async () => 
   await goTo(app, 'skills');
   assert.match(text($('manualSkillsRow')), /React/, 'still there after leaving and coming back');
 });
+
+/* ------------------------------------------------------- phone menu + tidy-up */
+test('phone menu: opens, locks page scroll, and closes via Escape, backdrop, link and toggle', async () => {
+  const app = await bootApp();
+  const $ = (id) => app.document.getElementById(id);
+  const state = () => [$('sidebar').classList.contains('open'), $('overlay').classList.contains('show'), app.document.body.classList.contains('menu-open'), $('menuToggle').getAttribute('aria-expanded')];
+  assert.deepEqual(state(), [false, false, false, 'false']);
+  $('menuToggle').click();
+  assert.deepEqual(state(), [true, true, true, 'true']);
+  app.document.dispatchEvent(new app.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.deepEqual(state(), [false, false, false, 'false'], 'Escape closes');
+  $('menuToggle').click();
+  $('overlay').click();
+  assert.deepEqual(state(), [false, false, false, 'false'], 'backdrop closes');
+  $('menuToggle').click();
+  app.document.querySelector('.nav-link[data-view="aptitude"]').click();
+  assert.deepEqual(state(), [false, false, false, 'false'], 'choosing a page closes');
+  $('menuToggle').click();
+  $('menuToggle').click();
+  assert.deepEqual(state(), [false, false, false, 'false'], 'toggle closes');
+  assert.deepEqual(app.errors, []);
+});
+
+test('smoothness and tidy-up: no expensive transitions/blur, unused files gone, docs point to the README', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { read } = await import('./app-harness.js');
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+  for (const f of fs.readdirSync(path.join(root, 'css'))) {
+    assert.ok(!/transition:\s*all\b/.test(read(`css/${f}`)), `${f} must not use transition: all`);
+  }
+  const depth = read('css/depth-theme.css');
+  const tail = depth.slice(depth.lastIndexOf('/* ---------- Smoothness'));
+  assert.match(tail, /\.card,\s*\.grid > \.card\s*\{[^}]*backdrop-filter:\s*none/s);
+  assert.match(tail, /prefers-reduced-motion: no-preference\)\s*\{\s*html\s*\{\s*scroll-behavior: smooth/s);
+  assert.match(tail, /body\.menu-open\s*\{\s*overflow:\s*hidden/);
+  for (const gone of ['omg2.png', 'app.py', 'requirements.txt']) assert.ok(!fs.existsSync(path.join(root, gone)), `${gone} removed`);
+  assert.doesNotMatch(read('README.md'), /app\.py/);
+  assert.match(read('PROJECT_DOCUMENTATION.md').slice(0, 400), /earlier version[\s\S]*README\.md/);
+});
