@@ -502,3 +502,17 @@ test('motion is calm: no zoom, tilt, bounce, scroll parallax or drifting backgro
   assert.ok(!/animation:\s*drift/.test(css), 'background blobs do not drift');
   assert.ok(!/ScrollTrigger/.test(read('index.html')), 'ScrollTrigger script no longer loaded');
 });
+
+test('mobile drawer: sidebar is not trapped under its blurred backdrop, toasts stay fixed on top', () => {
+  const css = read('css/depth-theme.css');
+  assert.ok(!/\.app-layout[^{]*\{[^}]*z-index/.test(css), '.app-layout must not create a stacking context above the drawer backdrop');
+  assert.ok(!/#toastContainer\s*[,{]/.test(css), '#toastContainer must not override the fixed, high z-index toast rule');
+  assert.match(css, /\.ambient-blob\s*\{[^}]*z-index:\s*-1/, 'background blobs sit behind the page');
+  const mobile = css.slice(css.lastIndexOf('@media (max-width: 900px)'));
+  assert.match(mobile, /\.sidebar\s*\{[^}]*background:\s*#ffffff[^}]*backdrop-filter:\s*none/s, 'drawer is opaque');
+  assert.match(mobile, /\.overlay\s*\{[^}]*backdrop-filter:\s*none/s, 'backdrop dims but does not blur');
+  const layers = read('css/style.css');
+  const z = (name) => Number(new RegExp(`--z-${name}:\\s*(\\d+)`).exec(layers)[1]);
+  assert.ok(z('drawer') > z('drawer-backdrop'), 'drawer above its backdrop');
+  assert.ok(z('toast') > z('modal'), 'toasts above modals');
+});
