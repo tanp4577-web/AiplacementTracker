@@ -17,61 +17,79 @@ const InterviewWall = {
     this._renderWall();
   },
 
+  /** Draws the page the first time, then only refreshes the company list and the cards,
+   *  so the search box keeps focus while you type and nothing else is rebuilt. */
   _renderWall() {
-    const companies = [...new Set(this.state.experiences.map(item => item.company_name).filter(Boolean))].sort();
-    const filtered = this.state.experiences.filter(item => {
-      const query = this.state.search.toLowerCase();
-      const matchesCompany = this.state.filterCompany === 'all' || item.company_name === this.state.filterCompany;
-      const matchesDifficulty = this.state.filterDifficulty === 'all' || item.difficulty === this.state.filterDifficulty;
-      const haystack = [item.company_name, item.role_applied, item.tips, item.rounds_text].filter(Boolean).join(' ').toLowerCase();
-      return matchesCompany && matchesDifficulty && (!query || haystack.includes(query));
-    });
-    const isAdmin = Auth.getCurrentUser()?.role === 'admin';
+    if (!this.container.querySelector('#experienceGrid')) this._buildShell();
+    this._refreshCompanyOptions();
+    this._updateGrid();
+  },
 
+  _buildShell() {
     this.container.innerHTML = `
       <div class="card mb-2">
         <div class="flex-between items-center" style="gap:12px;flex-wrap:wrap">
           <div>
             <div class="card-title"><i class="bi bi-chat-square-quote text-accent" style="margin-right:4px"></i>Interview Experiences</div>
-            <div class="card-sub">Real rounds and tips from students who've already interviewed</div>
+            <div class="card-sub">Rounds and tips saved in this browser — add what you learned from each interview</div>
           </div>
-          <button class="btn btn-primary" id="shareExperienceBtn"><i class="bi bi-plus-lg" style="margin-right:4px"></i>Share Your Experience</button>
+          <button class="btn btn-primary" id="shareExperienceBtn"><i class="bi bi-plus-lg" style="margin-right:4px"></i>Add Your Experience</button>
         </div>
         <div class="filter-bar mt-2">
-          <select id="experienceCompanyFilter">
-            <option value="all">All Companies</option>
-            ${companies.map(company => `<option value="${this._escape(company)}" ${this.state.filterCompany === company ? 'selected' : ''}>${this._escape(company)}</option>`).join('')}
-          </select>
-          <select id="experienceDifficultyFilter">
+          <select id="experienceCompanyFilter" aria-label="Filter by company"></select>
+          <select id="experienceDifficultyFilter" aria-label="Filter by difficulty">
             <option value="all">All Difficulties</option>
-            <option value="Easy" ${this.state.filterDifficulty === 'Easy' ? 'selected' : ''}>Easy</option>
-            <option value="Medium" ${this.state.filterDifficulty === 'Medium' ? 'selected' : ''}>Medium</option>
-            <option value="Hard" ${this.state.filterDifficulty === 'Hard' ? 'selected' : ''}>Hard</option>
+            <option value="Easy">Easy</option>
+            <option value="Medium">Medium</option>
+            <option value="Hard">Hard</option>
           </select>
-          <input type="search" id="experienceSearch" placeholder="Search companies, roles, or tips..." value="${this._escape(this.state.search)}" />
+          <input type="search" id="experienceSearch" placeholder="Search companies, roles, or tips..." aria-label="Search experiences" value="${this._escape(this.state.search)}" />
         </div>
       </div>
 
-      <div class="grid grid-2" id="experienceGrid">
-        ${filtered.length ? filtered.map(item => this._cardMarkup(item, isAdmin)).join('') : '<div class="card empty-state" style="grid-column:1/-1"><h3>No experiences shared yet — be the first!</h3><p>Share what you learned to help the next student prepare.</p></div>'}
-      </div>
+      <div class="grid grid-2" id="experienceGrid" aria-live="polite"></div>
     `;
+    document.getElementById('experienceDifficultyFilter').value = this.state.filterDifficulty;
 
     if (this._clickHandler) this.container.removeEventListener('click', this._clickHandler);
     this._clickHandler = this._handleClick.bind(this);
     this.container.addEventListener('click', this._clickHandler);
     document.getElementById('experienceCompanyFilter').addEventListener('change', event => {
       this.state.filterCompany = event.target.value;
-      this._renderWall();
+      this._updateGrid();
     });
     document.getElementById('experienceDifficultyFilter').addEventListener('change', event => {
       this.state.filterDifficulty = event.target.value;
-      this._renderWall();
+      this._updateGrid();
     });
     document.getElementById('experienceSearch').addEventListener('input', event => {
       this.state.search = event.target.value;
-      this._renderWall();
+      this._updateGrid();
     });
+  },
+
+  /** Rebuilds the company dropdown from the saved experiences (a new company may have been added). */
+  _refreshCompanyOptions() {
+    const select = document.getElementById('experienceCompanyFilter');
+    const companies = [...new Set(this.state.experiences.map(item => item.company_name).filter(Boolean))].sort();
+    if (this.state.filterCompany !== 'all' && !companies.includes(this.state.filterCompany)) this.state.filterCompany = 'all';
+    select.innerHTML = `<option value="all">All Companies</option>${companies.map(company => `<option value="${this._escape(company)}">${this._escape(company)}</option>`).join('')}`;
+    select.value = this.state.filterCompany;
+  },
+
+  _updateGrid() {
+    const query = this.state.search.trim().toLowerCase();
+    const filtered = this.state.experiences.filter(item => {
+      const matchesCompany = this.state.filterCompany === 'all' || item.company_name === this.state.filterCompany;
+      const matchesDifficulty = this.state.filterDifficulty === 'all' || item.difficulty === this.state.filterDifficulty;
+      const haystack = [item.company_name, item.role_applied, item.tips, item.rounds_text].filter(Boolean).join(' ').toLowerCase();
+      return matchesCompany && matchesDifficulty && (!query || haystack.includes(query));
+    });
+    const isAdmin = Auth.getCurrentUser()?.role === 'admin';
+    const empty = this.state.experiences.length
+      ? '<div class="card empty-state" style="grid-column:1/-1"><h3>No experiences match your filters</h3><p>Try clearing the search or filters.</p></div>'
+      : '<div class="card empty-state" style="grid-column:1/-1"><h3>No experiences yet — add your first one!</h3><p>Write down the rounds and questions while you still remember them. They are saved in this browser.</p></div>';
+    document.getElementById('experienceGrid').innerHTML = filtered.length ? filtered.map(item => this._cardMarkup(item, isAdmin)).join('') : empty;
 
     const focusId = sessionStorage.getItem('interviewWallFocusId');
     if (focusId) {
@@ -108,7 +126,7 @@ const InterviewWall = {
         <div class="card-title" style="font-size:13px">Interview Rounds</div>
         <div class="text-dim" style="font-size:13px;line-height:1.6;white-space:pre-line">${this._escape(item.rounds_text || '')}</div>
         ${item.tips ? `<div class="card-title mt-2" style="font-size:13px">Tips for Future Candidates</div><div class="text-dim" style="font-size:13px;line-height:1.6;white-space:pre-line">${this._escape(item.tips)}</div>` : ''}
-        <div class="text-faint mt-2" style="font-size:11.5px">Shared by ${this._escape(item.author_name || 'Student')} · ${this._relativeTime(item.created_at)}</div>
+        <div class="text-faint mt-2" style="font-size:11.5px">Added by ${this._escape(item.author_name || 'You')} · ${this._relativeTime(item.created_at)}</div>
       </article>
     `;
   },
@@ -122,8 +140,8 @@ const InterviewWall = {
     modal.innerHTML = `
       <div class="modal" style="max-width:620px">
         <div class="modal-head">
-          <h2>Share Your Experience</h2>
-          <p class="text-dim">Help other students prepare with real interview details.</p>
+          <h2>Add Your Experience</h2>
+          <p class="text-dim">Write down the rounds and tips while you remember them. Saved in this browser only.</p>
         </div>
         <div class="modal-body">
           <div id="experienceFormError" class="auth-error hidden" style="color:var(--danger);font-size:12.5px;margin-bottom:12px"></div>

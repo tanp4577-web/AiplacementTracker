@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "eslint api tests eslint.config.js",
+    "lint": "eslint api tests js eslint.config.js",
     "lint:all": "eslint .",
     "test": "node --test \"tests/**/*.test.js\""
   },

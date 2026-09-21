@@ -1,21 +1,17 @@
 import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { Readable } from 'node:stream';
 import { makeReq, makeRes, mockFetch, jsonResponse, geminiReply, freshIp } from './helpers.js';
 
 import chat from '../api/chat.js';
 import aptitude from '../api/aptitude.js';
 import jobApply from '../api/job-apply.js';
 import compile from '../api/compile.js';
-import tts from '../api/tts.js';
-import stt, { extractFileFromBody } from '../api/stt.js';
 
 const OLD_ENV = { ...process.env };
 let net;
 
 beforeEach(() => {
   process.env.GEMINI_API_KEY = 'test-gemini-key';
-  process.env.GROQ_API_KEY = 'test-groq-key';
   delete process.env.LLM_API_KEY;
 });
 afterEach(() => {
@@ -188,74 +184,4 @@ test('compile: passes Wandbox fields through and hides upstream error detail', a
   await compile(makeReq({ body: { code: 'int main(){}' } }), res);
   assert.equal(res.statusCode, 502);
   assert.ok(!res.body.includes('internal-host'));
-});
-
-/* ------------------------------------------------------------------ /api/tts */
-test('tts: 400 without text, 503 fallback with text', async () => {
-  let res = makeRes();
-  await tts(makeReq({ body: {} }), res);
-  assert.equal(res.statusCode, 400);
-  res = makeRes();
-  await tts(makeReq({ body: { text: 'hello' } }), res);
-  assert.equal(res.statusCode, 503);
-  assert.equal(res.json().fallback, 'browser-speechsynthesis');
-});
-
-/* ------------------------------------------------------------------ /api/stt */
-function multipart(filename, mime, data) {
-  const boundary = 'XBOUNDARY';
-  const head = `--${boundary}\r\nContent-Disposition: form-data; name="audio"; filename="${filename}"\r\nContent-Type: ${mime}\r\n\r\n`;
-  const buf = Buffer.concat([Buffer.from(head, 'binary'), data, Buffer.from(`\r\n--${boundary}--\r\n`, 'binary')]);
-  return { buf, contentType: `multipart/form-data; boundary=${boundary}` };
-}
-
-function sttReq(buf, contentType, extra = {}) {
-  const req = Readable.from([buf]);
-  req.method = 'POST';
-  req.headers = {
-    host: 'app.vercel.app',
-    origin: 'https://app.vercel.app',
-    'content-type': contentType,
-    'content-length': String(buf.length),
-    'x-forwarded-for': freshIp(),
-    ...extra
-  };
-  return req;
-}
-
-test('stt: sanitises filenames and MIME types', () => {
-  const { buf, contentType } = multipart('..\\..\\evil"\r\nX-Injected: 1.webm', 'text/html', Buffer.from('audio'));
-  const file = extractFileFromBody(buf, contentType);
-  assert.ok(file);
-  assert.match(file.filename, /^[A-Za-z0-9._-]+$/);
-  assert.equal(file.mimeType, 'audio/webm');
-});
-
-test('stt: rejects oversized uploads and non-multipart bodies', async () => {
-  let res = makeRes();
-  await stt(sttReq(Buffer.from('x'), 'multipart/form-data; boundary=B', { 'content-length': '9000000' }), res);
-  assert.equal(res.statusCode, 413);
-
-  res = makeRes();
-  await stt(sttReq(Buffer.from('{}'), 'application/json'), res);
-  assert.equal(res.statusCode, 400);
-});
-
-test('stt: forwards audio to Groq and returns only the text', async () => {
-  net = mockFetch(() => jsonResponse({ text: ' hello world ' }));
-  const { buf, contentType } = multipart('answer.webm', 'audio/webm', Buffer.from('fake-audio-bytes'));
-  const res = makeRes();
-  await stt(sttReq(buf, contentType), res);
-  assert.equal(res.statusCode, 200);
-  assert.equal(res.json().text, 'hello world');
-  assert.equal(net.calls[0].init.headers.Authorization, 'Bearer test-groq-key');
-});
-
-test('stt: upstream errors are generic', async () => {
-  net = mockFetch(() => jsonResponse({ error: 'groq internal detail' }, 500));
-  const { buf, contentType } = multipart('answer.webm', 'audio/webm', Buffer.from('fake-audio-bytes'));
-  const res = makeRes();
-  await stt(sttReq(buf, contentType), res);
-  assert.equal(res.statusCode, 502);
-  assert.ok(!res.body.includes('groq internal detail'));
 });

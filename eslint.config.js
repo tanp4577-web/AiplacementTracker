@@ -12,9 +12,15 @@ export default [
   {
     // Browser scripts are loaded via <script> tags and share globals across files,
     // so no-undef stays off here until the frontend moves to ES modules.
-    // Not part of `npm run lint` yet; run `npm run lint:all` to see the backlog.
     files: ['js/**/*.js'],
     languageOptions: { sourceType: 'script', ecmaVersion: 2023, globals: { ...globals.browser } },
-    rules: { 'no-undef': 'off', 'no-unused-vars': 'warn' }
+    rules: {
+      'no-undef': 'off',
+      // Top-level `const Module = {...}` declarations are globals used by other files.
+      'no-unused-vars': ['warn', { vars: 'local', args: 'after-used', caughtErrors: 'none' }],
+      // Best-effort features (storage, optional APIs) intentionally swallow errors.
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-useless-assignment': 'off'
+    }
   }
 ];

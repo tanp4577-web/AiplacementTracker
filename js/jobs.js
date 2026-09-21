@@ -559,6 +559,7 @@ const Jobs = {
     if (!job) return;
     const existing = document.getElementById('jobApplyModal');
     if (existing) existing.remove();
+    const hasSavedResume = Boolean((DB.getGlobal('lastResumeText') || '').trim());
     const modal = document.createElement('div');
     modal.id = 'jobApplyModal';
     modal.className = 'modal-overlay';
@@ -569,7 +570,8 @@ const Jobs = {
           <p class="text-dim">${this._escape(job.company)} · ${this._escape(job.location)}</p>
         </div>
         <div class="modal-body">
-          <label class="field-label" for="jobResumeFile">Upload resume</label>
+          ${hasSavedResume ? '<div class="chip green mb-1" id="jobSavedResumeNote"><i class="bi bi-check2-circle"></i> Using the resume from your Resume Analyzer — or upload a different one.</div>' : ''}
+          <label class="field-label" for="jobResumeFile">${hasSavedResume ? 'Use a different resume (optional)' : 'Upload resume'}</label>
           <input type="file" id="jobResumeFile" accept=".pdf,.docx,.txt,.rtf" />
           <div id="jobApplyStatus" class="text-dim mt-1" style="font-size:13px">PDF, DOCX, TXT, and RTF are supported.</div>
           <div id="jobMatchResult" class="mt-2"></div>
@@ -590,21 +592,22 @@ const Jobs = {
     const file = modal.querySelector('#jobResumeFile').files[0];
     const status = modal.querySelector('#jobApplyStatus');
     const result = modal.querySelector('#jobMatchResult');
-    if (!file) {
-      status.textContent = 'Choose a resume first.';
+    const savedResume = (DB.getGlobal('lastResumeText') || '').trim();
+    if (!file && !savedResume) {
+      status.textContent = 'Analyze your resume in the Resume Analyzer first, or choose a file here.';
       return;
     }
     status.textContent = 'Reading resume and comparing requirements...';
     modal.querySelector('#analyzeJobBtn').disabled = true;
     try {
-      const resumeText = await ResumeParser.parseFile(file);
+      const resumeText = file ? await ResumeParser.parseFile(file) : savedResume;
       if (!resumeText.trim()) throw new Error('No readable text was found in that file.');
       const response = await fetch('/api/job-apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobTitle: job.title,
-          locationType: job.source,
+          locationType: job.source || this.state.source || 'remote',
           jobDescription: job.description,
           resumeText
         })

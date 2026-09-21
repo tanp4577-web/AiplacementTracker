@@ -132,14 +132,7 @@ const Youtube = {
     const active = this.state.category;
     const completed = this.state.completedSet;
 
-    const filtered = YOUTUBE_DATA.playlists.filter(p => {
-      const matchCat = active === 'all' || p.category === active;
-      const matchSearch = !this.state.search
-        || p.title.toLowerCase().includes(this.state.search.toLowerCase())
-        || p.channel.toLowerCase().includes(this.state.search.toLowerCase())
-        || (p.desc || '').toLowerCase().includes(this.state.search.toLowerCase());
-      return matchCat && matchSearch;
-    });
+    const filtered = this._filteredPlaylists();
 
     const totalCount = YOUTUBE_DATA.playlists.length;
     const completedCount = YOUTUBE_DATA.playlists.filter(p => completed.has(p.id)).length;
@@ -171,7 +164,7 @@ const Youtube = {
               <div style="font-size:11px;color:var(--text-dim);margin-top:4px;text-align:right">${completedPct}% complete</div>
             </div>
             <div class="yt-search">
-              <input type="search" id="ytSearch" placeholder="🔍 Search topics, channels..." value="${this.state.search || ''}" />
+              <input type="search" id="ytSearch" placeholder="🔍 Search topics, channels..." value="${Sanitize.html(this.state.search || '')}" />
             </div>
           </div>
         </div>
@@ -198,23 +191,50 @@ const Youtube = {
       </div>
     `;
 
-    // Category tabs
+    // Category tabs: switch the highlight and the grid, without rebuilding the page
     document.querySelectorAll('.yt-cat').forEach(el => {
       el.addEventListener('click', () => {
         this.state.category = el.dataset.cat;
-        this._renderHome();
+        document.querySelectorAll('.yt-cat').forEach(tab => tab.classList.toggle('active', tab === el));
+        this._renderGrid();
       });
     });
 
-    // Search
+    // Search: only the grid changes, so the search box keeps focus while you type
     const searchEl = document.getElementById('ytSearch');
     if (searchEl) {
       searchEl.addEventListener('input', e => {
         this.state.search = e.target.value;
-        this._renderHome();
+        this._renderGrid();
       });
     }
 
+    this._bindCardHandlers();
+  },
+
+  _filteredPlaylists() {
+    const active = this.state.category;
+    const query = (this.state.search || '').toLowerCase();
+    return YOUTUBE_DATA.playlists.filter(p => {
+      const matchCat = active === 'all' || p.category === active;
+      const matchSearch = !query
+        || p.title.toLowerCase().includes(query)
+        || p.channel.toLowerCase().includes(query)
+        || (p.desc || '').toLowerCase().includes(query);
+      return matchCat && matchSearch;
+    });
+  },
+
+  /** Re-draws just the lecture grid for the current category/search. */
+  _renderGrid() {
+    const filtered = this._filteredPlaylists();
+    document.getElementById('ytGrid').innerHTML = filtered.length > 0
+      ? filtered.map(p => this._card(p)).join('')
+      : '<div class="empty-state"><div class="es-icon">🎬</div><h3>No lectures found</h3><p>Try a different category or search term</p></div>';
+    this._bindCardHandlers();
+  },
+
+  _bindCardHandlers() {
     // Open player on card click
     document.querySelectorAll('[data-play]').forEach(el => {
       el.addEventListener('click', e => {
@@ -309,7 +329,6 @@ const Youtube = {
     const embedUrl = this._buildEmbedUrl(p.url, true);
     const watchUrl = this._buildWatchUrl(p.url);
     const videoId = this._parseVideoId(p.url);
-    const thumbSrc = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : (p.thumbnail || '');
     const done = this.state.completedSet.has(p.id);
 
     const overlay = document.createElement('div');
