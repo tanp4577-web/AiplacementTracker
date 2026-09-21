@@ -425,7 +425,7 @@ const Jobs = {
     const initial = this._escape(name.charAt(0).toUpperCase() || '?');
     // Deterministic color from the company name, so the same company always
     // gets the same badge color across a session — not random per render.
-    const palette = ['#4318ff', '#7551ff', '#17c9c9', '#ff6b6b', '#f5a623', '#0ea5e9'];
+    const palette = ['#097a54', '#298063', '#17c9c9', '#ff6b6b', '#f5a623', '#1ab17a'];
     let hash = 0;
     for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
     const color = palette[hash % palette.length];

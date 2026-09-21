@@ -139,6 +139,8 @@ Attribution is required: Remote OK, Remotive and Jobicy listings link back to th
 - Resilient: if the browser blocks storage the app keeps working from memory and tells the user once.
 - Shareable and installable: favicon, Open Graph / Twitter preview image, web manifest, `robots.txt`, `sitemap.xml`, and a `<noscript>` message.
 - Lean: the unused Font Awesome stylesheet was removed.
+- Theme: one emerald/teal palette (`--accent: #097a54`, white text on it is 5.4:1); no blue or violet anywhere, and a test fails if one comes back. Change the look by editing the `:root` block at the top of `css/depth-theme.css`.
+- Calm motion: cards fade in when a view first appears or data arrives, never again because you typed in a search box or changed a filter.
 
 ## Roadmap
 

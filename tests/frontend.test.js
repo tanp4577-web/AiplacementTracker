@@ -375,3 +375,120 @@ test('dashboard: importing a backup file restores progress; bad files are refuse
   await run(`Dashboard._importData('guest@local', window.__file)`);
   assert.ok(toasts.some((t) => /too large/i.test(t)));
 });
+
+/* ------------------------------------------------- Company Patterns + animations */
+const bootCompany = () => boot(['js/sanitize.js', 'js/data/roles-data.js', 'js/data/company-patterns.js', 'js/company.js'], { html: '<div id="c"></div>' });
+
+test('Company Patterns: typing in the search box updates the list without rebuilding the page', () => {
+  const { window, document, run } = bootCompany();
+  run(`Company.render(document.getElementById('c'))`);
+  const total = run('COMPANY_PATTERNS.patterns.length');
+  assert.equal(document.getElementById('patternCount').textContent, `${total} shown`);
+
+  const shellCards = [...document.querySelectorAll('#c > .card')];
+  const input = document.getElementById('patternSearch');
+  const select = document.getElementById('companyFilter');
+  const firstName = run('COMPANY_PATTERNS.patterns[0].name');
+
+  input.value = firstName.slice(0, 5).toLowerCase();
+  input.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+  assert.equal(document.getElementById('patternSearch'), input, 'search input is the same element, so it keeps focus');
+  assert.equal(document.getElementById('companyFilter'), select);
+  assert.deepEqual([...document.querySelectorAll('#c > .card')], shellCards, 'header, insights and list cards are not recreated');
+  assert.ok(document.querySelectorAll('#patternGrid [data-pattern]').length < total);
+  assert.match(document.getElementById('patternGrid').textContent, new RegExp(firstName.slice(0, 5), 'i'));
+});
+
+test('Company Patterns: hostile search text is inert, empty results are explained', () => {
+  const { window, document, run } = bootCompany();
+  run(`Company.render(document.getElementById('c'))`);
+  const input = document.getElementById('patternSearch');
+  input.value = '"><img src=x onerror=window.__pwned=1>';
+  input.dispatchEvent(new window.Event('input', { bubbles: true }));
+  assert.equal(document.querySelector('#c img'), null);
+  assert.match(document.getElementById('patternGrid').textContent, /No patterns match/);
+  assert.equal(document.getElementById('patternCount').textContent, '0 shown');
+  // clicking a company clears nothing but the company filter and keeps the select in sync
+  input.value = '';
+  input.dispatchEvent(new window.Event('input', { bubbles: true }));
+  const name = run('COMPANY_PATTERNS.companies[0].name');
+  document.querySelector(`[data-company="${name}"]`).click();
+  assert.equal(document.getElementById('companyFilter').value, name);
+});
+
+test('Company Patterns: a pattern opens on click and on Enter, and Back restores the page', () => {
+  const { window, document, run } = bootCompany();
+  run(`Company.render(document.getElementById('c'))`);
+  const card = document.querySelector('#patternGrid [data-pattern]');
+  card.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  assert.ok(document.getElementById('backBtn'), 'detail view shown');
+  document.getElementById('backBtn').click();
+  assert.ok(document.getElementById('patternGrid').children.length > 0);
+});
+
+test('animations: filtering/typing never replays the entrance animation, async arrivals still animate', async () => {
+  const gsapCalls = { set: 0 };
+  const { window, document, run } = boot(['js/animations.js'], {
+    html: '<div id="c"><div class="card" id="first">a</div></div>',
+    extra: `
+      window.matchMedia = () => ({ matches: false });
+      window.gsap = { registerPlugin() {}, set() { window.__sets = (window.__sets || 0) + 1; }, to() {} };
+      window.ScrollTrigger = { getAll: () => [], batch() {} };
+    `
+  });
+  window.__sets = 0;
+  run('Animations.isTouch = true; Animations.init();');
+  assert.equal(run('Animations.ready'), true);
+
+  const container = document.getElementById('c');
+  run(`Animations.applyTo(document.getElementById('c'))`);
+  assert.equal(window.__sets, 1, 'the view animates in once when it first appears');
+
+  // the user types → the list re-renders → no new animation
+  document.dispatchEvent(new window.Event('input', { bubbles: true }));
+  const rebuilt = document.createElement('div');
+  rebuilt.className = 'card';
+  container.appendChild(rebuilt);
+  await tick();
+  assert.equal(window.__sets, 1, 'a re-render caused by typing is shown as-is');
+
+  // later, data arrives on its own (e.g. jobs finish loading) → still animates
+  run('Animations._lastInteraction = performance.now() - 5000;');
+  const late = document.createElement('div');
+  late.className = 'card';
+  container.appendChild(late);
+  await tick();
+  assert.equal(window.__sets, 2);
+  void gsapCalls;
+});
+
+/* ------------------------------------------------------------------- theme colour */
+test('theme: no blue, indigo or violet colours remain in the app styles or scripts', () => {
+  const files = [...fs.readdirSync(path.join(root, 'css')).map((f) => `css/${f}`), 'index.html', 'admin.html', 'manifest.webmanifest', 'favicon.svg',
+    'js/dashboard.js', 'js/jobs.js', 'js/company.js', 'js/app.js'];
+  const hue = (r, g, b) => {
+    const [mx, mn] = [Math.max(r, g, b), Math.min(r, g, b)];
+    if (mx - mn < 8) return null; // greys and near-whites carry no visible tint
+    const d = mx - mn;
+    let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h *= 60;
+    return h < 0 ? h + 360 : h;
+  };
+  const offenders = [];
+  for (const file of files) {
+    const text = read(file);
+    for (const m of text.matchAll(/#([0-9a-f]{6})\b/gi)) {
+      const [r, g, b] = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16));
+      const h = hue(r, g, b);
+      if (h !== null && h >= 195 && h <= 290) offenders.push(`${file} ${m[0]}`);
+    }
+    for (const m of text.matchAll(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/g)) {
+      const h = hue(+m[1], +m[2], +m[3]);
+      if (h !== null && h >= 195 && h <= 290) offenders.push(`${file} ${m[0]}`);
+    }
+  }
+  assert.deepEqual(offenders, []);
+  assert.match(read('css/depth-theme.css'), /--accent:\s*#097a54/);
+  assert.match(read('index.html'), /name="theme-color" content="#097a54"/);
+});
