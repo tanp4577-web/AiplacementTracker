@@ -56,7 +56,7 @@ body {
   border-radius: 50%;
   filter: blur(70px);
   opacity: 0.32;
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
   will-change: transform;
 }
@@ -122,10 +122,6 @@ body {
    PLUS .main-content's margin-left (which assumes a fixed, out-of-flow
    sidebar) stacked together into a large visible gap between them. Both
    elements already have a high enough z-index and need no help here. */
-.app-layout, header, #toastContainer {
-  position: relative;
-  z-index: 1;
-}
 
 /* ---------- Glass-morphic depth cards ---------- */
 .card {
@@ -334,4 +330,23 @@ button.chatbot-fab {
 }
 #viewContainer:focus {
   outline: none;
+}
+
+/* ---------- Mobile drawer: solid, sharp, above its backdrop ----------
+   An old z-index rule on the app wrapper made the whole app (sidebar included) sit BELOW the
+   drawer backdrop, so opening the menu dimmed and blurred the menu itself. The layer rule is
+   gone; these rules also make the drawer opaque and the backdrop a plain dim (no blur). */
+@media (max-width: 900px) {
+  .sidebar {
+    background: #ffffff;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    width: min(84vw, 320px);
+    overflow-y: auto;
+  }
+  .overlay {
+    background: rgba(4, 20, 14, 0.45);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
