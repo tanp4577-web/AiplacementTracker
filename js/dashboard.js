@@ -37,8 +37,8 @@ const Dashboard = {
             <svg viewBox="0 0 100 100">
               <defs>
                 <linearGradient id="readinessGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#0d9e6c"/>
-                  <stop offset="100%" stop-color="#7457f6"/>
+                  <stop offset="0%" stop-color="#097a54"/>
+                  <stop offset="100%" stop-color="#2e8165"/>
                 </linearGradient>
               </defs>
               <circle class="bg" cx="50" cy="50" r="42" stroke-width="8" fill="none"/>
@@ -298,9 +298,9 @@ const Dashboard = {
       <div class="legend mt-2">
         <span>Less</span>
         <span class="sw" style="background:var(--surface-2);border:1px solid var(--border)"></span>
-        <span class="sw" style="background:rgba(13,158,108,0.25)"></span>
-        <span class="sw" style="background:rgba(13,158,108,0.50)"></span>
-        <span class="sw" style="background:rgba(13,158,108,0.75)"></span>
+        <span class="sw" style="background:rgba(9, 122, 84,0.25)"></span>
+        <span class="sw" style="background:rgba(9, 122, 84,0.50)"></span>
+        <span class="sw" style="background:rgba(9, 122, 84,0.75)"></span>
         <span class="sw" style="background:var(--accent)"></span>
         <span>More</span>
       </div>
@@ -343,7 +343,7 @@ const Dashboard = {
     ctx.clearRect(0, 0, w, h);
 
     if (!history.length) {
-      ctx.fillStyle = '#8b8a92';
+      ctx.fillStyle = '#858d8a';
       ctx.font = '500 13px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Complete quizzes to see performance trends', w / 2, h / 2);
@@ -368,7 +368,7 @@ const Dashboard = {
       ctx.lineTo(w - pad.right, y);
       ctx.stroke();
 
-      ctx.fillStyle = '#8b8a92';
+      ctx.fillStyle = '#858d8a';
       ctx.font = '10px Inter, sans-serif';
       ctx.textAlign = 'right';
       ctx.fillText(level + '%', pad.left - 6, y + 3);
@@ -380,7 +380,7 @@ const Dashboard = {
       const y = pad.top + chartH - bh;
 
       // Bar fill
-      ctx.fillStyle = '#0d9e6c';
+      ctx.fillStyle = '#097a54';
       ctx.beginPath();
       this._roundedRect(ctx, x, y, barW * 0.6, bh, 4);
       ctx.fill();
@@ -392,7 +392,7 @@ const Dashboard = {
       ctx.fillText(v + '%', x + barW * 0.3, y - 6);
 
       // X-axis label
-      ctx.fillStyle = '#5d5c64';
+      ctx.fillStyle = '#575f5c';
       ctx.font = '500 11px Inter, sans-serif';
       ctx.fillText(labels[i], x + barW * 0.3, h - 8);
     });
@@ -412,7 +412,7 @@ const Dashboard = {
     const skills = prog.skills;
     const role = skills && skills.targetRole;
     if (!role || typeof ROLE_SKILLS === 'undefined' || !ROLE_SKILLS[role]) {
-      ctx.fillStyle = '#8b8a92';
+      ctx.fillStyle = '#858d8a';
       ctx.font = '500 13px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Select a target role in Skill Gap to view radar', w / 2, h / 2);
@@ -459,13 +459,13 @@ const Dashboard = {
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
     ctx.closePath();
-    ctx.fillStyle = 'rgba(13, 158, 108, 0.16)';
+    ctx.fillStyle = 'rgba(9, 122, 84, 0.16)';
     ctx.fill();
-    ctx.strokeStyle = '#0d9e6c';
+    ctx.strokeStyle = '#097a54';
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.fillStyle = '#5d5c64';
+    ctx.fillStyle = '#575f5c';
     ctx.font = '600 11px Inter, sans-serif';
     ctx.textAlign = 'center';
     reqSkills.forEach((s, i) => {

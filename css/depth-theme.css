@@ -10,37 +10,37 @@
 :root {
   /* Palette based on Horizon UI's documented brand colors (brand.500/400/300),
      a well-known MIT-licensed open-source Tailwind dashboard template —
-     replacing the flat emerald with its signature indigo/violet range. */
-  --accent: #4318ff;
-  --accent-hover: #3510cc;
-  --accent-soft: rgba(67, 24, 255, 0.12);
+     recoloured to the emerald/teal family (no blue or violet anywhere). */
+  --accent: #097a54;
+  --accent-hover: #076445;
+  --accent-soft: rgba(9, 122, 84, 0.12);
   --accent-ink: #ffffff;
 
-  --gradient-brand: linear-gradient(135deg, #4318ff 0%, #7551ff 50%, #868cff 100%);
-  --gradient-brand-soft: linear-gradient(135deg, rgba(67,24,255,0.14) 0%, rgba(117,81,255,0.14) 50%, rgba(134,140,255,0.14) 100%);
-  --glow-brand: 0 8px 26px rgba(67, 24, 255, 0.35), 0 2px 8px rgba(117, 81, 255, 0.25);
+  --gradient-brand: linear-gradient(135deg, #097a54 0%, #298063 50%, #57a689 100%);
+  --gradient-brand-soft: linear-gradient(135deg, rgba(9, 122, 84,0.14) 0%, rgba(41, 128, 99,0.14) 50%, rgba(87, 166, 137,0.14) 100%);
+  --glow-brand: 0 8px 26px rgba(9, 122, 84, 0.35), 0 2px 8px rgba(41, 128, 99, 0.25);
 
-  --purple: #7551ff;
-  --purple-soft: rgba(117, 81, 255, 0.12);
-  --blue: #868cff;
-  --blue-soft: rgba(134, 140, 255, 0.12);
+  --purple: #298063;
+  --purple-soft: rgba(41, 128, 99, 0.12);
+  --blue: #57a689;
+  --blue-soft: rgba(87, 166, 137, 0.12);
   --cyan: #17c9c9;
   --cyan-soft: rgba(23, 201, 201, 0.12);
 
   /* Slightly cooler, less flat base surfaces */
-  --bg: #f3f2fb;
-  --bg-2: #ebe9f8;
+  --bg: #f3f7f5;
+  --bg-2: #e8f0ec;
   --surface: rgba(255, 255, 255, 0.72);
   --surface-2: rgba(255, 255, 255, 0.55);
-  --border: rgba(109, 94, 247, 0.14);
-  --border-strong: rgba(109, 94, 247, 0.30);
+  --border: rgba(50, 131, 104, 0.14);
+  --border-strong: rgba(50, 131, 104, 0.30);
 
   /* Deeper, layered shadows for a real sense of elevation */
-  --shadow-xs: 0 1px 2px rgba(38, 30, 90, 0.06);
-  --shadow-sm: 0 2px 6px rgba(38, 30, 90, 0.08);
-  --shadow: 0 10px 28px rgba(38, 30, 90, 0.12), 0 2px 6px rgba(38, 30, 90, 0.08);
-  --shadow-lg: 0 20px 48px rgba(38, 30, 90, 0.16), 0 4px 10px rgba(38, 30, 90, 0.10);
-  --shadow-xl: 0 32px 70px rgba(38, 30, 90, 0.22), 0 8px 18px rgba(38, 30, 90, 0.12);
+  --shadow-xs: 0 1px 2px rgba(15, 45, 35, 0.06);
+  --shadow-sm: 0 2px 6px rgba(15, 45, 35, 0.08);
+  --shadow: 0 10px 28px rgba(15, 45, 35, 0.12), 0 2px 6px rgba(15, 45, 35, 0.08);
+  --shadow-lg: 0 20px 48px rgba(15, 45, 35, 0.16), 0 4px 10px rgba(15, 45, 35, 0.10);
+  --shadow-xl: 0 32px 70px rgba(15, 45, 35, 0.22), 0 8px 18px rgba(15, 45, 35, 0.12);
 
   --radius-lg: 18px;
 }
@@ -63,7 +63,7 @@ body {
 .ambient-blob.b1 {
   top: -10%; left: -8%;
   width: 46vw; height: 46vw;
-  background: radial-gradient(circle, #4318ff 0%, transparent 70%);
+  background: radial-gradient(circle, #097a54 0%, transparent 70%);
   animation: driftA 26s ease-in-out infinite alternate;
 }
 .ambient-blob.b2 {
@@ -75,7 +75,7 @@ body {
 .ambient-blob.b3 {
   top: 35%; right: 15%;
   width: 30vw; height: 30vw;
-  background: radial-gradient(circle, #868cff 0%, transparent 70%);
+  background: radial-gradient(circle, #57a689 0%, transparent 70%);
   animation: driftC 22s ease-in-out infinite alternate;
 }
 
@@ -168,7 +168,7 @@ body {
 }
 .btn-primary:hover {
   filter: brightness(1.08);
-  box-shadow: 0 12px 32px rgba(109, 94, 247, 0.45), 0 4px 12px rgba(79, 142, 247, 0.3);
+  box-shadow: 0 12px 32px rgba(50, 131, 104, 0.45), 0 4px 12px rgba(52, 161, 121, 0.3);
   transform: translateY(-2px);
 }
 
@@ -189,13 +189,13 @@ body {
 }
 .chip.blue {
   background: var(--blue-soft);
-  color: #4f5fd6;
-  border-color: rgba(79,142,247,0.3);
+  color: #2c785c;
+  border-color: rgba(52, 161, 121,0.3);
 }
 .chip.purple {
   background: var(--purple-soft);
   color: var(--purple);
-  border-color: rgba(139,92,246,0.3);
+  border-color: rgba(51, 136, 127,0.3);
 }
 
 /* Sidebar gets a subtle glass treatment too, matching the rest of the app */
@@ -223,12 +223,12 @@ body {
   color: #ffffff;
   font-weight: 700;
   font-size: 17px;
-  box-shadow: 0 4px 10px rgba(38, 30, 90, 0.18);
+  box-shadow: 0 4px 10px rgba(15, 45, 35, 0.18);
 }
 
 /* ---------- Skeleton loading shimmer (replaces plain "Loading..." text) ---------- */
 .skeleton-block {
-  background: linear-gradient(90deg, rgba(109,94,247,0.08) 25%, rgba(109,94,247,0.18) 37%, rgba(109,94,247,0.08) 63%);
+  background: linear-gradient(90deg, rgba(50, 131, 104,0.08) 25%, rgba(50, 131, 104,0.18) 37%, rgba(50, 131, 104,0.08) 63%);
   background-size: 400% 100%;
   border-radius: 6px;
   animation: skeletonShimmer 1.6s ease-in-out infinite;
@@ -243,7 +243,7 @@ body {
 }
 
 /* ---------- Eliminate remaining hardcoded green ----------
-   fibery-theme.css hardcodes the old emerald (#0d9e6c) and its gradient
+   fibery-theme.css hardcodes the old emerald (#097a54) and its gradient
    partner directly into these specific rules, as literal hex values —
    not via var(--accent). Redefining --accent above never touched these;
    they need direct overrides. This is why the UI still looked green
@@ -288,15 +288,15 @@ body {
 
 /* Skill-gap heatmap: shift from a green intensity scale to the brand's
    blue → violet scale, so it matches the rest of the UI. */
-.heat-cell.l1 { background: #e3e0fd; border-color: #cdc7fc; }
-.heat-cell.l2 { background: #a8b3fb; border-color: #8b9bf9; }
-.heat-cell.l3 { background: #6d5ef7; border-color: #5843f0; }
-.heat-cell.l4 { background: #4318ff; border-color: #3510cc; }
+.heat-cell.l1 { background: #cee9e0; border-color: #a9d6c7; }
+.heat-cell.l2 { background: #83c4ad; border-color: #62b093; }
+.heat-cell.l3 { background: #328368; border-color: #1f6f55; }
+.heat-cell.l4 { background: #097a54; border-color: #076445; }
 
 /* ---------- Accessibility & resilience additions ---------- */
 /* Faint text was ~3:1 on the page background; 4.5:1 is the WCAG AA minimum for body text. */
 :root {
-  --text-faint: #66656d;
+  --text-faint: #606865;
 }
 
 .skip-link {

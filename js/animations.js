@@ -19,8 +19,15 @@ const Animations = {
   isTouch: window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768,
   ready: false,
   _observer: null,
+  _lastInteraction: -Infinity,
 
   init() {
+    // Remember when the user last typed/clicked/changed something. Cards that are
+    // re-created because of that (filters, search-as-you-type, sorting) must not
+    // fade in again: the entrance animation is for a view appearing, not for updates.
+    ['input', 'change', 'keydown', 'click'].forEach((type) =>
+      document.addEventListener(type, () => { this._lastInteraction = performance.now(); }, true));
+
     if (this.reduced) return;
     if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return; // CDN failed — fail silently
     gsap.registerPlugin(ScrollTrigger);
@@ -63,6 +70,7 @@ const Animations = {
     // internal re-renders (e.g. Hiring Hub's loading -> loaded pass) only
     // plays its entrance animation once, not once per re-render.
     this._seenIds = new Set();
+    this._lastInteraction = -Infinity;
 
     this._animateNewCards(container);
 
@@ -83,6 +91,12 @@ const Animations = {
       return true;
     });
     if (!cards.length) return;
+
+    // Re-rendered because of something the user just did: show the cards as they are.
+    if (performance.now() - this._lastInteraction < 400) {
+      this._tiltGridCards(cards);
+      return;
+    }
 
     gsap.set(cards, { opacity: 0, y: 34, scale: 0.97 });
     // ScrollTrigger.batch is safe to call repeatedly with different card
