@@ -299,6 +299,10 @@ const Jobs = {
     const findJob = () => this.state.jobs.find(j => j.id === jobId) || (DB.getGlobal('saved_jobs') || {})[jobId];
     card.querySelector('[data-apply]')?.addEventListener('click', () => this._openApplication(jobId));
     card.querySelector('[data-details]')?.addEventListener('click', () => this._openDetails(jobId));
+    card.querySelector('[data-track]')?.addEventListener('click', () => {
+      const job = findJob();
+      if (job) Tracker.addFromJob(job);
+    });
     card.querySelector('[data-save]')?.addEventListener('click', () => {
       const job = findJob();
       if (job) this._toggleSave(job);
@@ -494,6 +498,7 @@ const Jobs = {
         <p class="text-dim mt-1" style="font-size:13px;line-height:1.55">${snippet}${description.length > 220 ? '…' : ''}</p>
         <div class="flex gap-1 mt-2" style="flex-wrap:wrap">
           <button class="btn ${saved ? 'btn-primary' : 'btn-ghost'} btn-sm" data-save>${saved ? '<i class="bi bi-bookmark-fill"></i> Saved' : '<i class="bi bi-bookmark"></i> Save'}</button>
+          <button class="btn btn-ghost btn-sm" data-track><i class="bi bi-kanban"></i> Track</button>
           <button class="btn btn-ghost btn-sm" data-details><i class="bi bi-building"></i> Details</button>
           ${job.applyUrl ? `<button class="btn btn-ghost btn-sm" data-view-original><i class="bi bi-box-arrow-up-right"></i> View original posting</button>` : ''}
           <button class="btn btn-primary btn-sm" data-apply><i class="bi bi-file-earmark-person"></i> Analyze resume fit</button>

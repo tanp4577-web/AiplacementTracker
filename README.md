@@ -22,6 +22,7 @@ Suggested: docs/screenshots/dashboard.png, hiring-hub.png, resume-analyzer.png
 | **Coding Practice** | Practice problems, including C++ questions with test cases run through the Wandbox compiler |
 | **Interview Experiences** | Interview rounds and tips you add, filterable by company and difficulty (stored in your browser) |
 | **Hiring Hub** | **India (Local)** tab for city jobs and internships (Adzuna), never blank: without Adzuna keys it shows remote roles open to India plus pre-filled searches on Internshala, LinkedIn, Naukri, Indeed and Google Jobs. **Remote (Global)** tab merges Remote OK, Remotive and Jobicy (Jobicy tags internships explicitly). **Analyze resume fit** returns an ATS match score, matched/missing skills, learning actions and practice interview questions |
+| **Application Tracker** | A board for every application — Saved → Applied → Assessment → Interview → Offer / Closed. Add by hand or press **Track** on any Hiring Hub job; move cards with buttons (works on phones and with a keyboard), edit notes and links, search. Stored per account in your browser and included in **Export / Import backup** |
 | **Skill Gap** | Compares your skills to target roles |
 | **Company Patterns** | Typical hiring rounds per company |
 | **YouTube Lectures** | Curated lecture playlists with watch tracking |
@@ -136,7 +137,6 @@ Attribution is required: Remote OK, Remotive and Jobicy listings link back to th
 ## Roadmap
 
 - [ ] Real authentication and a database so progress syncs across devices
-- [ ] Application tracker (applied → online assessment → interview → offer)
 - [ ] Move the frontend to ES modules and add browser end-to-end tests
 - [ ] Multi-language coding runner (Java, Python)
 
