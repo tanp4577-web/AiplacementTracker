@@ -386,3 +386,49 @@ button, a, .btn, .nav-link, [role="button"], select, label {
 /* While the phone menu is open the page behind it must not scroll. */
 body.menu-open { overflow: hidden; }
 .sidebar { overscroll-behavior: contain; }
+
+/* ---------- Application Tracker ---------- */
+.tracker-form { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.tracker-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(250px, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+.tracker-col {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--tracker-color, #7a827f);
+  border-radius: 12px;
+  padding: 12px;
+  min-height: 160px;
+  scroll-snap-align: start;
+}
+.tracker-col[data-status="saved"] { --tracker-color: #7a827f; }
+.tracker-col[data-status="applied"] { --tracker-color: #097a54; }
+.tracker-col[data-status="assessment"] { --tracker-color: #b7791f; }
+.tracker-col[data-status="interview"] { --tracker-color: #0f766e; }
+.tracker-col[data-status="offer"] { --tracker-color: #15803d; }
+.tracker-col[data-status="closed"] { --tracker-color: #b4534b; }
+.tracker-col-head { display: flex; align-items: center; justify-content: space-between; }
+.tracker-col-hint { font-size: 12px; margin: 2px 0 10px; }
+.tracker-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+}
+.tracker-card-title { font-weight: 600; font-size: 14px; }
+.tracker-card-title a { color: inherit; text-decoration: underline; text-decoration-color: var(--accent); }
+.tracker-notes { font-size: 12.5px; line-height: 1.5; margin-top: 6px; white-space: pre-wrap; }
+.tracker-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.tracker-empty { font-size: 12.5px; padding: 8px 2px; }
+@media (max-width: 680px) {
+  .tracker-board { grid-auto-columns: 82vw; }
+}

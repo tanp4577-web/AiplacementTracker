@@ -13,6 +13,7 @@ const App = {
       coding: { render: (c) => Coding.render(c), title: 'Coding Practice', subtitle: 'Solve challenges in your browser' },
       interview: { render: (c) => InterviewWall.render(c), title: 'Interview Experiences', subtitle: 'Interview rounds and tips you have saved' },
       jobs: { render: (c) => Jobs.render(c), title: 'Hiring Hub', subtitle: 'Find roles and check your resume fit' },
+      tracker: { render: (c) => Tracker.render(c), title: 'Application Tracker', subtitle: 'Track every application from saved to offer' },
       skills: { render: (c) => Skills.render(c), title: 'Skill Gap Analysis', subtitle: 'Find what to learn next' },
       company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle: 'Top tech interview patterns' },
       youtube: { render: (c) => Youtube.render(c), title: 'YouTube Lectures', subtitle: 'Top-rated programming playlists from the best instructors' },

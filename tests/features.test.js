@@ -2,7 +2,7 @@
    the way a student would (network stubbed). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bootApp, goTo, tick, defaultFetch } from './app-harness.js';
+import { bootApp, goTo, tick, defaultFetch, read } from './app-harness.js';
 
 const text = (el, n = 400) => (el ? el.textContent.replace(/\s+/g, ' ').trim().slice(0, n) : '');
 const fire = (app, el, type) => el.dispatchEvent(new app.window.Event(type, { bubbles: true }));
@@ -588,4 +588,117 @@ test('smoothness and tidy-up: no expensive transitions/blur, unused files gone, 
   for (const gone of ['omg2.png', 'app.py', 'requirements.txt']) assert.ok(!fs.existsSync(path.join(root, gone)), `${gone} removed`);
   assert.doesNotMatch(read('README.md'), /app\.py/);
   assert.match(read('PROJECT_DOCUMENTATION.md').slice(0, 400), /earlier version[\s\S]*README\.md/);
+});
+
+/* ------------------------------------------------------ Application Tracker */
+test('application tracker: add, validate, move through stages, edit, delete, persist', async () => {
+  const app = await bootApp();
+  await goTo(app, 'tracker');
+  const $ = (id) => app.document.getElementById(id);
+  assert.equal(app.document.querySelectorAll('.tracker-col').length, 6);
+  assert.match(text($('trackerSummary')), /Nothing tracked yet/);
+
+  $('trackerAddBtn').click();
+  $('trackerSaveBtn').click();
+  assert.match(text($('trackerFormError')), /both the company and the role/);
+
+  $('trackerCompany').value = 'Acme <img src=x onerror=window.__pwned=1>';
+  $('trackerRole').value = 'SDE Intern';
+  $('trackerUrl').value = 'javascript:alert(1)';
+  $('trackerNotes').value = 'Referral from <b>Ravi</b>';
+  $('trackerStatus').value = 'applied';
+  $('trackerSaveBtn').click();
+  await tick(50);
+  const card = app.document.querySelector('.tracker-col[data-status="applied"] .tracker-card');
+  assert.ok(card, 'card lands in the chosen column');
+  assert.equal(app.document.querySelector('.tracker-card img, .tracker-card b'), null, 'typed HTML stays text');
+  assert.equal(card.querySelector('a'), null, 'unsafe link was dropped');
+  assert.match(text($('trackerSummary')), /1 tracked · 1 in progress · 0 offers/);
+
+  const id = card.querySelector('[data-move="1"]').dataset.id;
+  const right = () => app.document.querySelector(`[data-id="${id}"][data-move="1"]`).click();
+  right(); right();
+  assert.ok(app.document.querySelector('.tracker-col[data-status="interview"] .tracker-card'), 'moved applied → assessment → interview');
+  right();
+  assert.match(text($('trackerSummary')), /1 offer\b/);
+  assert.equal(app.document.querySelector(`.tracker-col[data-status="offer"] [data-id="${id}"][data-move="1"]`).disabled, false);
+  app.document.querySelector(`[data-id="${id}"][data-move="-1"]`).click();
+  assert.ok(app.document.querySelector('.tracker-col[data-status="interview"] .tracker-card'), 'can move back');
+
+  app.document.querySelector(`[data-id="${id}"][data-edit]`).click();
+  assert.equal($('trackerRole').value, 'SDE Intern');
+  $('trackerRole').value = 'SDE Intern (Backend)';
+  $('trackerUrl').value = 'https://acme.example/jobs/1';
+  $('trackerSaveBtn').click();
+  await tick(50);
+  assert.match(text(app.document.querySelector('.tracker-card')), /SDE Intern \(Backend\)/);
+  assert.equal(app.document.querySelector('.tracker-card a').getAttribute('href'), 'https://acme.example/jobs/1');
+
+  const search = $('trackerSearch');
+  search.value = 'nomatch';
+  fire(app, search, 'input');
+  assert.equal(app.document.querySelectorAll('.tracker-card').length, 0);
+  assert.equal($('trackerSearch'), search, 'search box keeps focus while filtering');
+  search.value = '';
+  fire(app, search, 'input');
+
+  await goTo(app, 'resume');
+  await goTo(app, 'tracker');
+  assert.equal(app.document.querySelectorAll('.tracker-card').length, 1, 'still there after leaving and coming back');
+
+  app.document.querySelector(`[data-id="${id}"][data-remove]`).click();
+  await tick(60);
+  app.document.getElementById('appConfirmOk').click();
+  await tick(60);
+  assert.equal(app.document.querySelectorAll('.tracker-card').length, 0);
+  assert.deepEqual(app.errors, []);
+});
+
+test('application tracker: "Track" on a Hiring Hub job adds it once, with its link', async () => {
+  const app = await bootApp();
+  await goTo(app, 'jobs');
+  const track = () => app.document.querySelector('[data-job-id="r1"] [data-track]').click();
+  track();
+  track();
+  const list = JSON.parse(app.run(`JSON.stringify(Tracker.list('guest@local'))`));
+  assert.equal(list.length, 1, 'second click does not duplicate');
+  assert.equal(list[0].company, 'Acme');
+  assert.equal(list[0].role, 'Backend Developer');
+  assert.equal(list[0].status, 'saved');
+  assert.equal(list[0].url, 'https://remoteok.com/1');
+  await goTo(app, 'tracker');
+  assert.equal(app.document.querySelectorAll('.tracker-col[data-status="saved"] .tracker-card').length, 1);
+  assert.deepEqual(app.errors, []);
+});
+
+test('application tracker: signed-out visitors are invited to sign in; backups carry and sanitise applications', async () => {
+  const out = await bootApp({ session: null });
+  await goTo(out, 'tracker');
+  assert.ok(out.document.getElementById('trackerGuestBtn'));
+
+  const app = await bootApp();
+  app.run(`Tracker.add('guest@local', { company: 'Zoho', role: 'Trainee', status: 'interview', url: 'https://zoho.example/j' })`);
+  const json = app.run(`JSON.stringify(DB.exportBackup('guest@local'))`);
+  assert.match(json, /Zoho/);
+  const other = await bootApp({ session: { id: 'guest', name: 'Guest', email: 'other@local', role: 'student', guest: true } });
+  assert.equal(other.run(`DB.importBackup('other@local', ${json}).ok`), true);
+  assert.equal(other.run(`Tracker.list('other@local')[0].company`), 'Zoho');
+
+  const hostile = { app: 'placementprep', version: 1, progress: { applications: [
+    { company: 'Evil', role: 'x', url: 'javascript:alert(1)', status: 'hacked', notes: 'n'.repeat(5000) },
+    { company: '', role: 'nameless' },
+    'not an object'
+  ] } };
+  other.run(`DB.importBackup('other@local', ${JSON.stringify(hostile)})`);
+  const apps = JSON.parse(other.run(`JSON.stringify(Tracker.list('other@local'))`));
+  assert.equal(apps.length, 1);
+  assert.equal(apps[0].url, '');
+  assert.equal(apps[0].status, 'saved');
+  assert.equal(apps[0].notes.length, 1000);
+});
+
+test('application tracker: sidebar link and script are wired in', () => {
+  const html = read('index.html');
+  assert.match(html, /<a href="#tracker" class="nav-link" data-view="tracker">/);
+  assert.ok(html.indexOf('js/tracker.js') > -1 && html.indexOf('js/tracker.js') < html.indexOf('js/app.js'));
 });

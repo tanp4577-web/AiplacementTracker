@@ -148,6 +148,34 @@ const DB = {
     this._keys().forEach((k) => this._del(k));
   },
 
+  /* ---------- Application tracker records ---------- */
+  /** Returns a clean application record, or null if company/role are missing. Never trusts its input. */
+  normalizeApplication(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const text = (v, max) => (typeof v === 'string' ? v.replaceAll('\u0000', '').trim().slice(0, max) : '');
+    const company = text(raw.company, 80);
+    const role = text(raw.role, 120);
+    if (!company || !role) return null;
+    let url = text(raw.url, 500);
+    try {
+      const parsed = new URL(url);
+      url = ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : '';
+    } catch { url = ''; }
+    const statuses = ['saved', 'applied', 'assessment', 'interview', 'offer', 'closed'];
+    const now = new Date().toISOString();
+    const stamp = (v) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : now);
+    return {
+      id: text(raw.id, 60) || `app_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      company, role, url,
+      status: statuses.includes(raw.status) ? raw.status : 'saved',
+      notes: text(raw.notes, 1000),
+      jobId: text(raw.jobId, 80),
+      source: text(raw.source, 40),
+      createdAt: stamp(raw.createdAt),
+      updatedAt: stamp(raw.updatedAt)
+    };
+  },
+
   /* ---------- Backup / restore (works without any server) ---------- */
   /** Progress for one account plus the app-wide data (resume text, interview experiences...). Never includes passwords. */
   exportBackup(email) {
@@ -182,7 +210,8 @@ const DB = {
       resumeScore: Math.min(num(p.resumeScore), 100),
       skills: isObj(p.skills) ? p.skills : {},
       activity: Array.isArray(p.activity) ? p.activity.slice(-200) : [],
-      readiness: Math.min(num(p.readiness), 100)
+      readiness: Math.min(num(p.readiness), 100),
+      applications: (Array.isArray(p.applications) ? p.applications : []).slice(0, 300).map((a) => this.normalizeApplication(a)).filter(Boolean)
     };
     this._set(this._progressKey(email), progress);
     if (isObj(backup.globals)) {
