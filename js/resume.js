@@ -7,8 +7,6 @@ const Resume = {
   _debounceTimer: null,
 
   render(container) {
-    const email = Auth.getEmail();
-    const prog = email ? DB.getProgress(email) : { resumeScore: 0 };
 
     container.innerHTML = `
       <div class="grid grid-2" style="align-items:start">

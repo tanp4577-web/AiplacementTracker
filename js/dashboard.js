@@ -53,7 +53,7 @@ const Dashboard = {
           </div>
           <div class="hero-msg">
             <h3 id="readinessMessage">${this._readinessMessage(readiness)}</h3>
-            <p>Readiness = resume score &times; 25% + aptitude accuracy &times; 25% + coding (3 problems solved = 100%) &times; 30% + interview experiences shared (3 = 100%) &times; 20%.</p>
+            <p>Readiness = resume score &times; 25% + aptitude accuracy &times; 25% + coding (3 problems solved = 100%) &times; 30% + interview experiences added (3 = 100%) &times; 20%.</p>
             <div class="flex gap-2 mt-3 flex-wrap items-center">
               <span class="chip blue"><i class="bi bi-fire"></i> ${this._daysActive(prog)} day streak</span>
               <span class="chip green"><i class="bi bi-patch-check"></i> ${prog.aptitude.completed || 0} quizzes taken</span>
@@ -92,7 +92,7 @@ const Dashboard = {
         </div>
         <div class="card text-center">
           <div class="card-stat" id="experienceSharedCount" style="color:var(--purple)">0</div>
-          <div class="card-stat-label">Experiences Shared</div>
+          <div class="card-stat-label">Experiences Added</div>
         </div>
         <div class="card text-center">
           <div class="card-stat text-warning">${Object.keys(prog.skills || {}).length ? prog.skills.matchPct || 0 : 0}%</div>
@@ -121,7 +121,7 @@ const Dashboard = {
         </div>
         <div class="card">
           <div class="card-title"><i class="bi bi-chat-left-quote text-accent" style="margin-right:4px"></i>Recent Interview Experiences</div>
-          <div class="card-sub">Your latest contributions to the student community</div>
+          <div class="card-sub">Your most recently saved interview experiences</div>
           <div id="recentExperiencesCard">${this._renderTopics([])}</div>
         </div>
       </div>
@@ -314,8 +314,8 @@ const Dashboard = {
           <div style="margin-bottom:8px;color:var(--text-faint)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:36px;height:36px;margin:0 auto"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
           </div>
-          <h4 style="font-size:14px;margin-bottom:4px">No interview experience shared yet</h4>
-          <p class="text-dim" style="font-size:12.5px">Share your first interview experience to help other students — and boost your readiness score.</p>
+          <h4 style="font-size:14px;margin-bottom:4px">No interview experience added yet</h4>
+          <p class="text-dim" style="font-size:12.5px">Add your first interview experience — it also boosts your readiness score.</p>
         </div>
       `;
     }

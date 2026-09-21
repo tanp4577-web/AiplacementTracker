@@ -343,7 +343,7 @@ test('dashboard: new users see a start checklist, the exact readiness formula an
   await run('Auth.init()');
   run(`DB.setSession({ email: 'guest@local', name: 'Guest', guest: true }); Dashboard.render(document.getElementById('viewContainer'))`);
   assert.ok(document.getElementById('startHereCard'));
-  assert.match(document.getElementById('viewContainer').textContent, /aptitude accuracy .* 25%.*coding .* 30%.*interview experiences shared .* 20%/s);
+  assert.match(document.getElementById('viewContainer').textContent, /aptitude accuracy .* 25%.*coding .* 30%.*interview experiences added .* 20%/s);
   assert.match(document.getElementById('dataBackupCard').textContent, /guest profile/);
   assert.ok(document.getElementById('exportDataBtn') && document.getElementById('importDataBtn'));
 
