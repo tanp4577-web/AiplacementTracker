@@ -434,11 +434,10 @@ test('animations: filtering/typing never replays the entrance animation, async a
     extra: `
       window.matchMedia = () => ({ matches: false });
       window.gsap = { registerPlugin() {}, set() { window.__sets = (window.__sets || 0) + 1; }, to() {} };
-      window.ScrollTrigger = { getAll: () => [], batch() {} };
     `
   });
   window.__sets = 0;
-  run('Animations.isTouch = true; Animations.init();');
+  run('Animations.init();');
   assert.equal(run('Animations.ready'), true);
 
   const container = document.getElementById('c');
@@ -491,4 +490,15 @@ test('theme: no blue, indigo or violet colours remain in the app styles or scrip
   assert.deepEqual(offenders, []);
   assert.match(read('css/depth-theme.css'), /--accent:\s*#097a54/);
   assert.match(read('index.html'), /name="theme-color" content="#097a54"/);
+});
+
+test('motion is calm: no zoom, tilt, bounce, scroll parallax or drifting background', () => {
+  const js = read('js/animations.js');
+  for (const banned of ['rotateX', 'rotateY', 'perspective', 'elastic', 'scrub', 'ScrollTrigger', 'scale:']) {
+    assert.ok(!js.includes(banned), `animations.js must not use ${banned}`);
+  }
+  const css = read('css/depth-theme.css');
+  assert.ok(!/scale\(1\.0[1-9]/.test(css), 'cards do not scale up on hover');
+  assert.ok(!/animation:\s*drift/.test(css), 'background blobs do not drift');
+  assert.ok(!/ScrollTrigger/.test(read('index.html')), 'ScrollTrigger script no longer loaded');
 });
