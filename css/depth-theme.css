@@ -350,3 +350,39 @@ button.chatbot-fab {
     -webkit-backdrop-filter: none;
   }
 }
+
+/* ---------- Smoothness ----------
+   backdrop-filter re-blurs everything behind an element on every scroll frame. With a blurred
+   card, sidebar and header on screen at once that is what makes scrolling stutter on phones and
+   laptops, so surfaces are now near-opaque instead. The look is the same; the jank is gone. */
+.card,
+.grid > .card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(255, 255, 255, 0.92);
+}
+.sidebar {
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.topbar {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.ambient-blob { will-change: auto; }
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+
+/* Tapping controls responds instantly (no double-tap-zoom delay, no grey flash on iOS). */
+button, a, .btn, .nav-link, [role="button"], select, label {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* While the phone menu is open the page behind it must not scroll. */
+body.menu-open { overflow: hidden; }
+.sidebar { overscroll-behavior: contain; }
