@@ -245,9 +245,9 @@ h6 {
   font-weight: 600;
 }
 
-/* ---------- Buttons (pill shape) ---------- */
+/* ---------- Buttons ---------- */
 .btn {
-  border-radius: var(--radius-full);
+  border-radius: 10px;
   padding: 8px 18px;
   font-weight: 600;
   box-shadow: var(--shadow-xs);
@@ -303,7 +303,7 @@ h6 {
 }
 
 .btn-sm {
-  border-radius: var(--radius-full);
+  border-radius: 8px;
   padding: 5px 12px;
 }
 
@@ -1003,10 +1003,4 @@ th {
 .msg.user {
   background: linear-gradient(135deg, #097a54, #12b981);
   color: #ffffff;
-}
-
-.transcript-msg.user {
-  background: linear-gradient(135deg, #ecfaf3, #f0fbf6);
-  border-color: #c3ecdc;
-  color: var(--text);
 }

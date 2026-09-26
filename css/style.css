@@ -1232,125 +1232,6 @@ textarea {
   background: linear-gradient(90deg, #dc2626, #f87171);
 }
 
-/* ============ HR Simulator ============ */
-.live-interview-layout {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: var(--space-4);
-  align-items: start;
-}
-
-@media (max-width: 960px) {
-  .live-interview-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.li-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
-  box-shadow: var(--shadow-sm);
-}
-
-.li-cam-wrap {
-  position: relative;
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: #071812;
-  aspect-ratio: 16/10;
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.li-cam-wrap video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.li-cam-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-
-.cam-btn,
-.voice-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-full);
-  background: var(--surface);
-  border: 1.5px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text);
-  box-shadow: var(--shadow-xs);
-  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
-}
-
-.cam-btn:hover,
-.voice-btn:hover {
-  background: var(--surface-2);
-  transform: translateY(-1px);
-}
-
-.cam-btn.active,
-.voice-btn.active {
-  background: var(--accent);
-  color: #ffffff;
-  border-color: var(--accent);
-  box-shadow: 0 4px 12px rgba(20, 124, 86, 0.30);
-}
-
-/* Transcript Box */
-.transcript-box {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  max-height: 360px;
-  overflow-y: auto;
-  padding-right: 3px;
-}
-
-.transcript-msg {
-  max-width: 90%;
-  padding: 9px 13px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  line-height: 1.55;
-  border: 1px solid var(--border);
-}
-
-.transcript-msg.ai {
-  align-self: flex-start;
-  background: var(--surface-2);
-  border-radius: var(--radius) var(--radius) var(--radius) 2px;
-}
-
-.transcript-msg.user {
-  align-self: flex-end;
-  background: linear-gradient(135deg, #e9f9f3, #e6f6f0);
-  border-color: #ace4d0;
-  color: var(--text);
-  border-radius: var(--radius) var(--radius) 2px var(--radius);
-}
-
-.transcript-label {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-bottom: 2px;
-  letter-spacing: 0.05em;
-}
-
 .recommendation-list {
   display: grid;
   gap: var(--space-2);
@@ -2645,17 +2526,11 @@ h6,
   border-radius: 4px;
 }
 
-.live-interview-layout .li-panel,
 .code-wrap,
 .question-card,
 .yt-card {
   border-radius: var(--radius);
   box-shadow: none;
-}
-
-.li-panel-label,
-.transcript-label {
-  letter-spacing: 0;
 }
 
 .job-detail-tab {

@@ -126,8 +126,8 @@ const Jobs = {
     const roleLabel = this.state.internshipOnly ? 'internship' : 'role';
     const fallback = source === 'india' && mode === 'remote-fallback';
     const sourceNote = source === 'india' && mode === 'adzuna'
-      ? 'Live India job &amp; internship data via <a href="https://www.adzuna.in" target="_blank" rel="noopener">Adzuna</a> — real listings, real companies, real apply links.'
-      : 'Live remote roles via <a href="https://remoteok.com" target="_blank" rel="noopener">Remote OK</a>, <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a> and <a href="https://jobicy.com" target="_blank" rel="noopener">Jobicy</a> — real listings, real companies, real apply links.';
+      ? 'Live India job &amp; internship data via <a href="https://www.adzuna.in" target="_blank" rel="noopener">Adzuna</a>: real listings, real companies, real apply links.'
+      : 'Live remote roles via <a href="https://remoteok.com" target="_blank" rel="noopener">Remote OK</a>, <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a> and <a href="https://jobicy.com" target="_blank" rel="noopener">Jobicy</a>: real listings, real companies, real apply links.';
     const links = source === 'india' ? this._externalSearchLinks() : [];
 
     this.container.innerHTML = `
@@ -197,7 +197,7 @@ const Jobs = {
         ` : `<div class="text-dim mt-2" style="font-size:11px">Tip: analyze your resume in <a href="#resume">Resume Analyzer</a> first to get job suggestions matched to your skills.</div>`}
 
         <div class="text-dim mt-2" style="font-size:11px">${sourceNote}</div>
-        ` : `<div class="text-dim mt-2" style="font-size:12px">Jobs you save stay here even after you close the tab — stored privately in your browser.</div>`}
+        ` : `<div class="text-dim mt-2" style="font-size:12px">Jobs you save stay here even after you close the tab. Stored privately in your browser.</div>`}
       </div>
 
       ${notice && !this.state.showSavedOnly ? `<div class="card mb-2" role="status" id="jobsNotice" style="border-left:3px solid var(--warning, #e6a23c)"><div style="font-size:13px;line-height:1.5">${esc(notice)}</div></div>` : ''}
@@ -353,7 +353,7 @@ const Jobs = {
         city = '';
       }
       this.state.city = city;
-      App.showToast(city ? `Showing roles near ${city}.` : 'Could not determine your city — type it in the City box instead.', city ? 'success' : 'error');
+      App.showToast(city ? `Showing roles near ${city}.` : 'Could not determine your city. Type it in the City box instead.', city ? 'success' : 'error');
       this._search();
     }, () => App.showToast('Location permission was unavailable. Type your city instead.', 'error'), { timeout: 10000 });
   },
@@ -448,7 +448,7 @@ const Jobs = {
       App.showToast('Removed from saved jobs', 'info');
     } else {
       saved[job.id] = { ...job, savedAt: new Date().toISOString() };
-      App.showToast('Saved — find it under "Saved Jobs"', 'success');
+      App.showToast('Saved. Find it under "Saved Jobs".', 'success');
     }
     DB.setGlobal('saved_jobs', saved);
     if (this.state.showSavedOnly) this._renderHub();
@@ -575,7 +575,7 @@ const Jobs = {
           <p class="text-dim">${this._escape(job.company)} · ${this._escape(job.location)}</p>
         </div>
         <div class="modal-body">
-          ${hasSavedResume ? '<div class="chip green mb-1" id="jobSavedResumeNote"><i class="bi bi-check2-circle"></i> Using the resume from your Resume Analyzer — or upload a different one.</div>' : ''}
+          ${hasSavedResume ? '<div class="chip green mb-1" id="jobSavedResumeNote"><i class="bi bi-check2-circle"></i> Using the resume from your Resume Analyzer, or upload a different one.</div>' : ''}
           <label class="field-label" for="jobResumeFile">${hasSavedResume ? 'Use a different resume (optional)' : 'Upload resume'}</label>
           <input type="file" id="jobResumeFile" accept=".pdf,.docx,.txt,.rtf" />
           <div id="jobApplyStatus" class="text-dim mt-1" style="font-size:13px">PDF, DOCX, TXT, and RTF are supported.</div>

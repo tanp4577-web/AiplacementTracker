@@ -315,7 +315,7 @@ const Dashboard = {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:36px;height:36px;margin:0 auto"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
           </div>
           <h4 style="font-size:14px;margin-bottom:4px">No interview experience added yet</h4>
-          <p class="text-dim" style="font-size:12.5px">Add your first interview experience — it also boosts your readiness score.</p>
+          <p class="text-dim" style="font-size:12.5px">Add your first interview experience. It also boosts your readiness score.</p>
         </div>
       `;
     }

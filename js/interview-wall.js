@@ -31,7 +31,7 @@ const InterviewWall = {
         <div class="flex-between items-center" style="gap:12px;flex-wrap:wrap">
           <div>
             <div class="card-title"><i class="bi bi-chat-square-quote text-accent" style="margin-right:4px"></i>Interview Experiences</div>
-            <div class="card-sub">Rounds and tips saved in this browser — add what you learned from each interview</div>
+            <div class="card-sub">Rounds and tips saved in this browser. Add what you learned from each interview</div>
           </div>
           <button class="btn btn-primary" id="shareExperienceBtn"><i class="bi bi-plus-lg" style="margin-right:4px"></i>Add Your Experience</button>
         </div>
@@ -88,7 +88,7 @@ const InterviewWall = {
     const isAdmin = Auth.getCurrentUser()?.role === 'admin';
     const empty = this.state.experiences.length
       ? '<div class="card empty-state" style="grid-column:1/-1"><h3>No experiences match your filters</h3><p>Try clearing the search or filters.</p></div>'
-      : '<div class="card empty-state" style="grid-column:1/-1"><h3>No experiences yet — add your first one!</h3><p>Write down the rounds and questions while you still remember them. They are saved in this browser.</p></div>';
+      : '<div class="card empty-state" style="grid-column:1/-1"><h3>No experiences yet. Add your first one!</h3><p>Write down the rounds and questions while you still remember them. They are saved in this browser.</p></div>';
     document.getElementById('experienceGrid').innerHTML = filtered.length ? filtered.map(item => this._cardMarkup(item, isAdmin)).join('') : empty;
 
     const focusId = sessionStorage.getItem('interviewWallFocusId');
