@@ -140,6 +140,11 @@ Attribution is required: Remote OK, Remotive and Jobicy listings link back to th
 - [ ] Move the frontend to ES modules and add browser end-to-end tests
 - [ ] Multi-language coding runner (Java, Python)
 
+## Legal
+
+- [Privacy Policy](privacy.html)
+- [Terms and Conditions](terms.html)
+
 ## Contributing
 
 Issues and pull requests are welcome. Please run `npm run lint && npm test` first.
