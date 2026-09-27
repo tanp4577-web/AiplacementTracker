@@ -716,61 +716,91 @@ test('feedback page: never pre-fills the visitor\'s own name/email, even when si
   assert.match(text(app.document.getElementById('viewContainer'), 2000), /tanmaypondhe7777@gmail\.com/);
 });
 
-test('feedback page: name, email and message are all required before sending', async () => {
+test('feedback page: name, email and message are all required, then it sends for real and confirms success', async () => {
   const app = await bootApp();
   const $ = (id) => app.document.getElementById(id);
   await goTo(app, 'feedback');
-  const nav = [];
-  app.run('Feedback._navigate = (url) => window.__nav.push(url);');
-  app.window.__nav = nav;
+  const calls = [];
+  app.run('Feedback._submit = (fields) => { window.__calls.push(fields); return Promise.resolve({ ok: true }); };');
+  app.window.__calls = calls;
 
   $('feedbackSendBtn').click();
+  await tick(30);
   assert.match(text($('feedbackError')), /enter your name/);
 
   $('feedbackName').value = 'Ana Sharma';
   $('feedbackSendBtn').click();
+  await tick(30);
   assert.match(text($('feedbackError')), /enter your email/);
 
   $('feedbackEmail').value = 'not-an-email';
   $('feedbackSendBtn').click();
+  await tick(30);
   assert.match(text($('feedbackError')), /looks incomplete/);
 
   $('feedbackEmail').value = 'ana@example.com';
   $('feedbackSendBtn').click();
+  await tick(30);
   assert.match(text($('feedbackError')), /write a message first/);
-  assert.equal(nav.length, 0, 'nothing is sent until every field is valid');
+  assert.equal(calls.length, 0, 'nothing is sent until every field is valid');
 
   $('feedbackMessage').value = 'The Hiring Hub search box is slow.';
   $('feedbackSendBtn').click();
-  assert.equal(nav.length, 1);
-  assert.match(nav[0], /^mailto:tanmaypondhe7777@gmail\.com\?subject=/);
-  assert.match(decodeURIComponent(nav[0]), /Hiring Hub search box is slow/);
-  assert.match(decodeURIComponent(nav[0]), /Reply-to: ana@example\.com/);
-  assert.match(text($('feedbackNote')), /email app should have opened/);
+  await tick(30);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, 'Ana Sharma');
+  assert.equal(calls[0].email, 'ana@example.com');
+  assert.equal(calls[0].message, 'The Hiring Hub search box is slow.');
+  assert.match(text($('feedbackNote')), /Sent!/);
+  assert.equal($('feedbackName').value, '', 'the form clears after a real send');
   assert.deepEqual(app.errors, []);
 });
 
-test('feedback page: copy-to-clipboard requires the same fields, and falls back gracefully', async () => {
+test('feedback page: a server error or a network failure is shown honestly, never as success', async () => {
   const app = await bootApp();
   const $ = (id) => app.document.getElementById(id);
   await goTo(app, 'feedback');
-
-  $('feedbackCopyBtn').click();
-  assert.match(text($('feedbackError')), /enter your name/);
-
   $('feedbackName').value = 'Ravi';
   $('feedbackEmail').value = 'ravi@example.com';
   $('feedbackMessage').value = 'Please add dark mode.';
-  let written = null;
-  app.window.navigator.clipboard = { writeText: async (t) => { written = t; } };
-  $('feedbackCopyBtn').click();
-  await tick(30);
-  assert.match(written, /Please add dark mode/);
-  assert.match(text($('feedbackNote')), /Copied/);
 
-  app.window.navigator.clipboard = { writeText: async () => { throw new Error('denied'); } };
-  $('feedbackCopyBtn').click();
+  app.run("Feedback._submit = () => Promise.resolve({ ok: false, error: 'Invalid access key.' });");
+  $('feedbackSendBtn').click();
   await tick(30);
-  assert.match(text($('feedbackNote')), /Couldn't access the clipboard/);
+  assert.match(text($('feedbackNote')), /Invalid access key/);
+  assert.equal($('feedbackName').value, 'Ravi', 'a failed send keeps what was typed');
+
+  app.run("Feedback._submit = () => Promise.reject(new Error('network down'));");
+  $('feedbackSendBtn').click();
+  await tick(30);
+  assert.match(text($('feedbackNote')), /Couldn't reach the server/);
   assert.deepEqual(app.errors, []);
+});
+
+test('feedback page: really calls Web3Forms with the given access key (network mocked)', async () => {
+  const app = await bootApp({
+    fetch: (url, init) => {
+      if (String(url) === 'https://api.web3forms.com/submit') {
+        const body = JSON.parse(init.body);
+        assert.equal(body.access_key, '115b2283-132c-401a-9810-c0f520054f43');
+        assert.equal(body.email, 'ravi@example.com');
+        return { ok: true, json: async () => ({ success: true }) };
+      }
+      return defaultFetch(url, init);
+    }
+  });
+  const $ = (id) => app.document.getElementById(id);
+  await goTo(app, 'feedback');
+  $('feedbackName').value = 'Ravi';
+  $('feedbackEmail').value = 'ravi@example.com';
+  $('feedbackMessage').value = 'Great app!';
+  $('feedbackSendBtn').click();
+  await tick(50);
+  assert.match(text($('feedbackNote')), /Sent!/);
+  assert.deepEqual(app.errors, []);
+});
+
+test('feedback nav link is the last item in the sidebar', () => {
+  const order = [...read('index.html').matchAll(/data-view="([a-z]+)"/g)].map((m) => m[1]);
+  assert.equal(order.at(-1), 'feedback');
 });
