@@ -135,7 +135,7 @@ const Jobs = {
         <div class="flex-between" style="gap:16px;flex-wrap:wrap">
           <div>
             <div class="card-title"><i class="bi bi-briefcase text-accent" style="margin-right:4px"></i>Hiring Hub</div>
-            <div class="card-sub">${this.state.showSavedOnly ? `${count} job${count === 1 ? '' : 's'} you've saved` : (loading ? 'Loading live listings…' : `${count} real, currently-open ${roleLabel}${count === 1 ? '' : 's'}${fallback ? ' (remote, open to candidates in India)' : ''} — live from the job market.`)}</div>
+            <div class="card-sub">${this.state.showSavedOnly ? `${count} job${count === 1 ? '' : 's'} you've saved` : (loading ? 'Loading live listings…' : `${count} real, currently-open ${roleLabel}${count === 1 ? '' : 's'}${fallback ? ' (remote, open to candidates in India)' : ''}, live from the job market.`)}</div>
           </div>
           <div class="flex gap-1" role="group" aria-label="Job source">
             <button class="btn ${source === 'india' && !this.state.showSavedOnly ? 'btn-primary' : 'btn-ghost'}" id="indiaSourceBtn">India (Local)</button>
@@ -214,7 +214,7 @@ const Jobs = {
           ${Array(4).fill(0).map(() => this._skeletonCard()).join('')}
         </div>
       ` : ''}
-      ${!error && !loading && sortedJobs.length === 0 ? `<div class="empty-state"><h3>${this.state.showSavedOnly ? 'No saved jobs yet' : 'No roles found'}</h3><p>${this.state.showSavedOnly ? 'Tap "Save" on any job to keep it here for later.' : `Try a broader keyword${this.state.internshipOnly ? ', turn off "Internships only"' : ''}${this.state.city ? ', or clear the city' : ''} — or use the search links above.`}</p></div>` : ''}
+      ${!error && !loading && sortedJobs.length === 0 ? `<div class="empty-state"><h3>${this.state.showSavedOnly ? 'No saved jobs yet' : 'No roles found'}</h3><p>${this.state.showSavedOnly ? 'Tap "Save" on any job to keep it here for later.' : `Try a broader keyword${this.state.internshipOnly ? ', turn off "Internships only"' : ''}${this.state.city ? ', or clear the city' : ''}, or use the search links above.`}</p></div>` : ''}
 
       ${!loading || jobs.length > 0 || this.state.showSavedOnly ? `
       <div class="grid grid-2" id="jobsGrid">

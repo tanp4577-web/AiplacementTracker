@@ -85,7 +85,7 @@ const Tracker = {
       container.innerHTML = `
         <div class="card text-center" style="padding:40px 20px">
           <h3>Sign in to track your applications</h3>
-          <p class="text-dim" style="max-width:440px;margin:8px auto 0">Keep every job and internship in one board — from Saved to Offer.</p>
+          <p class="text-dim" style="max-width:440px;margin:8px auto 0">Keep every job and internship in one board, from Saved to Offer.</p>
           <div class="flex gap-2 flex-wrap" style="justify-content:center;margin-top:18px">
             <button type="button" class="btn btn-primary" id="trackerSignInBtn">Sign in</button>
             <button type="button" class="btn btn-ghost" id="trackerGuestBtn">Continue as guest</button>
@@ -200,7 +200,7 @@ const Tracker = {
     const offers = all.filter((a) => a.status === 'offer').length;
     document.getElementById('trackerSummary').textContent = all.length
       ? `${all.length} tracked · ${active} in progress · ${offers} offer${offers === 1 ? '' : 's'}`
-      : 'Nothing tracked yet — add an application, or press Track on any job in the Hiring Hub.';
+      : 'Nothing tracked yet. Add an application, or press Track on any job in the Hiring Hub.';
 
     document.getElementById('trackerBoard').innerHTML = this.STATUSES.map((status, col) => {
       const cards = shown.filter((a) => a.status === status.id);
