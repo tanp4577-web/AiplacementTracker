@@ -704,31 +704,43 @@ test('application tracker: sidebar link and script are wired in', () => {
 });
 
 /* ---------------------------------------------------- Feedback / Contact Us */
-test('feedback page: opens the mail app with the message, validates first, and offers copy', async () => {
+test('feedback page: never pre-fills the visitor\'s own name/email, even when signed in', async () => {
   const app = await bootApp({
     session: { id: 'a1', name: 'Ana Sharma', email: 'ana@example.com', role: 'student' },
     users: { 'ana@example.com': { id: 'a1', name: 'Ana Sharma', email: 'ana@example.com', role: 'student', pass: 'x' } }
   });
   const $ = (id) => app.document.getElementById(id);
   await goTo(app, 'feedback');
-
-  assert.equal($('feedbackName').value, 'Ana Sharma', 'name is pre-filled for a signed-in user');
-  assert.equal($('feedbackEmail').value, 'ana@example.com');
+  assert.equal($('feedbackName').value, '');
+  assert.equal($('feedbackEmail').value, '');
   assert.match(text(app.document.getElementById('viewContainer'), 2000), /tanmaypondhe7777@gmail\.com/);
+});
+
+test('feedback page: name, email and message are all required before sending', async () => {
+  const app = await bootApp();
+  const $ = (id) => app.document.getElementById(id);
+  await goTo(app, 'feedback');
+  const nav = [];
+  app.run('Feedback._navigate = (url) => window.__nav.push(url);');
+  app.window.__nav = nav;
 
   $('feedbackSendBtn').click();
-  assert.match(text($('feedbackError')), /write a message first/);
-  assert.ok($('feedbackNote').classList.contains('hidden'));
+  assert.match(text($('feedbackError')), /enter your name/);
 
-  $('feedbackMessage').value = 'The Hiring Hub search box is slow.';
+  $('feedbackName').value = 'Ana Sharma';
+  $('feedbackSendBtn').click();
+  assert.match(text($('feedbackError')), /enter your email/);
+
   $('feedbackEmail').value = 'not-an-email';
   $('feedbackSendBtn').click();
   assert.match(text($('feedbackError')), /looks incomplete/);
 
   $('feedbackEmail').value = 'ana@example.com';
-  const nav = [];
-  app.run(`Feedback._navigate = (url) => window.__nav.push(url);`);
-  app.window.__nav = nav;
+  $('feedbackSendBtn').click();
+  assert.match(text($('feedbackError')), /write a message first/);
+  assert.equal(nav.length, 0, 'nothing is sent until every field is valid');
+
+  $('feedbackMessage').value = 'The Hiring Hub search box is slow.';
   $('feedbackSendBtn').click();
   assert.equal(nav.length, 1);
   assert.match(nav[0], /^mailto:tanmaypondhe7777@gmail\.com\?subject=/);
@@ -738,12 +750,16 @@ test('feedback page: opens the mail app with the message, validates first, and o
   assert.deepEqual(app.errors, []);
 });
 
-test('feedback page: copy-to-clipboard works, and falls back gracefully without clipboard access', async () => {
-  const app = await bootApp({ session: null });
+test('feedback page: copy-to-clipboard requires the same fields, and falls back gracefully', async () => {
+  const app = await bootApp();
   const $ = (id) => app.document.getElementById(id);
   await goTo(app, 'feedback');
-  assert.equal($('feedbackName').value, '', 'guests/signed-out get a blank form, nothing assumed');
 
+  $('feedbackCopyBtn').click();
+  assert.match(text($('feedbackError')), /enter your name/);
+
+  $('feedbackName').value = 'Ravi';
+  $('feedbackEmail').value = 'ravi@example.com';
   $('feedbackMessage').value = 'Please add dark mode.';
   let written = null;
   app.window.navigator.clipboard = { writeText: async (t) => { written = t; } };

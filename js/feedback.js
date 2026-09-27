@@ -11,7 +11,6 @@ const Feedback = {
 
   render(container) {
     this.container = container;
-    const user = Auth.getCurrentUser && Auth.getCurrentUser();
     const esc = (v) => Sanitize.html(v);
 
     container.innerHTML = `
@@ -20,11 +19,11 @@ const Feedback = {
         <div class="card-sub">Found a bug, or have an idea to improve PlacementPrep? Send it straight to the developer.</div>
 
         <form id="feedbackForm" class="mt-2" novalidate>
-          <label class="field-label" for="feedbackName">Your name (optional)</label>
-          <input id="feedbackName" maxlength="80" autocomplete="name" value="${user && !user.guest ? esc(user.name || '') : ''}" />
+          <label class="field-label" for="feedbackName">Your name</label>
+          <input id="feedbackName" maxlength="80" autocomplete="name" required />
 
-          <label class="field-label mt-2" for="feedbackEmail">Your email (optional, so we can reply)</label>
-          <input id="feedbackEmail" type="email" maxlength="200" autocomplete="email" value="${user && !user.guest ? esc(user.email || '') : ''}" />
+          <label class="field-label mt-2" for="feedbackEmail">Your email (so we can reply)</label>
+          <input id="feedbackEmail" type="email" maxlength="200" autocomplete="email" required />
 
           <label class="field-label mt-2" for="feedbackType">Type</label>
           <select id="feedbackType">
@@ -73,8 +72,10 @@ const Feedback = {
   },
 
   _validate(fields) {
+    if (!fields.name) return 'Please enter your name.';
+    if (!fields.email) return 'Please enter your email, so a reply is possible.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email)) return 'That email address looks incomplete.';
     if (!fields.message) return 'Please write a message first.';
-    if (fields.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email)) return 'That email address looks incomplete.';
     return '';
   },
 
