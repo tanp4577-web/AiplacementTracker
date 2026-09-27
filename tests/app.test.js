@@ -9,6 +9,7 @@ const VIEWS = {
   coding: 'Coding Practice',
   interview: 'Interview Experiences',
   jobs: 'Hiring Hub',
+  feedback: 'Feedback & Contact Us',
   tracker: 'Application Tracker',
   skills: 'Skill Gap Analysis',
   company: 'Company Patterns',

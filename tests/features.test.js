@@ -702,3 +702,59 @@ test('application tracker: sidebar link and script are wired in', () => {
   assert.match(html, /<a href="#tracker" class="nav-link" data-view="tracker">/);
   assert.ok(html.indexOf('js/tracker.js') > -1 && html.indexOf('js/tracker.js') < html.indexOf('js/app.js'));
 });
+
+/* ---------------------------------------------------- Feedback / Contact Us */
+test('feedback page: opens the mail app with the message, validates first, and offers copy', async () => {
+  const app = await bootApp({
+    session: { id: 'a1', name: 'Ana Sharma', email: 'ana@example.com', role: 'student' },
+    users: { 'ana@example.com': { id: 'a1', name: 'Ana Sharma', email: 'ana@example.com', role: 'student', pass: 'x' } }
+  });
+  const $ = (id) => app.document.getElementById(id);
+  await goTo(app, 'feedback');
+
+  assert.equal($('feedbackName').value, 'Ana Sharma', 'name is pre-filled for a signed-in user');
+  assert.equal($('feedbackEmail').value, 'ana@example.com');
+  assert.match(text(app.document.getElementById('viewContainer'), 2000), /tanmaypondhe7777@gmail\.com/);
+
+  $('feedbackSendBtn').click();
+  assert.match(text($('feedbackError')), /write a message first/);
+  assert.ok($('feedbackNote').classList.contains('hidden'));
+
+  $('feedbackMessage').value = 'The Hiring Hub search box is slow.';
+  $('feedbackEmail').value = 'not-an-email';
+  $('feedbackSendBtn').click();
+  assert.match(text($('feedbackError')), /looks incomplete/);
+
+  $('feedbackEmail').value = 'ana@example.com';
+  const nav = [];
+  app.run(`Feedback._navigate = (url) => window.__nav.push(url);`);
+  app.window.__nav = nav;
+  $('feedbackSendBtn').click();
+  assert.equal(nav.length, 1);
+  assert.match(nav[0], /^mailto:tanmaypondhe7777@gmail\.com\?subject=/);
+  assert.match(decodeURIComponent(nav[0]), /Hiring Hub search box is slow/);
+  assert.match(decodeURIComponent(nav[0]), /Reply-to: ana@example\.com/);
+  assert.match(text($('feedbackNote')), /email app should have opened/);
+  assert.deepEqual(app.errors, []);
+});
+
+test('feedback page: copy-to-clipboard works, and falls back gracefully without clipboard access', async () => {
+  const app = await bootApp({ session: null });
+  const $ = (id) => app.document.getElementById(id);
+  await goTo(app, 'feedback');
+  assert.equal($('feedbackName').value, '', 'guests/signed-out get a blank form, nothing assumed');
+
+  $('feedbackMessage').value = 'Please add dark mode.';
+  let written = null;
+  app.window.navigator.clipboard = { writeText: async (t) => { written = t; } };
+  $('feedbackCopyBtn').click();
+  await tick(30);
+  assert.match(written, /Please add dark mode/);
+  assert.match(text($('feedbackNote')), /Copied/);
+
+  app.window.navigator.clipboard = { writeText: async () => { throw new Error('denied'); } };
+  $('feedbackCopyBtn').click();
+  await tick(30);
+  assert.match(text($('feedbackNote')), /Couldn't access the clipboard/);
+  assert.deepEqual(app.errors, []);
+});
