@@ -1,12 +1,15 @@
 /* ============================================================================
    Feedback / Contact Us
-   No backend or API key is used: the form opens the visitor's own email app,
-   addressed to the site owner, with the subject and message already filled in.
-   Nothing is sent, saved, or shown as "sent" until they actually press Send in
-   their email app, which this page cannot see or confirm.
+   Submits directly from the page via Web3Forms (web3forms.com) — no backend of
+   our own, no signup for the visitor. The access key below is meant to be public
+   (Web3Forms documents it as safe for client-side code, like a reCAPTCHA site key):
+   it only lets people email the one address it was issued for, tanmaypondhe7777@gmail.com.
+   "Sent" is shown only after Web3Forms actually confirms success.
    ========================================================================== */
 const Feedback = {
+  ACCESS_KEY: '115b2283-132c-401a-9810-c0f520054f43',
   TO_EMAIL: 'tanmaypondhe7777@gmail.com',
+  ENDPOINT: 'https://api.web3forms.com/submit',
   MAX_MESSAGE: 4000,
 
   render(container) {
@@ -37,13 +40,12 @@ const Feedback = {
           <textarea id="feedbackMessage" rows="6" maxlength="${this.MAX_MESSAGE}" placeholder="What's on your mind?" required></textarea>
 
           <div id="feedbackError" class="text-danger hidden" role="alert" style="margin-top:6px;font-size:13px"></div>
-          <div id="feedbackNote" class="text-dim hidden" style="margin-top:10px;font-size:13px"></div>
+          <div id="feedbackNote" class="hidden" style="margin-top:10px;font-size:13px"></div>
 
           <div class="flex gap-2 mt-3 flex-wrap">
-            <button type="submit" class="btn btn-primary" id="feedbackSendBtn"><i class="bi bi-send" style="margin-right:6px"></i>Open in your email app</button>
-            <button type="button" class="btn btn-ghost" id="feedbackCopyBtn">Copy message instead</button>
+            <button type="submit" class="btn btn-primary" id="feedbackSendBtn"><i class="bi bi-send" style="margin-right:6px"></i>Send message</button>
           </div>
-          <p class="text-dim mt-2" style="font-size:12px">This opens your own email app addressed to <b>${esc(this.TO_EMAIL)}</b>. Nothing is sent from this page, and nothing you type here is stored.</p>
+          <p class="text-dim mt-2" style="font-size:12px">This is sent straight to <b>${esc(this.TO_EMAIL)}</b>. Nothing you type here is stored on this site.</p>
         </form>
       </div>
     `;
@@ -52,7 +54,6 @@ const Feedback = {
       e.preventDefault();
       this._send();
     });
-    document.getElementById('feedbackCopyBtn').addEventListener('click', () => this._copy());
   },
 
   _fields() {
@@ -65,12 +66,6 @@ const Feedback = {
     };
   },
 
-  _compose({ name, email, type, message }) {
-    const subject = `PlacementPrep ${type}${name ? ` from ${name}` : ''}`;
-    const bodyLines = [message, '', '---', name ? `Name: ${name}` : null, email ? `Reply-to: ${email}` : null].filter(Boolean);
-    return { subject, body: bodyLines.join('\n') };
-  },
-
   _validate(fields) {
     if (!fields.name) return 'Please enter your name.';
     if (!fields.email) return 'Please enter your email, so a reply is possible.';
@@ -79,51 +74,64 @@ const Feedback = {
     return '';
   },
 
-  _send() {
+  _setNote(text, kind) {
+    const el = document.getElementById('feedbackNote');
+    el.textContent = text;
+    el.classList.remove('hidden', 'text-success', 'text-danger', 'text-dim');
+    el.classList.add(kind === 'error' ? 'text-danger' : kind === 'success' ? 'text-success' : 'text-dim');
+  },
+
+  async _send() {
     const fields = this._fields();
     const errorEl = document.getElementById('feedbackError');
-    const noteEl = document.getElementById('feedbackNote');
     const error = this._validate(fields);
     if (error) {
       errorEl.textContent = error;
       errorEl.classList.remove('hidden');
-      noteEl.classList.add('hidden');
+      document.getElementById('feedbackNote').classList.add('hidden');
       return;
     }
     errorEl.classList.add('hidden');
-    const { subject, body } = this._compose(fields);
-    const mailto = `mailto:${this.TO_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    this._navigate(mailto);
-    noteEl.textContent = 'Your email app should have opened with this message ready. If nothing happened, use "Copy message instead" and paste it into an email.';
-    noteEl.classList.remove('hidden');
-  },
 
-  /** A same-tab navigation (not window.open) is what reliably triggers the OS's
-   *  "choose an email app" / mail-client handoff on both desktop and mobile browsers. */
-  _navigate(url) {
-    window.location.href = url;
-  },
+    const button = document.getElementById('feedbackSendBtn');
+    button.disabled = true;
+    const originalLabel = button.innerHTML;
+    button.innerHTML = 'Sending…';
+    this._setNote('Sending your message…', 'info');
 
-  async _copy() {
-    const fields = this._fields();
-    const error = this._validate(fields);
-    const errorEl = document.getElementById('feedbackError');
-    const noteEl = document.getElementById('feedbackNote');
-    if (error) {
-      errorEl.textContent = error;
-      errorEl.classList.remove('hidden');
-      noteEl.classList.add('hidden');
-      return;
-    }
-    errorEl.classList.add('hidden');
-    const { subject, body } = this._compose(fields);
-    const text = `To: ${this.TO_EMAIL}\nSubject: ${subject}\n\n${body}`;
     try {
-      await navigator.clipboard.writeText(text);
-      noteEl.textContent = `Copied. Paste it into an email to ${this.TO_EMAIL}.`;
+      const response = await this._submit(fields);
+      if (response.ok) {
+        this._setNote(`Sent! Thanks — your message is on its way to ${this.TO_EMAIL}.`, 'success');
+        document.getElementById('feedbackForm').reset();
+      } else {
+        this._setNote(response.error || "Couldn't send that. Please try again in a moment.", 'error');
+      }
     } catch {
-      noteEl.textContent = `Couldn't access the clipboard. Please copy this manually and email it to ${this.TO_EMAIL}:\n\n${text}`;
+      this._setNote("Couldn't reach the server. Check your connection and try again.", 'error');
+    } finally {
+      button.disabled = false;
+      button.innerHTML = originalLabel;
     }
-    noteEl.classList.remove('hidden');
+  },
+
+  /** Kept separate so tests can stub the network without touching fetch globally. */
+  async _submit({ name, email, type, message }) {
+    const response = await fetch(this.ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        access_key: this.ACCESS_KEY,
+        subject: `PlacementPrep ${type} from ${name}`,
+        from_name: name,
+        name,
+        email,
+        type,
+        message
+      })
+    });
+    let data = {};
+    try { data = await response.json(); } catch { /* non-JSON error page */ }
+    return response.ok && data.success ? { ok: true } : { ok: false, error: data.message };
   }
 };
