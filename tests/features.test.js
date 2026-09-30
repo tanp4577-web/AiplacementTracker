@@ -804,3 +804,47 @@ test('feedback nav link is the last item in the sidebar', () => {
   const order = [...read('index.html').matchAll(/data-view="([a-z]+)"/g)].map((m) => m[1]);
   assert.equal(order.at(-1), 'feedback');
 });
+test('coding practice: the C++ toggle only appears for questions that actually have a C++ harness', async () => {
+  const app = await bootApp();
+  await goTo(app, 'coding');
+  const withCpp = app.run("EXTRA_CODING_CPP.map(c => c.id.replace(/-cpp$/, ''))");
+  const withoutCppTitle = app.run(`(() => {
+    const cppIds = new Set(EXTRA_CODING_CPP.map(c => c.id));
+    const q = [...FALLBACK_CODING, ...EXTRA_CODING].find(q => !cppIds.has(q.id + '-cpp'));
+    return q.title;
+  })()`);
+  assert.ok(withoutCppTitle, 'fixture must contain at least one JS-only question');
+
+  const item = [...app.document.querySelectorAll('#questionList > *')].find((el) => el.textContent.includes(withoutCppTitle));
+  item.click();
+  await tick(200);
+  assert.equal(app.document.getElementById('langCppBtn'), null, 'no clickable C++ button for a question with no C++ harness');
+  assert.match(text(app.document.getElementById('viewContainer'), 3000), /C\+\+ not available/);
+  assert.equal(app.document.getElementById('runBtn').textContent.trim(), 'Run Tests', 'defaults to JavaScript, ready to run');
+
+  const runResult = app.document.getElementById('testResults');
+  app.document.getElementById('runBtn').click();
+  await tick(200);
+  assert.doesNotMatch(text(runResult), /No C\+\+ test cases/, 'never reaches the C++ dead end for a JS-only question');
+  assert.deepEqual(app.errors, []);
+  void withCpp;
+});
+
+test('coding practice: if the C++ dead end is ever reached, a button switches back to a working JavaScript run', async () => {
+  const app = await bootApp();
+  await goTo(app, 'coding');
+  const twoSum = [...app.document.querySelectorAll('#questionList > *')].find((el) => /Two Sum/.test(el.textContent));
+  twoSum.click();
+  await tick(200);
+  app.document.getElementById('langCppBtn').click();
+  await tick(50);
+  // Force the dead-end path even though Two Sum has a harness, to prove the rescue button works.
+  app.run('Coding._lookupCppQuestion = () => null;');
+  app.document.getElementById('runBtn').click();
+  await tick(100);
+  assert.match(text(app.document.getElementById('testResults')), /Switch to JavaScript/);
+  app.document.getElementById('switchToJsBtn').click();
+  await tick(150);
+  assert.equal(app.document.getElementById('runBtn').textContent.trim(), 'Run Tests');
+  assert.deepEqual(app.errors, []);
+});

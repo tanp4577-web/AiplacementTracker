@@ -261,6 +261,8 @@ _lookupCppQuestion(id) {
       const cppBtn = document.getElementById('langCppBtn');
       if (jsBtn) jsBtn.classList.toggle('active', !isCpp);
       if (cppBtn) cppBtn.classList.toggle('active', isCpp);
+      // The C++ button only exists in the DOM when this question has a C++ harness
+      // (see the template below), so there is nothing to disable here otherwise.
       const runBtn = document.getElementById('runBtn');
       if (runBtn) runBtn.textContent = isCpp ? '▶ Run C++ Tests' : ' Run Tests';
       const cppNote = document.getElementById('cppNote');
@@ -290,7 +292,9 @@ _lookupCppQuestion(id) {
           <div class="flex gap-2 mb-2" style="align-items:center">
             <span class="text-dim" style="font-size:12.5px">Language:</span>
             <button class="btn btn-ghost btn-sm ${this.state.lang === 'javascript' ? 'active' : ''}" id="langJsBtn">JavaScript</button>
-            <button class="btn btn-ghost btn-sm ${this.state.lang === 'cpp' ? 'active' : ''}" id="langCppBtn">C++</button>
+            ${this._lookupCppQuestion(q.id)
+              ? `<button class="btn btn-ghost btn-sm ${this.state.lang === 'cpp' ? 'active' : ''}" id="langCppBtn">C++</button>`
+              : `<span class="chip gray" title="No C++ version of this question yet">C++ not available</span>`}
           </div>
           <div class="code-wrap">
             <div class="code-header">
@@ -365,7 +369,7 @@ _lookupCppQuestion(id) {
       this.state.lang = 'javascript';
       renderEditor();
     });
-    document.getElementById('langCppBtn').addEventListener('click', () => {
+    document.getElementById('langCppBtn')?.addEventListener('click', () => {
       this.state.lang = 'cpp';
       renderEditor();
     });
@@ -405,7 +409,11 @@ using namespace std;
     const bodyCode = document.getElementById('codeEditor').value || this.state.code;
 
     if (!cppQ || !Array.isArray(cppQ.cppTestCases) || !cppQ.cppTestCases.length) {
-      resultsDiv.innerHTML = `<div class="empty-state"><h3>No C++ test cases</h3><p>This question has no C++ test harness yet.</p></div>`;
+      resultsDiv.innerHTML = `<div class="empty-state"><h3>No C++ test cases</h3><p>This question has no C++ test harness yet. Switch to JavaScript to run it.</p><button class="btn btn-primary btn-sm mt-2" id="switchToJsBtn">Switch to JavaScript</button></div>`;
+      document.getElementById('switchToJsBtn')?.addEventListener('click', () => {
+        this.state.lang = 'javascript';
+        this._openQuestion(q.id);
+      });
       return;
     }
 
