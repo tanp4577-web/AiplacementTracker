@@ -452,5 +452,329 @@ vector<int> inorderTraversal(TreeNode* root) {
       { input: "2 3\n1 1 1\n1 1 1\n", expected: "1" },
       { input: "0 0\n", expected: "0" }
     ]
+  },
+
+  /* ================= MORE ARRAYS / STRINGS / DP / HASHING ================= */
+  {
+    id: "reverse-string-cpp",
+    title: "Reverse String (C++)",
+    source: "LeetCode",
+    difficulty: "Easy",
+    targetRoles: ["SDE","Frontend Developer"],
+    topic: "Strings",
+    description: "Reverse the characters of the string in-place. The input is a single word.\n\nExample:\nInput: hello\nOutput: olleh",
+    starterCpp: `void reverseString(vector<char>& s) {
+    // Your code here
+}`,
+    cppTestCases: [
+      { input: "hello\n", expected: "olleh" },
+      { input: "abc\n", expected: "cba" },
+      { input: "a\n", expected: "a" }
+    ]
+  },
+  {
+    id: "best-time-stock-cpp",
+    title: "Best Time to Buy and Sell Stock (C++)",
+    source: "LeetCode",
+    difficulty: "Easy",
+    targetRoles: ["SDE","Data Analyst","Backend Developer"],
+    topic: "Arrays",
+    description: "Given prices where prices[i] is the price on day i, return the maximum profit from one buy and one sell. If no profit is possible, return 0.\n\nExample:\nInput: 7 1 5 3 6 4\nOutput: 5",
+    starterCpp: `int maxProfit(vector<int>& prices) {
+    // Your code here
+    return 0;
+}`,
+    cppTestCases: [
+      { input: "6\n7 1 5 3 6 4\n", expected: "5" },
+      { input: "5\n7 6 4 3 1\n", expected: "0" },
+      { input: "3\n2 4 1\n", expected: "2" }
+    ]
+  },
+  {
+    id: "contains-duplicate-cpp",
+    title: "Contains Duplicate (C++)",
+    source: "LeetCode",
+    difficulty: "Easy",
+    targetRoles: ["SDE","Data Analyst"],
+    topic: "Arrays",
+    description: "Return true if any value appears at least twice in the array, false if every element is distinct.\n\nExample:\nInput: 1 2 3 1\nOutput: true",
+    starterCpp: `bool containsDuplicate(vector<int>& nums) {
+    // Your code here
+    return false;
+}`,
+    cppTestCases: [
+      { input: "4\n1 2 3 1\n", expected: "true" },
+      { input: "4\n1 2 3 4\n", expected: "false" },
+      { input: "10\n1 1 1 3 3 4 3 2 4 2\n", expected: "true" }
+    ]
+  },
+  {
+    id: "merge-sorted-arrays-cpp",
+    title: "Merge Two Sorted Arrays (C++)",
+    source: "HackerRank",
+    difficulty: "Easy",
+    targetRoles: ["SDE","Data Analyst"],
+    topic: "Sorting",
+    description: "Merge two sorted arrays into a single sorted array.\n\nExample:\nInput: a = 1 3 5, b = 2 4 6\nOutput: 1 2 3 4 5 6",
+    starterCpp: `vector<int> mergeSorted(vector<int>& a, vector<int>& b) {
+    // Your code here
+    return {};
+}`,
+    cppTestCases: [
+      { input: "3 3\n1 3 5\n2 4 6\n", expected: "1 2 3 4 5 6" },
+      { input: "0 2\n\n1 2\n", expected: "1 2" },
+      { input: "3 0\n1 2 3\n\n", expected: "1 2 3" }
+    ]
+  },
+  {
+    id: "valid-palindrome-2-cpp",
+    title: "Valid Palindrome II (C++)",
+    source: "LeetCode",
+    difficulty: "Easy",
+    targetRoles: ["SDE","Backend Developer"],
+    topic: "Two Pointers",
+    description: "Return true if the string can become a palindrome after deleting at most one character.\n\nExample:\nInput: abca\nOutput: true (delete c)",
+    starterCpp: `bool validPalindrome(string s) {
+    // Your code here
+    return false;
+}`,
+    cppTestCases: [
+      { input: "abca\n", expected: "true" },
+      { input: "abc\n", expected: "false" },
+      { input: "aba\n", expected: "true" }
+    ]
+  },
+  {
+    id: "two-sum-2-sorted-cpp",
+    title: "Two Sum II - Sorted Input (C++)",
+    source: "LeetCode",
+    difficulty: "Medium",
+    targetRoles: ["SDE","Backend Developer"],
+    topic: "Two Pointers",
+    description: "Given a 1-indexed sorted array, return the 1-based indices of the two numbers that add up to target.\n\nExample:\nInput: numbers = 2 7 11 15, target = 9\nOutput: 1 2",
+    starterCpp: `vector<int> twoSumSorted(vector<int>& numbers, int target) {
+    // Your code here
+    return {};
+}`,
+    cppTestCases: [
+      { input: "4 9\n2 7 11 15\n", expected: "1 2" },
+      { input: "3 6\n2 3 4\n", expected: "1 3" },
+      { input: "2 -1\n-1 0\n", expected: "1 2" }
+    ]
+  },
+  {
+    id: "longest-substr-no-repeat-cpp",
+    title: "Longest Substring Without Repeating Characters (C++)",
+    source: "LeetCode",
+    difficulty: "Medium",
+    targetRoles: ["SDE","Backend Developer","Frontend Developer"],
+    topic: "Sliding Window",
+    description: "Find the length of the longest substring without repeating characters.\n\nExample:\nInput: abcabcbb\nOutput: 3",
+    starterCpp: `int lengthOfLongestSubstring(string s) {
+    // Your code here
+    return 0;
+}`,
+    cppTestCases: [
+      { input: "abcabcbb\n", expected: "3" },
+      { input: "bbbbb\n", expected: "1" },
+      { input: "pwwkew\n", expected: "3" }
+    ]
+  },
+  {
+    id: "min-window-substring-cpp",
+    title: "Minimum Window Substring (C++)",
+    source: "LeetCode",
+    difficulty: "Hard",
+    targetRoles: ["SDE"],
+    topic: "Sliding Window",
+    description: "Return the minimum window of s that contains every character of t (including duplicates), or an empty string if none exists.\n\nExample:\nInput: s = ADOBECODEBANC, t = ABC\nOutput: BANC",
+    starterCpp: `string minWindow(string s, string t) {
+    // Your code here
+    return "";
+}`,
+    cppTestCases: [
+      { input: "ADOBECODEBANC ABC\n", expected: "BANC" },
+      { input: "a a\n", expected: "a" },
+      { input: "a aa\n", expected: "" }
+    ]
+  },
+  {
+    id: "longest-common-subseq-cpp",
+    title: "Longest Common Subsequence (C++)",
+    source: "LeetCode",
+    difficulty: "Medium",
+    targetRoles: ["SDE","Data Analyst"],
+    topic: "Dynamic Programming",
+    description: "Return the length of the longest common subsequence of two strings.\n\nExample:\nInput: abcde ace\nOutput: 3",
+    starterCpp: `int longestCommonSubsequence(string text1, string text2) {
+    // Your code here
+    return 0;
+}`,
+    cppTestCases: [
+      { input: "abcde ace\n", expected: "3" },
+      { input: "abc abc\n", expected: "3" },
+      { input: "abc def\n", expected: "0" }
+    ]
+  },
+  {
+    id: "edit-distance-cpp",
+    title: "Edit Distance (C++)",
+    source: "LeetCode",
+    difficulty: "Hard",
+    targetRoles: ["SDE"],
+    topic: "Dynamic Programming",
+    description: "Return the minimum number of insert, delete or replace operations to convert word1 into word2. Each word is on its own line and may be empty.\n\nExample:\nInput:\nhorse\nros\nOutput: 3",
+    starterCpp: `int minDistance(string word1, string word2) {
+    // Your code here
+    return 0;
+}`,
+    cppTestCases: [
+      { input: "horse\nros\n", expected: "3" },
+      { input: "intention\nexecution\n", expected: "5" },
+      { input: "\na\n", expected: "1" }
+    ]
+  },
+  {
+    id: "intersection-two-arrays-cpp",
+    title: "Intersection of Two Arrays (C++)",
+    source: "LeetCode",
+    difficulty: "Easy",
+    targetRoles: ["SDE","Data Analyst"],
+    topic: "Hashing",
+    description: "Return the unique elements common to both arrays, in ascending order.\n\nExample:\nInput: nums1 = 1 2 2 1, nums2 = 2 2\nOutput: 2",
+    starterCpp: `vector<int> intersection(vector<int>& nums1, vector<int>& nums2) {
+    // Your code here (the result is printed in ascending order)
+    return {};
+}`,
+    cppTestCases: [
+      { input: "4 2\n1 2 2 1\n2 2\n", expected: "2" },
+      { input: "3 5\n4 9 5\n9 4 9 8 4\n", expected: "4 9" },
+      { input: "2 2\n1 2\n3 4\n", expected: "" }
+    ]
+  },
+  {
+    id: "isomorphic-strings-cpp",
+    title: "Isomorphic Strings (C++)",
+    source: "LeetCode",
+    difficulty: "Easy",
+    targetRoles: ["SDE","Backend Developer"],
+    topic: "Hashing",
+    description: "Return true if two strings are isomorphic (characters can be replaced one-to-one to get the other).\n\nExample:\nInput: egg add\nOutput: true",
+    starterCpp: `bool isIsomorphic(string s, string t) {
+    // Your code here
+    return false;
+}`,
+    cppTestCases: [
+      { input: "egg add\n", expected: "true" },
+      { input: "foo bar\n", expected: "false" },
+      { input: "paper title\n", expected: "true" }
+    ]
+  },
+  {
+    id: "sort-colors-cpp",
+    title: "Sort Colors (Dutch Flag) (C++)",
+    source: "LeetCode",
+    difficulty: "Medium",
+    targetRoles: ["SDE"],
+    topic: "Sorting",
+    description: "Sort an array containing only 0, 1 and 2 in-place, without the library sort.\n\nExample:\nInput: 2 0 2 1 1 0\nOutput: 0 0 1 1 2 2",
+    starterCpp: `void sortColors(vector<int>& nums) {
+    // Your code here
+}`,
+    cppTestCases: [
+      { input: "6\n2 0 2 1 1 0\n", expected: "0 0 1 1 2 2" },
+      { input: "3\n2 0 1\n", expected: "0 1 2" },
+      { input: "1\n0\n", expected: "0" }
+    ]
+  },
+  {
+    id: "meeting-rooms-cpp",
+    title: "Meeting Rooms (C++)",
+    source: "LeetCode",
+    difficulty: "Easy",
+    targetRoles: ["SDE","Data Analyst"],
+    topic: "Intervals",
+    description: "Given meeting intervals [start, end], return true if one person can attend all meetings. Input: n, then n lines of \"start end\".\n\nExample:\nInput:\n3\n0 30\n5 10\n15 20\nOutput: false",
+    starterCpp: `bool canAttendMeetings(vector<vector<int>>& intervals) {
+    // Your code here
+    return false;
+}`,
+    cppTestCases: [
+      { input: "3\n0 30\n5 10\n15 20\n", expected: "false" },
+      { input: "2\n7 10\n2 4\n", expected: "true" },
+      { input: "0\n", expected: "true" }
+    ]
+  },
+  {
+    id: "product-array-except-self-cpp",
+    title: "Product of Array Except Self (C++)",
+    source: "LeetCode",
+    difficulty: "Medium",
+    targetRoles: ["SDE","Data Analyst"],
+    topic: "Arrays",
+    description: "Return an array where answer[i] is the product of all elements except nums[i], without using division.\n\nExample:\nInput: 1 2 3 4\nOutput: 24 12 8 6",
+    starterCpp: `vector<int> productExceptSelf(vector<int>& nums) {
+    // Your code here
+    return {};
+}`,
+    cppTestCases: [
+      { input: "4\n1 2 3 4\n", expected: "24 12 8 6" },
+      { input: "5\n-1 1 0 -3 3\n", expected: "0 0 9 0 0" },
+      { input: "2\n0 0\n", expected: "0 0" }
+    ]
+  },
+  {
+    id: "subarray-sum-equals-k-cpp",
+    title: "Subarray Sum Equals K (C++)",
+    source: "LeetCode",
+    difficulty: "Medium",
+    targetRoles: ["SDE","Data Analyst"],
+    topic: "Hashing",
+    description: "Return the number of contiguous subarrays whose sum equals k. Input: n and k, then the array.\n\nExample:\nInput: n=3 k=2, nums = 1 1 1\nOutput: 2",
+    starterCpp: `int subarraySum(vector<int>& nums, int k) {
+    // Your code here
+    return 0;
+}`,
+    cppTestCases: [
+      { input: "3 2\n1 1 1\n", expected: "2" },
+      { input: "3 3\n1 2 3\n", expected: "2" },
+      { input: "1 0\n1\n", expected: "0" }
+    ]
+  },
+  {
+    id: "longest-consecutive-sequence-cpp",
+    title: "Longest Consecutive Sequence (C++)",
+    source: "LeetCode",
+    difficulty: "Medium",
+    targetRoles: ["SDE","Data Analyst"],
+    topic: "Hashing",
+    description: "Return the length of the longest run of consecutive integers in the unsorted array, in O(n) time.\n\nExample:\nInput: 100 4 200 1 3 2\nOutput: 4",
+    starterCpp: `int longestConsecutive(vector<int>& nums) {
+    // Your code here
+    return 0;
+}`,
+    cppTestCases: [
+      { input: "6\n100 4 200 1 3 2\n", expected: "4" },
+      { input: "10\n0 3 7 2 5 8 4 6 0 1\n", expected: "9" },
+      { input: "0\n\n", expected: "0" }
+    ]
+  },
+  {
+    id: "task-scheduler-cpp",
+    title: "Task Scheduler (C++)",
+    source: "LeetCode",
+    difficulty: "Medium",
+    targetRoles: ["SDE"],
+    topic: "Greedy",
+    description: "Given tasks (a string of letters) and a cooldown n between identical tasks, return the least number of time units to finish all tasks.\n\nExample:\nInput: AAABBB 2\nOutput: 8",
+    starterCpp: `int leastInterval(vector<char>& tasks, int n) {
+    // Your code here
+    return 0;
+}`,
+    cppTestCases: [
+      { input: "AAABBB 2\n", expected: "8" },
+      { input: "AAABBB 0\n", expected: "6" },
+      { input: "AAAAAABCDEFG 2\n", expected: "16" }
+    ]
   }
 ];
