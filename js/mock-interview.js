@@ -204,6 +204,7 @@ const MockInterview = {
               <label class="field-label mt-2" for="ivMic">Microphone</label>
               <select id="ivMic"></select>
               <div class="text-dim" id="ivPickerHint" style="font-size:12px;margin-top:4px">If your phone is being used as a webcam, choose your laptop camera here.</div>
+              <div class="iv-alert" id="ivMicHint" hidden></div>
             </div>
             <div class="text-dim" id="ivDeviceMsg" role="status" style="font-size:13px;margin-top:8px">${sup.media ? 'Allow camera and microphone, then speak: the bar should move.' : 'This browser cannot access the camera or microphone.'}</div>
           </div>
@@ -334,12 +335,23 @@ const MockInterview = {
     this._stopStream();
     try {
       this.state.stream = await this._open(this._saved('cam'), this._saved('mic'));
-    } catch (e) {
-      const name = e && e.name;
-      say(name === 'NotAllowedError' ? 'Permission was blocked. Click the camera icon in the address bar, allow camera and microphone, then try again.'
-        : name === 'NotFoundError' ? 'No camera or microphone was found on this device.'
-        : name === 'NotReadableError' ? 'Another app is using the camera or microphone. Close it and try again.'
-        : 'Could not start the camera and microphone.');
+      this.state.camOk = true;
+      this.state.micOk = true;
+    } catch {
+      // Asking for both at once fails if either one is blocked, busy or missing. Find out which one it is
+      // and carry on with the one that works, instead of reporting a vague failure.
+      const partial = await this._openEach();
+      if (!partial.stream) { say(`Neither device could be opened. Camera: ${partial.camMsg} Microphone: ${partial.micMsg}`); return; }
+      this.state.stream = partial.stream;
+      this.state.camOk = partial.camOk;
+      this.state.micOk = partial.micOk;
+      this._attachPreview();
+      const parts = [];
+      if (!partial.camOk) parts.push(`Camera: ${partial.camMsg}`);
+      if (!partial.micOk) parts.push(`Microphone: ${partial.micMsg}`);
+      if (!partial.micOk) this.state.typedMode = true;
+      say(`${parts.join(' ')} ${partial.micOk ? 'Your microphone works, so you can still answer by voice.' : 'You can still start and type your answers.'}`);
+      document.getElementById('ivStart').disabled = false;
       return;
     }
     // Labels only appear after permission. If nothing was chosen before and the browser picked a phone-like
@@ -358,6 +370,32 @@ const MockInterview = {
     this._renderPickers(list);
     say('Camera and microphone are on. Say something: the bar should move.');
     document.getElementById('ivStart').disabled = false;
+  },
+
+  _deviceMessage(e, what) {
+    const name = e && e.name;
+    if (name === 'NotAllowedError') return `${what} permission is blocked: click the lock or camera icon in the address bar and allow it.`;
+    if (name === 'NotFoundError') return `no ${what.toLowerCase()} was found.`;
+    if (name === 'NotReadableError') return `another app (Zoom, Teams, Phone Link) is using the ${what.toLowerCase()}. Close it and try again.`;
+    return `the ${what.toLowerCase()} could not be started.`;
+  },
+
+  /** Try the camera and the microphone one at a time and combine whatever works into one stream. */
+  async _openEach() {
+    const md = navigator.mediaDevices;
+    const attempt = async (constraints) => {
+      try { return { stream: await md.getUserMedia(constraints) }; } catch (e) { return { err: e }; }
+    };
+    const cam = await attempt({ video: this._constraints(this._saved('cam'), '').video });
+    const mic = await attempt({ audio: this._constraints('', this._saved('mic')).audio });
+    const tracks = [...(cam.stream ? cam.stream.getVideoTracks() : []), ...(mic.stream ? mic.stream.getAudioTracks() : [])];
+    let stream = null;
+    if (cam.stream && mic.stream) stream = typeof MediaStream === 'function' ? new MediaStream(tracks) : cam.stream;
+    else stream = cam.stream || mic.stream || null;
+    return {
+      stream, camOk: Boolean(cam.stream), micOk: Boolean(mic.stream),
+      camMsg: cam.err ? this._deviceMessage(cam.err, 'Camera') : '', micMsg: mic.err ? this._deviceMessage(mic.err, 'Microphone') : ''
+    };
   },
 
   async _listDevices() {
@@ -390,8 +428,24 @@ const MockInterview = {
     fill(camSel, list.cams, curCam, 'Camera');
     fill(micSel, list.mics, curMic, 'Microphone');
     wrap.hidden = list.cams.length < 2 && list.mics.length < 2;
+    this._paintMicHint(list);
     camSel.onchange = () => this._switchDevices();
     micSel.onchange = () => this._switchDevices();
+  },
+
+  /** Voice recognition always listens to the system default microphone, whatever is picked here. If the two differ,
+      the level bar can move while no words appear, so say so. */
+  _paintMicHint(list) {
+    const hint = document.getElementById('ivMicHint');
+    const micSel = document.getElementById('ivMic');
+    if (!hint || !micSel) return;
+    const def = list.mics.find((d) => d.deviceId === 'default');
+    const chosen = list.mics.find((d) => d.deviceId === micSel.value);
+    const differs = def && chosen && chosen.deviceId !== 'default' && def.groupId && chosen.groupId && def.groupId !== chosen.groupId;
+    hint.hidden = !differs;
+    if (differs) {
+      hint.textContent = 'Heads up: voice recognition always uses your system default microphone (' + (def.label || 'default') + '), not the one chosen here. If the level bar moves but your words do not appear, pick that microphone here too, or change the default in Windows Sound settings.';
+    }
   },
 
   /** The user picked another camera or microphone: restart the stream with it and remember the choice. */
@@ -410,6 +464,7 @@ const MockInterview = {
     this._remember('cam', camId);
     this._remember('mic', micId);
     this._attachPreview();
+    this._paintMicHint(await this._listDevices());
     if (msg) msg.textContent = 'Switched. Say something: the bar should move.';
     document.getElementById('ivStart').disabled = false;
   },
@@ -440,7 +495,9 @@ const MockInterview = {
       analyser.getByteTimeDomainData(data);
       let peak = 0;
       for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i] - 128));
-      el.style.width = `${Math.min(100, Math.round((peak / 64) * 100))}%`;
+      const level = Math.min(100, Math.round((peak / 64) * 100));
+      el.style.width = `${level}%`;
+      s.micPeak = Math.max(s.micPeak || 0, level);
       s.meterRaf = requestAnimationFrame(tick);
     };
     tick();
@@ -678,6 +735,9 @@ const MockInterview = {
     s.interim = '';
     s.answerStartedAt = Date.now();
     s.lastSpeechAt = 0;
+    s.noSpeech = 0;
+    s.micPeak = 0;
+    if (!s.typedMode) this._notify('');
     this._startAnswerClock();
     const sup = this.speechSupport();
     const typed = document.getElementById('ivTyped');
@@ -690,6 +750,12 @@ const MockInterview = {
     }
     this._setStatus('listening');
     this._startRecognition();
+    clearTimeout(s.soundTimer);
+    s.soundTimer = setTimeout(() => {
+      if (this.state === s && s.phase === 'room' && !s.busy && !s.typedMode && (s.micPeak || 0) < 4) {
+        this._notify('No sound is reaching the microphone yet. Check that the bar by your video moves when you speak, choose the right microphone, or use "Type instead".');
+      }
+    }, 8000);
     clearInterval(s.silenceTimer);
     s.silenceTimer = setInterval(() => {
       if (s.busy || !s.lastSpeechAt) return;
@@ -714,20 +780,42 @@ const MockInterview = {
       }
       if (finals) s.buffer += finals;
       s.interim = interim;
+      s.noSpeech = 0;
       s.lastSpeechAt = Date.now();
       const el = document.getElementById('ivAnswer');
       if (el) el.textContent = (s.buffer + interim).trim();
     };
     r.onerror = (e) => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        s.typedMode = true;
-        this._notify('Speech recognition was blocked, so you can type your answers.');
-        this._listen();
+      if (this.state !== s || s.recog !== r) return;
+      const err = e && e.error;
+      if (err === 'not-allowed' || err === 'service-not-allowed') {
+        this._useTyping('Speech recognition was blocked by the browser, so you can type your answers.');
+      } else if (err === 'network') {
+        this._useTyping('Voice recognition could not reach its online service. Chrome and Edge send your speech to an online service for this, so it needs internet and does not work in some browsers (for example Brave). You can type your answers instead.');
+      } else if (err === 'audio-capture') {
+        this._useTyping('The speech engine could not use a microphone. Close other apps that use it (Zoom, Teams, Phone Link), check Windows Sound settings, or type your answers.');
+      } else if (err === 'no-speech') {
+        s.noSpeech = (s.noSpeech || 0) + 1;
+        if (s.noSpeech >= 3) this._notify('I cannot hear you. Check that the bar by your video moves when you speak, move closer to the microphone, or use "Type instead".');
       }
     };
     r.onend = () => { if (this.state === s && s.phase === 'room' && !s.busy && s.recog === r && !s.typedMode) { try { r.start(); } catch { /* already running */ } } };
     s.recog = r;
     try { r.start(); } catch { /* already running */ }
+  },
+
+  /** Voice answers cannot work here (blocked, offline or no microphone): switch to typing and say why. */
+  _useTyping(reason) {
+    const s = this.state;
+    s.typedMode = true;
+    this._stopRecognition();
+    this._notify(reason);
+    if (s.phase !== 'room' || s.busy) return;
+    const typed = document.getElementById('ivTyped');
+    if (typed) { typed.hidden = false; typed.focus(); }
+    this._setStatus('typing');
+    const toggle = document.getElementById('ivTypedToggle');
+    if (toggle) toggle.textContent = 'Use voice instead';
   },
 
   _stopRecognition() {
@@ -857,9 +945,10 @@ const MockInterview = {
           <span class="chip" id="ivAnswerChip" hidden>Answer time <span id="ivAnswerClock">0:00</span></span>
           <span id="ivNotice" class="text-dim" style="font-size:12.5px"></span>
         </div>
+        <div class="iv-alert" id="ivAlert" role="alert" hidden></div>
         <div class="iv-stage">
           <div class="iv-tile iv-interviewer"><div class="iv-avatar" id="ivAvatar" aria-hidden="true">A</div><div class="iv-name">Aria, interviewer</div><div class="iv-state" id="ivState" role="status" aria-live="polite"></div></div>
-          <div class="iv-tile iv-me"><video id="ivVideo" autoplay muted playsinline aria-label="Your camera"></video><div class="iv-empty" id="ivVideoEmpty" ${s.stream ? 'hidden' : ''}>Camera off</div><div class="iv-name">You</div><div class="iv-meter" aria-hidden="true"><i id="ivMeter"></i></div></div>
+          <div class="iv-tile iv-me"><video id="ivVideo" autoplay muted playsinline aria-label="Your camera"></video><div class="iv-empty" id="ivVideoEmpty" ${s.stream && s.stream.getVideoTracks().length ? 'hidden' : ''}>Camera off</div><div class="iv-name">You</div><div class="iv-meter" aria-hidden="true"><i id="ivMeter"></i></div></div>
         </div>
         <div class="iv-captions">
           <div class="iv-q" id="ivQuestion" aria-live="polite"></div>
@@ -913,8 +1002,10 @@ const MockInterview = {
   },
 
   _notify(text) {
-    this.state.notice = text;
-    this._renderNotice();
+    const el = document.getElementById('ivAlert');
+    if (!el) return;
+    el.textContent = text || '';
+    el.hidden = !text;
   },
 
   _setStatus(kind) {
@@ -1015,6 +1106,7 @@ const MockInterview = {
     this._stopRecognition();
     clearInterval(s.clock);
     clearInterval(s.answerTimer);
+    clearTimeout(s.soundTimer);
     document.removeEventListener('keydown', this._escHandler);
     if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch { /* unsupported */ } }
     this._stopStream();

@@ -423,3 +423,7 @@ a:not(.btn):not(.nav-link):not(.chip):not(.brand) { color: var(--accent); }
 
 .iv-speed { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-dim); }
 .iv-speed select { width: auto; min-height: 36px; padding: 4px 8px; font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: 13px; }
+
+/* Device and speech warnings: impossible to miss, still on-brand */
+.iv-alert { margin: 10px 0; padding: 10px 12px; border-left: 3px solid var(--warning); background: var(--warning-soft); color: var(--text); font-size: 13.5px; line-height: 1.5; }
+.iv-alert[hidden] { display: none; }
