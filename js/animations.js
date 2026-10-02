@@ -28,9 +28,32 @@ const Animations = {
     this._lastInteraction = -Infinity;
 
     this._animateNewCards(container);
+    this._flourish(container);
     // Views that load data later (jobs, quizzes) add cards after the first pass.
     this._observer = new MutationObserver(() => this._animateNewCards(container));
     this._observer.observe(container, { childList: true, subtree: true });
+  },
+
+  /** Numbers count up once when a view appears; the headline lifts in word by word. */
+  _flourish(container) {
+    const nums = container.querySelectorAll('.card-stat, .hero-num b');
+    nums.forEach((el) => {
+      const m = el.textContent.trim().match(/^(\d+)(%?)$/);
+      if (!m || el.dataset.counted) return;
+      el.dataset.counted = '1';
+      const end = parseInt(m[1], 10);
+      if (!end) return;
+      const state = { v: 0 };
+      gsap.to(state, { v: end, duration: 0.9, ease: 'power2.out', onUpdate: () => { el.textContent = Math.round(state.v) + m[2]; }, onComplete: () => { el.textContent = end + m[2]; } });
+    });
+    const head = container.querySelector('.hero-msg h3');
+    if (head && !head.dataset.split) {
+      head.dataset.split = '1';
+      const words = head.textContent.trim().split(/\s+/);
+      head.setAttribute('aria-label', head.textContent.trim());
+      head.innerHTML = words.map((w) => '<span aria-hidden="true" style="display:inline-block;overflow:hidden;vertical-align:top"><span class="w" style="display:inline-block">' + w.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</span></span>').join(' ');
+      gsap.from(head.querySelectorAll('.w'), { yPercent: 105, duration: 0.7, ease: 'expo.out', stagger: 0.05, delay: 0.1 });
+    }
   },
 
   _animateNewCards(container) {
