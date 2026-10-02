@@ -864,3 +864,14 @@ test('dark mode: toggle flips data-theme, updates the button label and remembers
   assert.equal(app.window.localStorage.getItem('pp_theme'), after);
   assert.deepEqual(app.errors, []);
 });
+
+test('accessibility: nav is labelled and the current page is marked with aria-current', async () => {
+  const app = await bootApp();
+  await goTo(app, 'resume');
+  assert.equal(app.document.getElementById('nav').getAttribute('aria-label'), 'Main');
+  const current = [...app.document.querySelectorAll('.nav-link[aria-current="page"]')];
+  assert.equal(current.length, 1);
+  assert.equal(current[0].dataset.view, 'resume');
+  assert.ok(read('index.html').includes('css/polish.css'));
+  assert.deepEqual(app.errors, []);
+});
