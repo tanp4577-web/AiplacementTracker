@@ -363,3 +363,4 @@ a:not(.btn):not(.nav-link):not(.chip):not(.brand) { color: var(--accent); }
 /* Timed quiz countdown */
 #quizTimer { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .timer-low { color: var(--danger); }
+.sidebar .mini-fill { background: var(--accent); }
