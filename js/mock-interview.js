@@ -176,6 +176,15 @@ const MockInterview = {
             <option value="60" ${s.cfg.answerSeconds === 60 ? 'selected' : ''}>60 seconds per answer (pressure round)</option>
             <option value="45" ${s.cfg.answerSeconds === 45 ? 'selected' : ''}>45 seconds per answer (hard mode)</option>
           </select>
+          <label class="field-label mt-2" for="ivSpeed">Aria's speaking speed</label>
+          <select id="ivSpeed">
+            <option value="slow" ${this._rateKey() === 'slow' ? 'selected' : ''}>Slow</option>
+            <option value="normal" ${this._rateKey() === 'normal' ? 'selected' : ''}>Natural (recommended)</option>
+            <option value="fast" ${this._rateKey() === 'fast' ? 'selected' : ''}>Fast</option>
+          </select>
+          <label class="field-label mt-2" for="ivVoice">Aria's voice</label>
+          <select id="ivVoice"></select>
+          <button type="button" class="btn btn-ghost btn-sm mt-2" id="ivVoiceTest">Hear a sample</button>
           <label class="field-label mt-2" for="ivTotal">Length</label>
           <select id="ivTotal">
             <option value="5">5 questions (about 10 min)</option>
@@ -215,11 +224,47 @@ const MockInterview = {
     $('ivEnable').addEventListener('click', () => this._enableDevices());
     $('ivStart').addEventListener('click', () => this._start());
     $('ivTypedOnly').addEventListener('click', () => { this.state.typedMode = true; this._start(); });
+    this._fillVoices();
+    if (this.speechSupport().synthesis) window.speechSynthesis.onvoiceschanged = () => this._fillVoices();
+    $('ivSpeed').addEventListener('change', () => this._remember('rate', $('ivSpeed').value));
+    $('ivVoice').addEventListener('change', () => { this._remember('voice', $('ivVoice').value); });
+    $('ivVoiceTest').addEventListener('click', () => this._sample());
     $('ivFocus').addEventListener('change', () => {
       const v = $('ivFocus').value;
       $('ivCompanyWrap').hidden = v !== 'company';
       $('ivResumeWrap').hidden = v !== 'resume';
     });
+  },
+
+  /** Lists the English voices this browser has, best first, and keeps the saved choice selected. */
+  _fillVoices() {
+    const sel = document.getElementById('ivVoice');
+    if (!sel) return;
+    const list = this._englishVoices();
+    const chosen = this._pickVoice();
+    if (!list.length) {
+      sel.innerHTML = '<option value="">Default voice</option>';
+      sel.disabled = true;
+      const test = document.getElementById('ivVoiceTest');
+      if (test) test.disabled = !this.speechSupport().synthesis;
+      return;
+    }
+    sel.disabled = false;
+    sel.innerHTML = list.map((v) => `<option value="${Sanitize.html(v.voiceURI)}" ${chosen && v.voiceURI === chosen.voiceURI ? 'selected' : ''}>${Sanitize.html(v.name)} (${Sanitize.html(v.lang)})</option>`).join('');
+  },
+
+  _sample() {
+    if (!this.speechSupport().synthesis) return;
+    const text = 'Hello, I am Aria, and I will be your interviewer today. Tell me a little about yourself, and take your time.';
+    const u = new SpeechSynthesisUtterance(text);
+    const v = this._pickVoice();
+    if (v) { u.voice = v; u.lang = v.lang; }
+    const key = document.getElementById('ivSpeed').value;
+    u.rate = this._rateFor(v, key);
+    const startedAt = performance.now();
+    u.onend = () => this._learn(v, u.rate, this.countWords(text), (performance.now() - startedAt - 300) / 1000, key);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
   },
 
   TYPE_OPTIONS: [
@@ -539,12 +584,67 @@ const MockInterview = {
     this._say(question);
   },
 
+  /** Target pace in words per minute. Everyday conversation is roughly 150 to 160. */
+  WPM: { slow: 125, normal: 155, fast: 185 },
+
+  _rateKey() {
+    const k = this._saved('rate');
+    return this.WPM[k] ? k : 'normal';
+  },
+
+  _targetWpm(key = this._rateKey()) {
+    return this.WPM[key];
+  },
+
+  /** True for the plain built-in desktop voices, which speak slowly at rate 1 and respond in coarse steps. */
+  _isLocalVoice(v) {
+    return Boolean(v) && /microsoft|sapi/i.test(v.name) && !/online|natural|neural/i.test(v.name);
+  },
+
+  _rateSlot(voice, key) {
+    return `rate_${voice ? voice.voiceURI : 'default'}_${key}`;
+  },
+
+  /** Speech rate for this voice at the chosen speed. Voices differ a lot (rate 1 can be 120 or 170 words per
+      minute), so the rate is learned: it starts from a sensible guess and is corrected after each sentence
+      from how long Aria actually took. The learned value is remembered per voice and speed. */
+  _rateFor(voice, key = this._rateKey()) {
+    const saved = parseFloat(this._saved(this._rateSlot(voice, key)));
+    if (saved >= 0.7 && saved <= 2.4) return saved;
+    const base = this._isLocalVoice(voice) ? 1.5 : 1.1;
+    return Math.min(2.4, Math.max(0.7, base * (this._targetWpm(key) / 155)));
+  },
+
+  /** Adjust the stored rate toward the target pace using one measured sentence. Ignores short or odd samples. */
+  _learn(voice, rate, words, seconds, key = this._rateKey()) {
+    if (words < 8 || seconds < 2) return null;
+    const wpm = (words / seconds) * 60;
+    const next = Math.min(2.4, Math.max(0.7, rate * Math.pow(this._targetWpm(key) / wpm, 0.8)));
+    this._remember(this._rateSlot(voice, key), next.toFixed(2));
+    return next;
+  },
+
+  /** Higher is better: natural / neural voices first, then Indian English, then any English voice. */
+  _scoreVoice(v) {
+    if (!/^en/i.test(v.lang)) return -1;
+    let n = 1;
+    if (/natural|neural|online/i.test(v.name)) n += 6;
+    if (/en[-_]IN/i.test(v.lang)) n += 3;
+    if (/google/i.test(v.name)) n += 1;
+    if (/female|zira|aria|jenny|neerja|samantha|heera/i.test(v.name)) n += 1;
+    return n;
+  },
+
+  _englishVoices() {
+    if (!this.speechSupport().synthesis) return [];
+    return window.speechSynthesis.getVoices().filter((v) => this._scoreVoice(v) > 0).sort((a, b) => this._scoreVoice(b) - this._scoreVoice(a));
+  },
+
   _pickVoice() {
-    const s = this.state;
-    if (s.voice || !this.speechSupport().synthesis) return s.voice;
-    const voices = window.speechSynthesis.getVoices();
-    s.voice = voices.find((v) => /en[-_]IN/i.test(v.lang)) || voices.find((v) => /^en/i.test(v.lang) && /female|zira|samantha|google uk english female/i.test(v.name)) || voices.find((v) => /^en/i.test(v.lang)) || null;
-    return s.voice;
+    if (!this.speechSupport().synthesis) return null;
+    const list = this._englishVoices();
+    const saved = this._saved('voice');
+    return list.find((v) => v.voiceURI === saved) || list[0] || null;
   },
 
   _say(text) {
@@ -558,8 +658,14 @@ const MockInterview = {
     const u = new SpeechSynthesisUtterance(text);
     const v = this._pickVoice();
     if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'en-IN'; }
-    u.rate = 0.98;
-    u.onend = done;
+    u.rate = this._rateFor(v);
+    const startedAt = performance.now();
+    const words = this.countWords(text);
+    u.onend = () => {
+      // Skip the first ~0.3 s: engines take a moment to start talking.
+      this._learn(v, u.rate, words, (performance.now() - startedAt - 300) / 1000);
+      done();
+    };
     u.onerror = done;
     window.speechSynthesis.speak(u);
   },
@@ -764,6 +870,13 @@ const MockInterview = {
           <button type="button" class="btn btn-primary" id="ivDone">I am done answering</button>
           <button type="button" class="btn btn-ghost" id="ivRepeat">Repeat question</button>
           <button type="button" class="btn btn-ghost" id="ivTypedToggle">${s.typedMode ? 'Use voice instead' : 'Type instead'}</button>
+          <label class="iv-speed" for="ivSpeedRoom">Voice speed
+            <select id="ivSpeedRoom" aria-label="Aria's speaking speed">
+              <option value="slow" ${this._rateKey() === 'slow' ? 'selected' : ''}>Slow</option>
+              <option value="normal" ${this._rateKey() === 'normal' ? 'selected' : ''}>Natural</option>
+              <option value="fast" ${this._rateKey() === 'fast' ? 'selected' : ''}>Fast</option>
+            </select>
+          </label>
           <button type="button" class="btn btn-ghost" id="ivEnd" disabled title="Available after your first answer">End and get feedback</button>
           <button type="button" class="btn btn-ghost iv-cancel" id="ivCancel">Cancel interview</button>
         </div>
@@ -774,6 +887,7 @@ const MockInterview = {
     $('ivTypedToggle').addEventListener('click', () => this._toggleTyped());
     $('ivEnd').addEventListener('click', () => this._end());
     $('ivCancel').addEventListener('click', () => this._cancel());
+    $('ivSpeedRoom').addEventListener('change', () => this._remember('rate', $('ivSpeedRoom').value));
     document.removeEventListener('keydown', this._escHandler);
     this._escHandler = (e) => { if (e.key === 'Escape' && this.state && this.state.phase === 'room' && !this.state.confirming && !document.getElementById('appConfirmModal')) this._cancel(); };
     document.addEventListener('keydown', this._escHandler);

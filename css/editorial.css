@@ -420,3 +420,6 @@ a:not(.btn):not(.nav-link):not(.chip):not(.brand) { color: var(--accent); }
 }
 
 [hidden] { display: none !important; }
+
+.iv-speed { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-dim); }
+.iv-speed select { width: auto; min-height: 36px; padding: 4px 8px; font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: 13px; }
