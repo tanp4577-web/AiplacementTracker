@@ -189,6 +189,13 @@ const MockInterview = {
           <div class="iv-check">
             <div class="iv-tile iv-me iv-preview"><video id="ivPreview" autoplay muted playsinline aria-label="Your camera preview"></video><div class="iv-empty" id="ivPreviewEmpty">Camera is off</div></div>
             <div class="iv-meter" aria-hidden="true"><i id="ivMeterSetup"></i></div>
+            <div id="ivPickers" hidden>
+              <label class="field-label mt-2" for="ivCam">Camera</label>
+              <select id="ivCam"></select>
+              <label class="field-label mt-2" for="ivMic">Microphone</label>
+              <select id="ivMic"></select>
+              <div class="text-dim" id="ivPickerHint" style="font-size:12px;margin-top:4px">If your phone is being used as a webcam, choose your laptop camera here.</div>
+            </div>
             <div class="text-dim" id="ivDeviceMsg" role="status" style="font-size:13px;margin-top:8px">${sup.media ? 'Allow camera and microphone, then speak: the bar should move.' : 'This browser cannot access the camera or microphone.'}</div>
           </div>
           <div class="flex gap-2 flex-wrap mt-2">
@@ -240,13 +247,48 @@ const MockInterview = {
 
   /* ---------------------------------------------------------------- devices */
 
+  /** Cameras that are usually a phone or a virtual device rather than the laptop's own camera. */
+  PHONE_LIKE: /phone|iphone|android|pixel|galaxy|iriun|droidcam|camo|epoccam|ivcam|continuity|link to windows|virtual|obs/i,
+
+  _saved(kind) {
+    try { return localStorage.getItem(`pp_iv_${kind}`) || ''; } catch { return ''; }
+  },
+
+  _remember(kind, id) {
+    try { localStorage.setItem(`pp_iv_${kind}`, id); } catch { /* private mode: choice lasts for this visit only */ }
+  },
+
+  _constraints(camId, micId) {
+    return {
+      video: camId ? { deviceId: { exact: camId }, width: { ideal: 960 } } : { width: { ideal: 960 } },
+      audio: micId ? { deviceId: { exact: micId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true }
+    };
+  },
+
+  /** Opens the stream with the chosen devices; falls back to the browser default if a saved device is gone. */
+  async _open(camId, micId) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(this._constraints(camId, micId));
+    } catch (e) {
+      if ((camId || micId) && e && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError')) {
+        return navigator.mediaDevices.getUserMedia(this._constraints('', ''));
+      }
+      throw e;
+    }
+  },
+
+  _deviceId(stream, kind) {
+    const track = kind === 'video' ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
+    return (track && track.getSettings && track.getSettings().deviceId) || '';
+  },
+
   async _enableDevices() {
     const msg = document.getElementById('ivDeviceMsg');
     const say = (t) => { if (msg) msg.textContent = t; };
     if (!window.isSecureContext) { say('The camera needs a secure (https) page.'); return; }
     this._stopStream();
     try {
-      this.state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 960 } }, audio: { echoCancellation: true, noiseSuppression: true } });
+      this.state.stream = await this._open(this._saved('cam'), this._saved('mic'));
     } catch (e) {
       const name = e && e.name;
       say(name === 'NotAllowedError' ? 'Permission was blocked. Click the camera icon in the address bar, allow camera and microphone, then try again.'
@@ -255,12 +297,75 @@ const MockInterview = {
         : 'Could not start the camera and microphone.');
       return;
     }
+    // Labels only appear after permission. If nothing was chosen before and the browser picked a phone-like
+    // camera, switch to a camera that does not look like a phone.
+    let list = await this._listDevices();
+    if (!this._saved('cam')) {
+      const cur = list.cams.find((c) => c.deviceId === this._deviceId(this.state.stream, 'video'));
+      const better = list.cams.find((c) => !this.PHONE_LIKE.test(c.label));
+      if (cur && this.PHONE_LIKE.test(cur.label) && better && better.deviceId !== cur.deviceId) {
+        this._stopStream();
+        try { this.state.stream = await this._open(better.deviceId, this._saved('mic')); } catch { this.state.stream = await this._open('', this._saved('mic')); }
+        list = await this._listDevices();
+      }
+    }
+    this._attachPreview();
+    this._renderPickers(list);
+    say('Camera and microphone are on. Say something: the bar should move.');
+    document.getElementById('ivStart').disabled = false;
+  },
+
+  async _listDevices() {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      return { cams: all.filter((d) => d.kind === 'videoinput'), mics: all.filter((d) => d.kind === 'audioinput') };
+    } catch {
+      return { cams: [], mics: [] };
+    }
+  },
+
+  _attachPreview() {
     const video = document.getElementById('ivPreview');
-    if (video) { video.srcObject = this.state.stream; }
+    if (video) video.srcObject = this.state.stream;
     const empty = document.getElementById('ivPreviewEmpty');
     if (empty) empty.hidden = true;
     this._startMeter(document.getElementById('ivMeterSetup'));
-    say('Camera and microphone are on. Say something: the bar should move.');
+  },
+
+  _renderPickers(list) {
+    const camSel = document.getElementById('ivCam');
+    const micSel = document.getElementById('ivMic');
+    const wrap = document.getElementById('ivPickers');
+    if (!camSel || !micSel || !wrap) return;
+    const curCam = this._deviceId(this.state.stream, 'video');
+    const curMic = this._deviceId(this.state.stream, 'audio');
+    const fill = (sel, items, cur, fallback) => {
+      sel.innerHTML = items.map((d, i) => `<option value="${Sanitize.html(d.deviceId)}" ${d.deviceId === cur ? 'selected' : ''}>${Sanitize.html(d.label || `${fallback} ${i + 1}`)}</option>`).join('');
+    };
+    fill(camSel, list.cams, curCam, 'Camera');
+    fill(micSel, list.mics, curMic, 'Microphone');
+    wrap.hidden = list.cams.length < 2 && list.mics.length < 2;
+    camSel.onchange = () => this._switchDevices();
+    micSel.onchange = () => this._switchDevices();
+  },
+
+  /** The user picked another camera or microphone: restart the stream with it and remember the choice. */
+  async _switchDevices() {
+    const camId = document.getElementById('ivCam').value;
+    const micId = document.getElementById('ivMic').value;
+    const msg = document.getElementById('ivDeviceMsg');
+    this._stopStream();
+    try {
+      this.state.stream = await this._open(camId, micId);
+    } catch {
+      if (msg) msg.textContent = 'That device could not be opened. Pick another one.';
+      document.getElementById('ivStart').disabled = true;
+      return;
+    }
+    this._remember('cam', camId);
+    this._remember('mic', micId);
+    this._attachPreview();
+    if (msg) msg.textContent = 'Switched. Say something: the bar should move.';
     document.getElementById('ivStart').disabled = false;
   },
 
