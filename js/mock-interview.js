@@ -12,10 +12,10 @@ const MockInterview = {
 
   _fresh() {
     return {
-      phase: 'setup', cfg: { role: 'SDE', type: 'mixed', level: 'fresher', total: 8 }, history: [], asked: 0,
+      phase: 'setup', cfg: { role: 'SDE', type: 'mixed', level: 'fresher', total: 8, focus: 'standard', company: 'Amazon', resume: '', answerSeconds: 0 }, history: [], asked: 0,
       mode: 'ai', plan: [], stream: null, audioCtx: null, meterRaf: 0, recog: null, voice: null,
       typedMode: false, busy: false, buffer: '', interim: '', lastSpeechAt: 0, silenceTimer: 0,
-      clock: 0, startedAt: 0, answerStartedAt: 0, durations: [], noAnswerRetries: 0, notice: ''
+      clock: 0, startedAt: 0, answerStartedAt: 0, durations: [], noAnswerRetries: 0, notice: '', answerTimer: 0, answerLeft: 0, lastWasFollowUp: false, timeouts: 0
     };
   },
 
@@ -49,6 +49,7 @@ const MockInterview = {
       words,
       avgWords: answers.length ? Math.round(words / answers.length) : 0,
       fillers: answers.reduce((n, a) => n + this.countFillers(a.content), 0),
+      timeouts: answers.filter((a) => a.timedOut).length,
       wpm: seconds >= 10 && words ? Math.round((words / seconds) * 60) : null,
       seconds: Math.round(seconds)
     };
@@ -84,6 +85,7 @@ const MockInterview = {
     const keyed = per.filter((x) => plan.find((m) => m.q === x.question && m.keywords.length));
     const technical = keyed.length ? clamp(keyed.reduce((s, x) => s + Math.min(3, x.hits), 0) / keyed.length * 2.7 + 1) : clamp(lengthScore - 1);
     const problemSolving = clamp((technical + structure) / 2);
+    const timeouts = history.filter((t) => t.role === 'candidate' && t.timedOut).length;
     const overall = Math.round(((communication + technical + problemSolving + structure) / 4) * 10);
     return {
       overall,
@@ -97,7 +99,7 @@ const MockInterview = {
       improvements: [
         avgWords < 30 ? 'Give longer answers: a direct answer, a reason, then an example.' : 'Trim long answers to the key points.',
         fillers > 2 ? 'Cut filler words ("um", "basically", "you know"): pause instead.' : 'Use specific numbers and outcomes.',
-        structure < 6 ? 'Use signposts like "first", "because" and "as a result".' : 'Practise explaining trade-offs.'
+        timeouts ? `You ran out of time on ${timeouts} answer${timeouts > 1 ? 's' : ''}: lead with the conclusion, then add one reason, then stop.` : (structure < 6 ? 'Use signposts like "first", "because" and "as a result".' : 'Practise explaining trade-offs.')
       ],
       perQuestion: per.map(({ question, feedback, betterAnswerHint }) => ({ question, feedback, betterAnswerHint })),
       nextSteps: ['Retry this interview and aim to improve your weakest score.', 'Answer the same questions again out loud, timing yourself.', 'Read your answers back and shorten anything that rambles.'],
@@ -107,11 +109,17 @@ const MockInterview = {
 
   /* ---------------------------------------------------------------- view */
 
-  render(container) {
+  render(container, keepCfg) {
     this.cleanup();
     this.container = container;
     this.state = this._fresh();
+    if (keepCfg) this.state.cfg = { ...keepCfg };
     this._renderSetup();
+  },
+
+  _focusLabel() {
+    const c = this.state.cfg;
+    return c.focus === 'company' ? `${c.company} style` : c.focus === 'resume' ? 'Resume-based' : (this.TYPE_OPTIONS.find((t) => t[0] === c.type) || [0, 'Interview'])[1].split(' (')[0];
   },
 
   _roles() {
@@ -137,15 +145,36 @@ const MockInterview = {
           <select id="ivRole">${this._roles().map((r) => `<option ${r === s.cfg.role ? 'selected' : ''}>${Sanitize.html(r)}</option>`).join('')}</select>
           <label class="field-label mt-2" for="ivType">Interview type</label>
           <select id="ivType">
-            <option value="mixed" selected>Mixed (technical and HR)</option>
-            <option value="technical">Technical only</option>
-            <option value="hr">HR and behavioural only</option>
+            ${this.TYPE_OPTIONS.map(([v, label]) => `<option value="${v}" ${v === s.cfg.type ? 'selected' : ''}>${label}</option>`).join('')}
           </select>
+          <label class="field-label mt-2" for="ivFocus">Focus</label>
+          <select id="ivFocus">
+            <option value="standard" ${s.cfg.focus === 'standard' ? 'selected' : ''}>General (by role and type)</option>
+            <option value="resume" ${s.cfg.focus === 'resume' ? 'selected' : ''}>Based on my resume and projects</option>
+            <option value="company" ${s.cfg.focus === 'company' ? 'selected' : ''}>Specific company</option>
+          </select>
+          <div id="ivCompanyWrap" ${s.cfg.focus === 'company' ? '' : 'hidden'}>
+            <label class="field-label mt-2" for="ivCompany">Company</label>
+            <select id="ivCompany">${this._companies().map((c) => `<option ${c === s.cfg.company ? 'selected' : ''}>${Sanitize.html(c)}</option>`).join('')}</select>
+          </div>
+          <div id="ivResumeWrap" ${s.cfg.focus === 'resume' ? '' : 'hidden'}>
+            <label class="field-label mt-2" for="ivResume">Your resume (projects, skills, experience)</label>
+            <textarea id="ivResume" rows="6" placeholder="Paste your resume text. Aria will ask about your own projects and skills.">${Sanitize.html(s.cfg.resume || (typeof DB !== 'undefined' ? DB.getGlobal('lastResumeText') || '' : ''))}</textarea>
+            <div class="text-dim" style="font-size:12px;margin-top:4px">Filled from your last Resume Analyzer run when available. It is sent to the AI interviewer only during this session.</div>
+          </div>
           <label class="field-label mt-2" for="ivLevel">Your level</label>
           <select id="ivLevel">
             <option value="intern">Internship</option>
             <option value="fresher" selected>Fresher</option>
             <option value="experienced">1 to 3 years</option>
+          </select>
+          <label class="field-label mt-2" for="ivClock">Answer time limit</label>
+          <select id="ivClock">
+            <option value="0" ${!s.cfg.answerSeconds ? 'selected' : ''}>No limit (relaxed)</option>
+            <option value="120" ${s.cfg.answerSeconds === 120 ? 'selected' : ''}>120 seconds per answer</option>
+            <option value="90" ${s.cfg.answerSeconds === 90 ? 'selected' : ''}>90 seconds per answer (pressure round)</option>
+            <option value="60" ${s.cfg.answerSeconds === 60 ? 'selected' : ''}>60 seconds per answer (pressure round)</option>
+            <option value="45" ${s.cfg.answerSeconds === 45 ? 'selected' : ''}>45 seconds per answer (hard mode)</option>
           </select>
           <label class="field-label mt-2" for="ivTotal">Length</label>
           <select id="ivTotal">
@@ -179,11 +208,34 @@ const MockInterview = {
     $('ivEnable').addEventListener('click', () => this._enableDevices());
     $('ivStart').addEventListener('click', () => this._start());
     $('ivTypedOnly').addEventListener('click', () => { this.state.typedMode = true; this._start(); });
+    $('ivFocus').addEventListener('change', () => {
+      const v = $('ivFocus').value;
+      $('ivCompanyWrap').hidden = v !== 'company';
+      $('ivResumeWrap').hidden = v !== 'resume';
+    });
+  },
+
+  TYPE_OPTIONS: [
+    ['mixed', 'Mixed (technical and HR)'],
+    ['technical', 'Technical (role-specific)'],
+    ['hr', 'HR and behavioural'],
+    ['fundamentals', 'CS fundamentals (OS, DBMS, networks, OOP)'],
+    ['coding', 'Coding and data structures (spoken)'],
+    ['systemdesign', 'System design'],
+    ['situational', 'Situational and managerial'],
+    ['puzzles', 'Puzzles and aptitude']
+  ],
+
+  _companies() {
+    return typeof COMPANY_PATTERNS !== 'undefined' ? COMPANY_PATTERNS.companies.map((c) => c.name) : ['Amazon', 'Google', 'Microsoft', 'TCS', 'Infosys', 'Wipro', 'Meta', 'Cognizant', 'Accenture'];
   },
 
   _readConfig() {
     const $ = (id) => document.getElementById(id);
-    this.state.cfg = { role: $('ivRole').value, type: $('ivType').value, level: $('ivLevel').value, total: parseInt($('ivTotal').value, 10) || 8 };
+    this.state.cfg = {
+      role: $('ivRole').value, type: $('ivType').value, level: $('ivLevel').value, total: parseInt($('ivTotal').value, 10) || 8,
+      focus: $('ivFocus').value, company: $('ivCompany').value, resume: $('ivResume').value.trim().slice(0, 6000), answerSeconds: parseInt($('ivClock').value, 10) || 0
+    };
   },
 
   /* ---------------------------------------------------------------- devices */
@@ -249,7 +301,14 @@ const MockInterview = {
   async _start() {
     this._readConfig();
     const s = this.state;
+    if (s.cfg.focus === 'resume' && this.countWords(s.cfg.resume) < 15) {
+      const el = document.getElementById('ivResume');
+      if (el) { el.focus(); }
+      this._notifySetup('Paste at least a few lines of your resume (projects, skills) so Aria has something to ask about.');
+      return;
+    }
     s.history = []; s.asked = 0; s.durations = []; s.buffer = ''; s.interim = ''; s.mode = 'ai'; s.notice = '';
+    s.timeouts = 0; s.lastWasFollowUp = false;
     s.plan = this._buildPlan();
     s.phase = 'room';
     s.startedAt = Date.now();
@@ -257,21 +316,69 @@ const MockInterview = {
     await this._nextQuestion();
   },
 
-  /** Offline plan: opener, shuffled bank questions for the role and type, closer. */
+  _notifySetup(text) {
+    const msg = document.getElementById('ivDeviceMsg');
+    if (msg) msg.textContent = text;
+  },
+
+  _shuffle(a) {
+    return a.map((x) => [Math.random(), x]).sort((x, y) => x[0] - y[0]).map((x) => x[1]);
+  },
+
+  /** Skills and project lines pulled from the pasted resume, used for the offline resume interview. */
+  _resumeFacts(text) {
+    const lower = String(text || '').toLowerCase();
+    const known = typeof ROLE_SKILLS !== 'undefined' ? [...new Set(Object.values(ROLE_SKILLS).flatMap((r) => r.skills.map((x) => x.name)))] : [];
+    const saved = (typeof DB !== 'undefined' ? DB.getGlobal('lastResumeSkills') : null) || [];
+    const skills = [...new Set([...saved, ...known.filter((k) => lower.includes(k.toLowerCase().split('/')[0].trim()))])].filter((k) => typeof k === 'string' && k.length > 1).slice(0, 8);
+    const projects = String(text || '').split(/\n+/).map((l) => l.replace(/^[\s\-•*·\d.)]+/, '').trim())
+      .filter((l) => l.length > 25 && /project|built|develop|creat|design|implement|led|deploy/i.test(l)).map((l) => l.slice(0, 150)).slice(0, 4);
+    return { skills, projects };
+  },
+
+  /** Offline plan. Builds the opener, a mix of questions drawn from the banks that fit the chosen type, focus and company, and a closer. */
   _buildPlan() {
-    const { role, type, total } = this.state.cfg;
+    const { role, type, total, focus, company, resume } = this.state.cfg;
     const bank = typeof INTERVIEW_BANK !== 'undefined' ? INTERVIEW_BANK : { opener: 'Please introduce yourself.', closer: 'Anything you would like to add?', hr: [], technical: {} };
-    const shuffle = (a) => a.map((x) => [Math.random(), x]).sort((x, y) => x[0] - y[0]).map((x) => x[1]);
-    const tech = shuffle(bank.technical[role] || bank.technical.SDE || []);
-    const hr = shuffle(bank.hr);
+    const tech = this._shuffle(bank.technical[role] || bank.technical.SDE || []);
+    const hr = this._shuffle(bank.hr || []);
+    const typed = {
+      fundamentals: bank.fundamentals, coding: bank.coding, systemdesign: bank.systemDesign, situational: bank.situational, puzzles: bank.puzzles
+    };
+    let pools;
+    let sequential = false; // focused types use up their own pool before borrowing from another
+    let opener = bank.opener;
+    if (focus === 'company' && bank.company && bank.company[company]) {
+      const extra = this._shuffle(bank.company[company].extra);
+      const asked = (typeof COMPANY_QUESTIONS !== 'undefined' && COMPANY_QUESTIONS[company]) || [];
+      const company_hr = this._shuffle(asked.filter((q) => !/introduce yourself|tell me about yourself/i.test(q)).map((q) => ({ q, keywords: [] })));
+      pools = [extra, company_hr, tech, hr];
+      opener = `Hello, I am Aria. Today's interview follows the style of ${company} campus hiring. To begin, please introduce yourself.`;
+    } else if (focus === 'resume') {
+      const { skills, projects } = this._resumeFacts(resume);
+      const projQ = projects.map((p) => ({ q: `Your resume says: "${p}". What was your exact role, and what was the hardest problem you solved there?`, keywords: ['i ', 'built', 'problem', 'because', 'result', ...p.toLowerCase().split(/\W+/).filter((w) => w.length > 5).slice(0, 4)] }));
+      const skillQ = skills.slice(0, 4).map((k) => ({ q: `You list ${k} on your resume. Describe a situation where you used it, and a problem you solved with it.`, keywords: [k.toLowerCase().split('/')[0].trim(), 'project', 'problem', 'used', 'result'] }));
+      pools = [projQ, skillQ, tech, hr];
+      opener = 'Hello, I am Aria. I have read your resume. To begin, give me a quick summary of yourself and the project you are proudest of.';
+    } else if (typed[type] && typed[type].length) {
+      pools = [this._shuffle(typed[type]), type === 'situational' ? hr : tech];
+      sequential = true;
+    } else if (type === 'technical') {
+      pools = [tech, this._shuffle(bank.fundamentals || [])];
+      sequential = true;
+    } else if (type === 'hr') {
+      pools = [hr, this._shuffle(bank.situational || [])];
+      sequential = true;
+    } else {
+      pools = [tech, hr];
+    }
     const mid = [];
     const want = Math.max(1, total - 2);
-    for (let i = 0; mid.length < want && (tech.length || hr.length); i++) {
-      const pickTech = type === 'technical' || (type === 'mixed' && i % 2 === 0);
-      const src = (pickTech ? tech : hr).length ? (pickTech ? tech : hr) : (tech.length ? tech : hr);
-      mid.push(src.shift());
+    for (let i = 0; mid.length < want && pools.some((p) => p.length); i++) {
+      const pool = sequential || !pools[i % pools.length].length ? pools.find((p) => p.length) : pools[i % pools.length];
+      mid.push(pool.shift());
     }
-    return [{ q: bank.opener, keywords: [] }, ...mid, { q: bank.closer, keywords: [] }].slice(0, total);
+    return [{ q: opener, keywords: [] }, ...mid, { q: bank.closer, keywords: [] }].slice(0, total);
   },
 
   async _api(action, extra = {}) {
@@ -279,7 +386,12 @@ const MockInterview = {
     const res = await fetch('/api/interview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, ...s.cfg, history: s.history, ...extra })
+      body: JSON.stringify({
+        action, role: s.cfg.role, type: s.cfg.type, level: s.cfg.level, total: s.cfg.total, answerSeconds: s.cfg.answerSeconds,
+        company: s.cfg.focus === 'company' ? s.cfg.company : '',
+        resume: s.cfg.focus === 'resume' ? s.cfg.resume : '',
+        history: s.history, ...extra
+      })
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data) throw new Error((data && data.error) || 'Interview service unavailable');
@@ -300,9 +412,22 @@ const MockInterview = {
         this._renderNotice();
       }
     }
-    if (!question) question = (s.plan[s.asked] || s.plan[s.plan.length - 1]).q;
+    if (!question) {
+      // Pressure round, offline: a thin answer gets a sharp follow-up before the interview moves on.
+      const last = s.history[s.history.length - 1];
+      const pressure = typeof INTERVIEW_BANK !== 'undefined' && INTERVIEW_BANK.pressure;
+      if (s.cfg.answerSeconds && pressure && !s.lastWasFollowUp && s.asked > 1 && last && last.role === 'candidate' && this.countWords(last.content) < 15 && s.asked < s.cfg.total - 1) {
+        question = pressure[s.asked % pressure.length];
+        s.lastWasFollowUp = true;
+      } else {
+        question = (s.plan[Math.min(s.asked - (s.history.filter((t) => t.followUp).length), s.plan.length - 1)] || s.plan[s.plan.length - 1]).q;
+        s.lastWasFollowUp = false;
+      }
+    } else {
+      s.lastWasFollowUp = false;
+    }
     if (s.phase !== 'room') return;
-    s.history.push({ role: 'interviewer', content: question });
+    s.history.push({ role: 'interviewer', content: question, followUp: s.lastWasFollowUp });
     s.asked++;
     s.noAnswerRetries = 0;
     this._paintProgress();
@@ -342,6 +467,7 @@ const MockInterview = {
     s.interim = '';
     s.answerStartedAt = Date.now();
     s.lastSpeechAt = 0;
+    this._startAnswerClock();
     const sup = this.speechSupport();
     const typed = document.getElementById('ivTyped');
     if (s.typedMode || !sup.recognition) {
@@ -399,27 +525,59 @@ const MockInterview = {
     clearInterval(s.silenceTimer);
   },
 
-  async _submit() {
+  /** Per-answer countdown for the pressure round. Runs while the candidate is answering. */
+  _startAnswerClock() {
+    const s = this.state;
+    clearInterval(s.answerTimer);
+    const limit = s.cfg.answerSeconds;
+    const chip = document.getElementById('ivAnswerChip');
+    if (chip) chip.hidden = !limit;
+    if (!limit) return;
+    s.answerLeft = limit;
+    this._paintAnswerClock();
+    s.answerTimer = setInterval(() => {
+      if (!document.getElementById('ivAnswerClock')) { clearInterval(s.answerTimer); return; }
+      s.answerLeft--;
+      this._paintAnswerClock();
+      if (s.answerLeft <= 0) { clearInterval(s.answerTimer); this._submit({ timedOut: true }); }
+    }, 1000);
+  },
+
+  _paintAnswerClock() {
+    const s = this.state;
+    const el = document.getElementById('ivAnswerClock');
+    if (!el) return;
+    const t = Math.max(0, s.answerLeft);
+    el.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    const chip = document.getElementById('ivAnswerChip');
+    if (chip) chip.classList.toggle('iv-low', t <= 10);
+  },
+
+  async _submit({ timedOut = false } = {}) {
     const s = this.state;
     if (s.busy || s.phase !== 'room') return;
     s.busy = true;
+    clearInterval(s.answerTimer);
     const typed = document.getElementById('ivTyped');
     const spoken = (s.buffer + ' ' + s.interim).replace(/\s+/g, ' ').trim();
     const text = (typed && !typed.hidden ? typed.value.trim() : '') || spoken;
     this._stopRecognition();
     if (typed) typed.hidden = true;
     window.speechSynthesis && window.speechSynthesis.cancel();
+    if (timedOut) s.timeouts++;
     if (!text) {
-      if (s.noAnswerRetries++ < 1) {
+      if (!timedOut && s.noAnswerRetries++ < 1) {
         document.getElementById('ivAnswer').textContent = 'I did not catch that. Please answer again, or use "Type instead".';
         this._listen();
         return;
       }
-      s.history.push({ role: 'candidate', content: '(no answer)' });
+      s.history.push({ role: 'candidate', content: '(no answer)', timedOut });
     } else {
-      s.history.push({ role: 'candidate', content: text });
+      s.history.push({ role: 'candidate', content: text, timedOut });
     }
     s.durations.push((Date.now() - s.answerStartedAt) / 1000);
+    const endBtn = document.getElementById('ivEnd');
+    if (endBtn) { endBtn.disabled = false; endBtn.removeAttribute('title'); }
     if (s.asked >= s.cfg.total) { await this._finish(); return; }
     await this._nextQuestion();
   },
@@ -443,15 +601,35 @@ const MockInterview = {
     document.getElementById('ivTypedToggle').textContent = s.typedMode ? 'Use voice instead' : 'Type instead';
   },
 
+  /** Finish early but still get feedback on what has been answered. */
   async _end() {
     const s = this.state;
-    const answered = s.history.some((t) => t.role === 'candidate');
-    const ok = typeof App !== 'undefined' && App.confirm
-      ? await App.confirm(answered ? 'End the interview now and get feedback on what you have answered so far?' : 'Leave the interview? Nothing has been answered yet.', { title: 'End interview', confirmLabel: answered ? 'End and get feedback' : 'Leave' })
-      : true;
-    if (!ok) return;
-    if (!answered) { this.cleanup(); this.render(this.container); return; }
+    if (s.phase !== 'room' || !s.history.some((t) => t.role === 'candidate')) return;
+    const ok = await this._confirm('End the interview now and get feedback on what you have answered so far?', 'End interview', 'End and get feedback');
+    if (!ok || this.state !== s || s.phase !== 'room') return;
+    s.busy = true;
     await this._finish();
+  },
+
+  /** Abandon the interview: no feedback, nothing saved, camera and microphone off. */
+  async _cancel() {
+    const s = this.state;
+    if (s.phase !== 'room') return;
+    const ok = await this._confirm('Cancel this interview? Your answers will not be scored or saved.', 'Cancel interview', 'Cancel interview');
+    if (!ok || this.state !== s || s.phase !== 'room') return;
+    const keep = s.cfg;
+    this.render(this.container, keep);
+    if (typeof App !== 'undefined' && App.showToast) App.showToast('Interview cancelled. Nothing was saved.', 'info');
+  },
+
+  async _confirm(message, title, confirmLabel) {
+    const s = this.state;
+    s.confirming = true;
+    try {
+      return typeof App !== 'undefined' && App.confirm ? await App.confirm(message, { title, confirmLabel, cancelLabel: 'Keep going' }) : true;
+    } finally {
+      if (this.state === s) s.confirming = false;
+    }
   },
 
   /* ---------------------------------------------------------------- room UI */
@@ -464,6 +642,8 @@ const MockInterview = {
           <span class="chip" id="ivProgress">Question 0 of ${s.cfg.total}</span>
           <span class="chip"><span id="ivClock">0:00</span></span>
           <span class="chip">${Sanitize.html(s.cfg.role)}</span>
+          <span class="chip">${Sanitize.html(this._focusLabel())}</span>
+          <span class="chip" id="ivAnswerChip" hidden>Answer time <span id="ivAnswerClock">0:00</span></span>
           <span id="ivNotice" class="text-dim" style="font-size:12.5px"></span>
         </div>
         <div class="iv-stage">
@@ -479,7 +659,8 @@ const MockInterview = {
           <button type="button" class="btn btn-primary" id="ivDone">I am done answering</button>
           <button type="button" class="btn btn-ghost" id="ivRepeat">Repeat question</button>
           <button type="button" class="btn btn-ghost" id="ivTypedToggle">${s.typedMode ? 'Use voice instead' : 'Type instead'}</button>
-          <button type="button" class="btn btn-ghost" id="ivEnd">End interview</button>
+          <button type="button" class="btn btn-ghost" id="ivEnd" disabled title="Available after your first answer">End and get feedback</button>
+          <button type="button" class="btn btn-ghost iv-cancel" id="ivCancel">Cancel interview</button>
         </div>
       </div>`;
     const $ = (id) => document.getElementById(id);
@@ -487,6 +668,10 @@ const MockInterview = {
     $('ivRepeat').addEventListener('click', () => this._repeat());
     $('ivTypedToggle').addEventListener('click', () => this._toggleTyped());
     $('ivEnd').addEventListener('click', () => this._end());
+    $('ivCancel').addEventListener('click', () => this._cancel());
+    document.removeEventListener('keydown', this._escHandler);
+    this._escHandler = (e) => { if (e.key === 'Escape' && this.state && this.state.phase === 'room' && !this.state.confirming && !document.getElementById('appConfirmModal')) this._cancel(); };
+    document.addEventListener('keydown', this._escHandler);
     $('ivTyped').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) this._submit(); });
     if (s.stream) { $('ivVideo').srcObject = s.stream; this._startMeter($('ivMeter')); }
     clearInterval(s.clock);
@@ -532,6 +717,8 @@ const MockInterview = {
     this._stopRecognition();
     window.speechSynthesis && window.speechSynthesis.cancel();
     clearInterval(s.clock);
+    clearInterval(s.answerTimer);
+    document.removeEventListener('keydown', this._escHandler);
     this._stopStream();
     this.container.innerHTML = '<div class="loading-screen"><div class="spinner"></div><p>Aria is preparing your feedback…</p></div>';
     const stats = this.deliveryStats(s.history, s.durations);
@@ -568,7 +755,7 @@ const MockInterview = {
           <div class="card"><div class="card-stat">${stats.answers}</div><div class="card-stat-label">Answers</div></div>
           <div class="card"><div class="card-stat">${stats.avgWords}</div><div class="card-stat-label">Words per answer</div></div>
           <div class="card"><div class="card-stat">${stats.wpm == null ? 'n/a' : stats.wpm}</div><div class="card-stat-label">Words per minute</div></div>
-          <div class="card"><div class="card-stat">${stats.fillers}</div><div class="card-stat-label">Filler words</div></div>
+          <div class="card"><div class="card-stat">${this.state.cfg.answerSeconds ? stats.timeouts : stats.fillers}</div><div class="card-stat-label">${this.state.cfg.answerSeconds ? 'Ran out of time' : 'Filler words'}</div></div>
         </div>
         <div class="grid grid-2">
           <div class="card"><div class="card-title">Scores</div>
@@ -608,6 +795,8 @@ const MockInterview = {
     s.phase = 'closed';
     this._stopRecognition();
     clearInterval(s.clock);
+    clearInterval(s.answerTimer);
+    document.removeEventListener('keydown', this._escHandler);
     if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch { /* unsupported */ } }
     this._stopStream();
   }
