@@ -891,3 +891,47 @@ test('coding practice: every C++ question has a real harness, a JS twin and test
   })()`);
   assert.deepEqual([...problems], []);
 });
+
+test('hiring hub: failures read as plain language with a retry, never raw parser errors', async () => {
+  const empty = { ok: false, status: 502, json: async () => { throw new SyntaxError('Unexpected end of JSON input'); }, text: async () => '' };
+  const cases = [
+    ['empty body', () => empty, /isn.t responding/i],
+    ['network down', () => { throw new TypeError('Failed to fetch'); }, /couldn.t reach the job feed/i],
+    ['server message', () => ({ ok: false, status: 429, json: async () => ({ error: 'Too many searches. Try again shortly.' }) }), /Too many searches/]
+  ];
+  for (const [name, fetch, expected] of cases) {
+    const app = await bootApp({ fetch: (u) => (String(u).startsWith('/api/jobs') ? fetch() : defaultFetch(u)) });
+    await goTo(app, 'jobs');
+    await tick(150);
+    const box = app.document.querySelector('.empty-state[role="alert"]');
+    assert.ok(box, `${name}: error panel shown`);
+    assert.match(text(box, 600), expected, name);
+    assert.doesNotMatch(text(box, 600), /JSON|Failed to execute|Unexpected end/, `${name}: no raw error text`);
+    assert.ok(app.document.getElementById('retryJobsBtn'), `${name}: retry button`);
+  }
+});
+
+test('aptitude quiz: timed mode shows a countdown and reveals the answer when time runs out', async () => {
+  const app = await bootApp();
+  await goTo(app, 'aptitude');
+  app.document.getElementById('quizTimed').value = 'on';
+  app.document.getElementById('startQuizBtn').click();
+  await tick(300);
+  const timer = app.document.getElementById('quizTimer');
+  assert.ok(timer, 'countdown chip is shown');
+  assert.equal(timer.textContent, '1:00');
+  app.run('Aptitude._timeUp()');
+  assert.ok(app.document.querySelector('.option-btn.correct'), 'correct answer revealed');
+  assert.match(text(app.document.getElementById('feedback')), /Time's up/);
+  assert.ok([...app.document.querySelectorAll('.option-btn')].every((b) => b.disabled), 'options locked');
+  app.run('Aptitude._stopTimer()');
+  assert.deepEqual(app.errors, []);
+});
+
+test('aptitude quiz: untimed by default has no countdown', async () => {
+  const app = await bootApp();
+  await goTo(app, 'aptitude');
+  app.document.getElementById('startQuizBtn').click();
+  await tick(300);
+  assert.equal(app.document.getElementById('quizTimer'), null);
+});

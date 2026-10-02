@@ -1,6 +1,7 @@
 /* ============ Progress Dashboard & Analytics Module ============ */
 const Dashboard = {
   _resizeHandler: null,
+  _themeHandler: null,
 
   render(container) {
     const email = Auth.getEmail();
@@ -157,6 +158,9 @@ const Dashboard = {
     if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
     this._resizeHandler = () => renderCharts();
     window.addEventListener('resize', this._resizeHandler);
+    if (this._themeHandler) window.removeEventListener('themechange', this._themeHandler);
+    this._themeHandler = () => renderCharts();
+    window.addEventListener('themechange', this._themeHandler);
     this._loadInterviewExperiences(email, prog);
   },
 
@@ -298,10 +302,10 @@ const Dashboard = {
       <div class="legend mt-2">
         <span>Less</span>
         <span class="sw" style="background:var(--surface-2);border:1px solid var(--border)"></span>
-        <span class="sw" style="background:rgba(9, 122, 84,0.25)"></span>
-        <span class="sw" style="background:rgba(9, 122, 84,0.50)"></span>
-        <span class="sw" style="background:rgba(9, 122, 84,0.75)"></span>
-        <span class="sw" style="background:var(--accent)"></span>
+        <span class="sw heat-cell l1"></span>
+        <span class="sw heat-cell l2"></span>
+        <span class="sw heat-cell l3"></span>
+        <span class="sw heat-cell l4"></span>
         <span>More</span>
       </div>
     `;
@@ -330,7 +334,21 @@ const Dashboard = {
     return div.innerHTML;
   },
 
+  /** Chart colours come from the active theme so canvases follow light / dark. */
+  _palette() {
+    const css = getComputedStyle(document.documentElement);
+    const v = (name, fallback) => (css.getPropertyValue(name).trim() || fallback);
+    return {
+      grid: v('--border', '#dcd7c9'),
+      muted: v('--text-faint', '#6b695f'),
+      dim: v('--text-dim', '#55534a'),
+      ink: v('--text', '#14130f'),
+      accent: v('--accent', '#c93b17')
+    };
+  },
+
   _drawBarChart(canvas, history) {
+    const pal = this._palette();
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
@@ -343,7 +361,7 @@ const Dashboard = {
     ctx.clearRect(0, 0, w, h);
 
     if (!history.length) {
-      ctx.fillStyle = '#858d8a';
+      ctx.fillStyle = pal.muted;
       ctx.font = '500 13px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Complete quizzes to see performance trends', w / 2, h / 2);
@@ -359,7 +377,7 @@ const Dashboard = {
     const barW = chartW / values.length;
 
     // Grid lines
-    ctx.strokeStyle = '#ecebe6';
+    ctx.strokeStyle = pal.grid;
     ctx.lineWidth = 1;
     [0, 50, 100].forEach(level => {
       const y = pad.top + chartH - (level / 100) * chartH;
@@ -368,7 +386,7 @@ const Dashboard = {
       ctx.lineTo(w - pad.right, y);
       ctx.stroke();
 
-      ctx.fillStyle = '#858d8a';
+      ctx.fillStyle = pal.muted;
       ctx.font = '10px Inter, sans-serif';
       ctx.textAlign = 'right';
       ctx.fillText(level + '%', pad.left - 6, y + 3);
@@ -380,25 +398,26 @@ const Dashboard = {
       const y = pad.top + chartH - bh;
 
       // Bar fill
-      ctx.fillStyle = '#097a54';
+      ctx.fillStyle = pal.accent;
       ctx.beginPath();
       this._roundedRect(ctx, x, y, barW * 0.6, bh, 4);
       ctx.fill();
 
       // Bar value label
-      ctx.fillStyle = '#1c1b22';
+      ctx.fillStyle = pal.ink;
       ctx.font = '600 11px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(v + '%', x + barW * 0.3, y - 6);
 
       // X-axis label
-      ctx.fillStyle = '#575f5c';
+      ctx.fillStyle = pal.dim;
       ctx.font = '500 11px Inter, sans-serif';
       ctx.fillText(labels[i], x + barW * 0.3, h - 8);
     });
   },
 
   _drawRadar(canvas, prog) {
+    const pal = this._palette();
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
@@ -412,7 +431,7 @@ const Dashboard = {
     const skills = prog.skills;
     const role = skills && skills.targetRole;
     if (!role || typeof ROLE_SKILLS === 'undefined' || !ROLE_SKILLS[role]) {
-      ctx.fillStyle = '#858d8a';
+      ctx.fillStyle = pal.muted;
       ctx.font = '500 13px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Select a target role in Skill Gap to view radar', w / 2, h / 2);
@@ -435,7 +454,7 @@ const Dashboard = {
         const y = cy + r * Math.sin(angle);
         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
       }
-      ctx.strokeStyle = '#ecebe6';
+      ctx.strokeStyle = pal.grid;
       ctx.lineWidth = 1;
       ctx.stroke();
     }
@@ -445,7 +464,7 @@ const Dashboard = {
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.lineTo(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle));
-      ctx.strokeStyle = '#ecebe6';
+      ctx.strokeStyle = pal.grid;
       ctx.stroke();
     });
 
@@ -459,13 +478,16 @@ const Dashboard = {
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
     ctx.closePath();
-    ctx.fillStyle = 'rgba(9, 122, 84, 0.16)';
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = pal.accent;
     ctx.fill();
-    ctx.strokeStyle = '#097a54';
+    ctx.restore();
+    ctx.strokeStyle = pal.accent;
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.fillStyle = '#575f5c';
+    ctx.fillStyle = pal.dim;
     ctx.font = '600 11px Inter, sans-serif';
     ctx.textAlign = 'center';
     reqSkills.forEach((s, i) => {

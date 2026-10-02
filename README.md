@@ -20,7 +20,7 @@ Dark mode (toggle in the top bar; follows your OS setting by default):
 | --- | --- |
 | **Dashboard** | Readiness overview across all modules, with the exact score formula, a "Start here" checklist for new users, and **Export / Import backup** so local progress is never trapped in one browser |
 | **Resume Analyzer** | Extracts text from PDF / DOCX / TXT / RTF in the browser and scores it against a target role |
-| **Aptitude Quiz** | AI-generated questions (Gemini) with OpenTriviaDB and offline question banks as fallbacks |
+| **Aptitude Quiz** | AI-generated questions (Gemini) with OpenTriviaDB and offline question banks as fallbacks; optional timed mode (60 s per question) |
 | **Coding Practice** | Practice problems, including C++ questions with test cases run through the Wandbox compiler |
 | **Interview Experiences** | Interview rounds and tips you add, filterable by company and difficulty (stored in your browser) |
 | **Hiring Hub** | **India (Local)** tab for city jobs and internships (Adzuna), never blank: without Adzuna keys it shows remote roles open to India plus pre-filled searches on Internshala, LinkedIn, Naukri, Indeed and Google Jobs. **Remote (Global)** tab merges Remote OK, Remotive and Jobicy (Jobicy tags internships explicitly). **Analyze resume fit** returns an ATS match score, matched/missing skills, learning actions and practice interview questions |

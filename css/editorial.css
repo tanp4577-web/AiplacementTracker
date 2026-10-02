@@ -341,3 +341,26 @@ a:not(.btn):not(.nav-link):not(.chip):not(.brand) { color: var(--accent); }
 
 /* Drop zone: hairline dashes, accent only while dragging */
 .drop-zone { border: 1px dashed var(--text-faint); }
+
+/* Filter rows (Coding, Company Patterns, Interview wall): selects sit side by side and wrap on small screens.
+   .filter-bar had no rule at all, so every control stacked at full width. */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+.filter-bar > select,
+.filter-bar > input {
+  flex: 1 1 180px;
+  min-width: 0;
+  width: auto;
+}
+.filter-bar > input[type="search"],
+.filter-bar > input[type="text"] { flex: 2 1 240px; }
+
+/* Timed quiz countdown */
+#quizTimer { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.timer-low { color: var(--danger); }
+.sidebar .mini-fill { background: var(--accent); }

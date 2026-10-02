@@ -28,6 +28,7 @@ const Theme = {
     const next = this.current() === 'dark' ? 'light' : 'dark';
     try { localStorage.setItem(this.KEY, next); } catch { /* private mode: still apply for this visit */ }
     this.apply(next);
+    window.dispatchEvent(new Event('themechange'));
   },
 
   init() {
