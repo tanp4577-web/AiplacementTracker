@@ -1,0 +1,100 @@
+/* Dark mode — loaded last. Activated by <html data-theme="dark"> (see js/theme.js). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0e1613;
+  --bg-2: #131d19;
+  --surface: #16211c;
+  --surface-2: #1b2823;
+  --surface-hover: #223129;
+  --border: #263830;
+  --border-strong: #3a5247;
+
+  --text: #e6f0eb;
+  --text-dim: #a5bbb1;
+  --text-faint: #8aa398;
+  --text-secondary: #a5bbb1;
+
+  --accent: #34c38f;
+  --accent-hover: #5ad6a8;
+  --accent-soft: rgba(52, 195, 143, 0.14);
+  --accent-ink: #06130d;
+
+  --blue: #4fc79c;
+  --blue-soft: rgba(79, 199, 156, 0.14);
+  --success: #3fd29a;
+  --success-soft: rgba(63, 210, 154, 0.14);
+  --warning: #e0a53a;
+  --warning-soft: rgba(224, 165, 58, 0.14);
+  --danger: #f06b60;
+  --danger-soft: rgba(240, 107, 96, 0.14);
+  --purple: #5fcaa4;
+  --purple-soft: rgba(95, 202, 164, 0.14);
+  --cyan: #3cc5df;
+  --cyan-soft: rgba(60, 197, 223, 0.14);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.45);
+  --shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-theme="dark"] body { background: var(--bg); color: var(--text); }
+:root[data-theme="dark"] .heat-cell.l1 { background: #1d3a30; border-color: #2a5445; }
+:root[data-theme="dark"] .heat-cell.l2 { background: #25664d; border-color: #31805f; }
+:root[data-theme="dark"] .heat-cell.l3 { background: #2f9a72; border-color: #3fb487; }
+:root[data-theme="dark"] .heat-cell.l4 { background: #34c38f; border-color: #5ad6a8; }
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); }
+
+/* Toggle button */
+.theme-toggle { min-width: 40px; padding-inline: 10px; }
+.theme-toggle i { font-size: 16px; line-height: 1; }
+
+/* Surfaces that hardcode light backgrounds in the earlier theme files */
+:root[data-theme="dark"] .sidebar,
+:root[data-theme="dark"] .topbar,
+:root[data-theme="dark"] .grid > .card,
+:root[data-theme="dark"] .tracker-col,
+:root[data-theme="dark"] .tracker-card,
+:root[data-theme="dark"] .mi-bubble-ai,
+:root[data-theme="dark"] .mi-bubble-you { background: var(--surface); }
+:root[data-theme="dark"] .dashboard-hero {
+  background:
+    radial-gradient(600px 300px at 88% -20%, rgba(52, 195, 143, 0.14), transparent 60%),
+    linear-gradient(135deg, #17231e 0%, #121c18 100%);
+  border-color: var(--border);
+}
+:root[data-theme="dark"] .card { background: var(--surface); border-color: var(--border); }
+:root[data-theme="dark"] .card-title,
+:root[data-theme="dark"] .page-title,
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] h3,
+:root[data-theme="dark"] h4 { color: var(--text); }
+
+/* Buttons: the near-black primary would vanish on a dark page */
+:root[data-theme="dark"] .btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: none;
+}
+:root[data-theme="dark"] .btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--accent-ink);
+}
+:root[data-theme="dark"] .btn-ghost,
+:root[data-theme="dark"] .btn-outline {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+:root[data-theme="dark"] .btn-ghost:hover,
+:root[data-theme="dark"] .btn-outline:hover { background: var(--surface-hover); }
+:root[data-theme="dark"] .chip.green { color: #5ad6a8; background: rgba(52, 195, 143, 0.14); }
+:root[data-theme="dark"] .chip.blue,
+:root[data-theme="dark"] .chip.purple { color: #7ad9b6; }

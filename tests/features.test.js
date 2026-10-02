@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootApp, goTo, tick, defaultFetch, read } from './app-harness.js';
+import { fileURLToPath } from 'node:url';
 
 const text = (el, n = 400) => (el ? el.textContent.replace(/\s+/g, ' ').trim().slice(0, n) : '');
 const fire = (app, el, type) => el.dispatchEvent(new app.window.Event(type, { bubbles: true }));
@@ -576,7 +577,7 @@ test('smoothness and tidy-up: no expensive transitions/blur, unused files gone, 
   const fs = await import('node:fs');
   const path = await import('node:path');
   const { read } = await import('./app-harness.js');
-  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   for (const f of fs.readdirSync(path.join(root, 'css'))) {
     assert.ok(!/transition:\s*all\b/.test(read(`css/${f}`)), `${f} must not use transition: all`);
   }
@@ -846,5 +847,20 @@ test('coding practice: if the C++ dead end is ever reached, a button switches ba
   app.document.getElementById('switchToJsBtn').click();
   await tick(150);
   assert.equal(app.document.getElementById('runBtn').textContent.trim(), 'Run Tests');
+  assert.deepEqual(app.errors, []);
+});
+
+test('dark mode: toggle flips data-theme, updates the button label and remembers the choice', async () => {
+  const app = await bootApp();
+  const root = app.document.documentElement;
+  const btn = app.document.getElementById('themeToggle');
+  assert.ok(btn, 'theme toggle is in the top bar');
+  const before = root.getAttribute('data-theme');
+  btn.click();
+  const after = root.getAttribute('data-theme');
+  assert.notEqual(after, before);
+  assert.equal(btn.getAttribute('aria-pressed'), String(after === 'dark'));
+  assert.match(btn.getAttribute('aria-label'), after === 'dark' ? /light/i : /dark/i);
+  assert.equal(app.window.localStorage.getItem('pp_theme'), after);
   assert.deepEqual(app.errors, []);
 });

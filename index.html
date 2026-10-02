@@ -42,6 +42,9 @@
   <link rel="stylesheet" href="css/fibery-theme.css" />
   <!-- Depth theme: richer gradient accents, glass cards, ambient motion -->
   <link rel="stylesheet" href="css/depth-theme.css" />
+  <!-- Dark mode overrides (activated by data-theme="dark") -->
+  <link rel="stylesheet" href="css/dark-theme.css" />
+  <script src="js/theme.js"></script>
 </head>
 
 <body>
@@ -205,6 +208,7 @@
         <div class="topbar-actions">
           <div class="date-badge" id="dateBadge"></div>
           <div id="authArea"></div>
+          <button type="button" class="btn btn-ghost theme-toggle" id="themeToggle" aria-pressed="false" aria-label="Switch to dark mode" title="Switch to dark mode"><i class="bi bi-moon-stars" aria-hidden="true"></i></button>
           <button class="btn btn-ghost" id="resetDataBtn" title="Reset all progress">Reset</button>
         </div>
       </header>
