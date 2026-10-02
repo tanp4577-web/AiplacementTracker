@@ -6,11 +6,13 @@
 
 PlacementPrep is a browser-based placement preparation suite: analyse your resume, match it against live job listings with an AI ATS score, practise aptitude and coding questions, track skill gaps, and study company interview patterns. An AI assistant answers placement questions.
 
-<!--
-Add 3–4 screenshots or one short GIF here — it is the biggest upgrade for anyone glancing at this repo.
-Suggested: docs/screenshots/dashboard.png, hiring-hub.png, resume-analyzer.png
-![Dashboard](docs/screenshots/dashboard.png)
--->
+| Dashboard | Resume Analyzer |
+| --- | --- |
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Resume Analyzer](docs/screenshots/resume-analyzer.png) |
+
+Dark mode (toggle in the top bar; follows your OS setting by default):
+
+![Dashboard in dark mode](docs/screenshots/dashboard-dark.png)
 
 ## Features
 

@@ -849,3 +849,18 @@ test('coding practice: if the C++ dead end is ever reached, a button switches ba
   assert.equal(app.document.getElementById('runBtn').textContent.trim(), 'Run Tests');
   assert.deepEqual(app.errors, []);
 });
+
+test('dark mode: toggle flips data-theme, updates the button label and remembers the choice', async () => {
+  const app = await bootApp();
+  const root = app.document.documentElement;
+  const btn = app.document.getElementById('themeToggle');
+  assert.ok(btn, 'theme toggle is in the top bar');
+  const before = root.getAttribute('data-theme');
+  btn.click();
+  const after = root.getAttribute('data-theme');
+  assert.notEqual(after, before);
+  assert.equal(btn.getAttribute('aria-pressed'), String(after === 'dark'));
+  assert.match(btn.getAttribute('aria-label'), after === 'dark' ? /light/i : /dark/i);
+  assert.equal(app.window.localStorage.getItem('pp_theme'), after);
+  assert.deepEqual(app.errors, []);
+});
