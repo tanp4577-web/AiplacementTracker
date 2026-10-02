@@ -56,6 +56,16 @@ const Jobs = {
     this._search();
   },
 
+  /** Plain-language reason for a failed search; never shows raw parser or network errors. */
+  _friendlyError(err) {
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (offline) return "You appear to be offline. Reconnect and try again.";
+    if (err && err.name === 'TypeError') return "We couldn't reach the job feed. Check your connection and try again.";
+    const msg = (err && err.message) || '';
+    if (/unreadable response/i.test(msg)) return "The job feed isn't responding right now. Please try again in a minute.";
+    return msg || 'Could not load job listings.';
+  },
+
   async _search(append = false) {
     this.state.loading = true;
     this.state.error = null;
@@ -76,14 +86,16 @@ const Jobs = {
 
     try {
       const res = await fetch(`/api/jobs?${params.toString()}`);
-      const data = await res.json();
+      // An empty or HTML body (feed down, wrong route, gateway error) is not valid JSON.
+      const data = await res.json().catch(() => null);
+      if (!data) throw new Error(`The job feed answered with an unreadable response (status ${res.status}).`);
       if (!res.ok) throw new Error(data.error || 'Could not load job listings.');
       this.state.jobs = append ? [...this.state.jobs, ...data.jobs] : data.jobs;
       this.state.count = data.count || this.state.jobs.length;
       this.state.mode = data.mode || null;
       this.state.notice = data.notice || '';
     } catch (err) {
-      this.state.error = err.message || 'Could not load job listings.';
+      this.state.error = this._friendlyError(err);
       if (!append) this.state.jobs = [];
     } finally {
       this.state.loading = false;
@@ -203,9 +215,10 @@ const Jobs = {
       ${notice && !this.state.showSavedOnly ? `<div class="card mb-2" role="status" id="jobsNotice" style="border-left:3px solid var(--warning, #e6a23c)"><div style="font-size:13px;line-height:1.5">${esc(notice)}</div></div>` : ''}
 
       ${error && !this.state.showSavedOnly ? `
-        <div class="empty-state">
+        <div class="empty-state" role="alert">
           <h3>Couldn't load listings</h3>
           <p>${esc(error)}</p>
+          <p class="text-dim" style="font-size:13px">The search links above still work while the live feed is unavailable.</p>
           <button class="btn btn-ghost btn-sm" id="retryJobsBtn">Try again</button>
         </div>
       ` : ''}
