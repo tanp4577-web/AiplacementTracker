@@ -7,17 +7,17 @@ const App = {
   init() {
     // Register views
     this.views = {
-      dashboard: { render: (c) => Dashboard.render(c), title: 'Dashboard', subtitle: 'Your placement readiness overview' },
+      dashboard: { render: (c) => Dashboard.render(c), title: 'Dashboard', subtitle: 'Where you stand, and what to do next' },
       resume: { render: (c) => Resume.render(c), title: 'Resume Analyzer', subtitle: 'ATS score & improvement suggestions' },
-      aptitude: { render: (c) => Aptitude.render(c), title: 'Aptitude Quiz', subtitle: 'Practice with adaptive difficulty' },
+      aptitude: { render: (c) => Aptitude.render(c), title: 'Aptitude Quiz', subtitle: 'Timed or untimed, with an explanation for every answer' },
       coding: { render: (c) => Coding.render(c), title: 'Coding Practice', subtitle: 'Solve challenges in your browser' },
-      interview: { render: (c) => InterviewWall.render(c), title: 'Interview Experiences', subtitle: 'Interview rounds and tips you have saved' },
+      interview: { render: (c) => InterviewWall.render(c), title: 'Interview Experiences', subtitle: 'Rounds and tips from interviews you have sat' },
       jobs: { render: (c) => Jobs.render(c), title: 'Hiring Hub', subtitle: 'Find roles and check your resume fit' },
       feedback: { render: (c) => Feedback.render(c), title: 'Feedback & Contact Us', subtitle: 'Report a bug or share an idea' },
       tracker: { render: (c) => Tracker.render(c), title: 'Application Tracker', subtitle: 'Track every application from saved to offer' },
       skills: { render: (c) => Skills.render(c), title: 'Skill Gap Analysis', subtitle: 'Find what to learn next' },
-      company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle: 'Top tech interview patterns' },
-      youtube: { render: (c) => Youtube.render(c), title: 'YouTube Lectures', subtitle: 'Top-rated programming playlists from the best instructors' },
+      company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle: 'What each company asks, round by round' },
+      youtube: { render: (c) => Youtube.render(c), title: 'YouTube Lectures', subtitle: 'Hand-picked playlists, with your watch progress' },
       lecturequestions: { render: (c) => LectureQuestions.render(c), title: 'Lecture Questions', subtitle: 'Timestamped subject practice with runnable C++ code' }
     };
 

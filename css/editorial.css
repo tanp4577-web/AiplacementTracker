@@ -364,3 +364,126 @@ a:not(.btn):not(.nav-link):not(.chip):not(.brand) { color: var(--accent); }
 #quizTimer { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .timer-low { color: var(--danger); }
 .sidebar .mini-fill { background: var(--accent); }
+
+/* ============================================================
+   Pass 2 — remove the remaining "template" tells:
+   icon-on-everything, boxes-on-everything, tile-row stats, logo tile.
+   ============================================================ */
+
+/* Wordmark: set in the display serif, no logo tile */
+.brand { padding: 4px 4px 18px; }
+.brand-text h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 27px;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+.brand-text h1 span { font-style: italic; }
+.brand-text p { margin-top: 6px; }
+
+/* Navigation: numbered index, grouped, no icons */
+.nav { counter-reset: navi; }
+.nav-icon { display: none; }
+.nav-link { counter-increment: navi; gap: 0; padding: 7px 10px; }
+.nav-link::before {
+  content: counter(navi, decimal-leading-zero);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  width: 26px;
+  flex: none;
+}
+.nav-link.active::before { color: var(--accent); }
+.nav-section { margin: 18px 0 6px 12px; padding: 0; }
+.nav-section:first-child { margin-top: 4px; }
+
+/* Cards become ruled sections: ink rule on top, no box, no icon in the heading */
+.card, .grid > .card,
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .grid > .card {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--text);
+  border-radius: 0;
+  padding: 14px 0 20px;
+}
+.card:hover, .grid > .card:hover { border-color: var(--text); }
+.card .card, .card .grid > .card {
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+}
+.card-title i, .empty-state > i, .empty-state .bi, .empty-icon { display: none; }
+.card-title { font-size: 13px; text-transform: uppercase; letter-spacing: 0.07em; font-family: var(--font-mono); font-weight: 500; }
+.card-sub { margin-top: 4px; }
+
+/* Items that really are boxes (list rows, tiles the user clicks) keep a hairline outline */
+.tracker-card, .job-card, .question-item, .company-card, .yt-card, .exp-card, .option-btn, .mi-bubble-ai, .mi-bubble-you,
+.modal, .job-details-modal, .toast {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* Dashboard hero: no frame, big serif headline over a rule */
+.dashboard-hero, :root[data-theme="dark"] .dashboard-hero {
+  background: transparent;
+  border: 0;
+  border-top: 2px solid var(--text);
+  border-radius: 0;
+  padding: 22px 0 26px;
+}
+.hero-msg h3 { font-size: clamp(30px, 4vw, 48px); }
+
+/* Stat row: one strip with vertical hairlines instead of four tiles */
+.grid.grid-4 { gap: 0; border-top: 1px solid var(--text); border-bottom: 1px solid var(--border); }
+.grid.grid-4 > .card, .grid.grid-4 > .card.text-center {
+  border: 0;
+  border-left: 1px solid var(--border);
+  padding: 18px 20px 16px;
+  text-align: left;
+}
+.grid.grid-4 > .card:first-child { border-left: 0; padding-left: 0; }
+.grid.grid-4 .card-stat { font-size: 40px; font-weight: 500; text-align: left; line-height: 1; margin-bottom: 8px; }
+.grid.grid-4 .card-stat-label { text-align: left; }
+
+/* Top bar: plain text date, no pill */
+.date-badge { border: 0; background: transparent; padding: 0; }
+.page-title { font-family: var(--font-display); font-weight: 400; font-size: 30px; letter-spacing: -0.01em; }
+.page-subtitle { margin-top: 2px; }
+
+/* Calmer chips and tags */
+.chip { background: transparent; }
+
+@media (max-width: 900px) {
+  .grid.grid-4 { grid-template-columns: 1fr 1fr; }
+  .grid.grid-4 > .card:nth-child(odd) { border-left: 0; padding-left: 0; }
+  .grid.grid-4 > .card { border-top: 1px solid var(--border); }
+}
+
+/* Nav fits short screens: it scrolls on its own and the footer stays put */
+.sidebar { overflow: hidden; }
+.nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.nav-link { padding-block: 5px; }
+.nav-section { margin-top: 14px; }
+
+/* Difficulty chips: outlined, colour only carries meaning (easy / medium / hard) */
+.chip.green, :root[data-theme="dark"] .chip.green { background: transparent; color: var(--success); border-color: currentColor; }
+.chip.orange, :root[data-theme="dark"] .chip.orange, .chip.yellow { background: transparent; color: var(--warning); border-color: currentColor; }
+.chip.red, :root[data-theme="dark"] .chip.red { background: transparent; color: var(--danger); border-color: currentColor; }
+
+/* Tighter nav rhythm so all twelve links fit a 820px-high window without scrolling */
+.nav-link { padding-block: 4px; }
+.nav-section { margin: 11px 0 3px 12px; }
+.brand { padding-bottom: 12px; }
+
+.hero-msg .chip { color: var(--text-dim); border-color: var(--border); }
+
+@media (max-width: 680px) {
+  .page-title { font-size: 24px; white-space: normal; }
+  .hero-score, .dashboard-hero .hero-score { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .dashboard-hero { padding-left: 0; padding-right: 0; }
+  .hero-msg h3 { font-size: 30px; }
+  .grid.grid-4 .card-stat { font-size: 32px; }
+}
