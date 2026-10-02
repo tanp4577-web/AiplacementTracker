@@ -11,6 +11,7 @@ const App = {
       resume: { render: (c) => Resume.render(c), title: 'Resume Analyzer', subtitle: 'ATS score & improvement suggestions' },
       aptitude: { render: (c) => Aptitude.render(c), title: 'Aptitude Quiz', subtitle: 'Practice with adaptive difficulty' },
       coding: { render: (c) => Coding.render(c), title: 'Coding Practice', subtitle: 'Solve challenges in your browser' },
+      mockinterview: { render: (c) => MockInterview.render(c), title: 'Live Interview', subtitle: 'Spoken mock rounds with an AI interviewer' },
       interview: { render: (c) => InterviewWall.render(c), title: 'Interview Experiences', subtitle: 'Interview rounds and tips you have saved' },
       jobs: { render: (c) => Jobs.render(c), title: 'Hiring Hub', subtitle: 'Find roles and check your resume fit' },
       feedback: { render: (c) => Feedback.render(c), title: 'Feedback & Contact Us', subtitle: 'Report a bug or share an idea' },
@@ -88,6 +89,9 @@ const App = {
       window.location.hash = '#dashboard';
       return;
     }
+
+    // Leaving the live interview must switch the camera and microphone off.
+    if (typeof MockInterview !== 'undefined' && hash !== 'mockinterview') MockInterview.cleanup();
 
     // Update page title
     document.getElementById('pageTitle').textContent = view.title;
