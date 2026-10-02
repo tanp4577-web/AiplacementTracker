@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootApp, goTo, tick, defaultFetch, read } from './app-harness.js';
+import { fileURLToPath } from 'node:url';
 
 const text = (el, n = 400) => (el ? el.textContent.replace(/\s+/g, ' ').trim().slice(0, n) : '');
 const fire = (app, el, type) => el.dispatchEvent(new app.window.Event(type, { bubbles: true }));
@@ -576,7 +577,7 @@ test('smoothness and tidy-up: no expensive transitions/blur, unused files gone, 
   const fs = await import('node:fs');
   const path = await import('node:path');
   const { read } = await import('./app-harness.js');
-  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   for (const f of fs.readdirSync(path.join(root, 'css'))) {
     assert.ok(!/transition:\s*all\b/.test(read(`css/${f}`)), `${f} must not use transition: all`);
   }
