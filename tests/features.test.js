@@ -875,3 +875,19 @@ test('accessibility: nav is labelled and the current page is marked with aria-cu
   assert.ok(read('index.html').includes('css/polish.css'));
   assert.deepEqual(app.errors, []);
 });
+
+test('coding practice: every C++ question has a real harness, a JS twin and test cases', async () => {
+  const app = await bootApp();
+  const problems = app.run(`(() => {
+    const out = [];
+    const jsIds = new Set([...FALLBACK_CODING, ...EXTRA_CODING].map(q => q.id));
+    const stub = Coding._cppMainFor({ id: 'no-such-question-cpp' });
+    for (const c of EXTRA_CODING_CPP) {
+      if (!jsIds.has(c.id.replace(/-cpp$/, '')) && c.id !== 'max-subarray-cpp') out.push(c.id + ': no JS twin');
+      if (Coding._cppMainFor(c) === stub) out.push(c.id + ': falls through to the empty harness');
+      if (!c.cppTestCases || !c.cppTestCases.length) out.push(c.id + ': no test cases');
+    }
+    return out;
+  })()`);
+  assert.deepEqual([...problems], []);
+});

@@ -734,6 +734,136 @@ using namespace std;
   cout << numIslands(g);
   return 0;
 }`;
+      case "reverse-string-cpp":
+        return `int main(){
+  string t; cin >> t;
+  vector<char> s(t.begin(), t.end());
+  reverseString(s);
+  cout << string(s.begin(), s.end());
+  return 0;
+}`;
+      case "best-time-stock-cpp":
+        return `int main(){
+  int n; cin >> n;
+  vector<int> p(n); for (int i=0;i<n;i++) cin >> p[i];
+  cout << maxProfit(p);
+  return 0;
+}`;
+      case "contains-duplicate-cpp":
+        return `int main(){
+  int n; cin >> n;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  cout << (containsDuplicate(a) ? "true" : "false");
+  return 0;
+}`;
+      case "merge-sorted-arrays-cpp":
+        return `int main(){
+  int n, m; cin >> n >> m;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  vector<int> b(m); for (int i=0;i<m;i++) cin >> b[i];
+  auto r = mergeSorted(a, b);
+  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
+  return 0;
+}`;
+      case "valid-palindrome-2-cpp":
+        return `int main(){
+  string s; cin >> s;
+  cout << (validPalindrome(s) ? "true" : "false");
+  return 0;
+}`;
+      case "two-sum-2-sorted-cpp":
+        return `int main(){
+  int n, target; cin >> n >> target;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  auto r = twoSumSorted(a, target);
+  cout << r[0] << " " << r[1];
+  return 0;
+}`;
+      case "longest-substr-no-repeat-cpp":
+        return `int main(){
+  string s; cin >> s;
+  cout << lengthOfLongestSubstring(s);
+  return 0;
+}`;
+      case "min-window-substring-cpp":
+        return `int main(){
+  string s, t; cin >> s >> t;
+  cout << minWindow(s, t);
+  return 0;
+}`;
+      case "longest-common-subseq-cpp":
+        return `int main(){
+  string a, b; cin >> a >> b;
+  cout << longestCommonSubsequence(a, b);
+  return 0;
+}`;
+      case "edit-distance-cpp":
+        return `int main(){
+  string a, b; getline(cin, a); getline(cin, b);
+  cout << minDistance(a, b);
+  return 0;
+}`;
+      case "intersection-two-arrays-cpp":
+        return `int main(){
+  int n, m; cin >> n >> m;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  vector<int> b(m); for (int i=0;i<m;i++) cin >> b[i];
+  auto r = intersection(a, b);
+  sort(r.begin(), r.end());
+  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
+  return 0;
+}`;
+      case "isomorphic-strings-cpp":
+        return `int main(){
+  string s, t; cin >> s >> t;
+  cout << (isIsomorphic(s, t) ? "true" : "false");
+  return 0;
+}`;
+      case "sort-colors-cpp":
+        return `int main(){
+  int n; cin >> n;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  sortColors(a);
+  for (size_t i=0;i<a.size();i++) cout << a[i] << (i+1==a.size()?"":" ");
+  return 0;
+}`;
+      case "meeting-rooms-cpp":
+        return `int main(){
+  int n; cin >> n;
+  vector<vector<int>> v(n, vector<int>(2));
+  for (int i=0;i<n;i++) cin >> v[i][0] >> v[i][1];
+  cout << (canAttendMeetings(v) ? "true" : "false");
+  return 0;
+}`;
+      case "product-array-except-self-cpp":
+        return `int main(){
+  int n; cin >> n;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  auto r = productExceptSelf(a);
+  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
+  return 0;
+}`;
+      case "subarray-sum-equals-k-cpp":
+        return `int main(){
+  int n, k; cin >> n >> k;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  cout << subarraySum(a, k);
+  return 0;
+}`;
+      case "longest-consecutive-sequence-cpp":
+        return `int main(){
+  int n; cin >> n;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  cout << longestConsecutive(a);
+  return 0;
+}`;
+      case "task-scheduler-cpp":
+        return `int main(){
+  string s; int n; cin >> s >> n;
+  vector<char> t(s.begin(), s.end());
+  cout << leastInterval(t, n);
+  return 0;
+}`;
       default:
         return `int main(){ cout << ""; return 0; }`;
     }
