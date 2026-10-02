@@ -910,3 +910,28 @@ test('hiring hub: failures read as plain language with a retry, never raw parser
     assert.ok(app.document.getElementById('retryJobsBtn'), `${name}: retry button`);
   }
 });
+
+test('aptitude quiz: timed mode shows a countdown and reveals the answer when time runs out', async () => {
+  const app = await bootApp();
+  await goTo(app, 'aptitude');
+  app.document.getElementById('quizTimed').value = 'on';
+  app.document.getElementById('startQuizBtn').click();
+  await tick(300);
+  const timer = app.document.getElementById('quizTimer');
+  assert.ok(timer, 'countdown chip is shown');
+  assert.equal(timer.textContent, '1:00');
+  app.run('Aptitude._timeUp()');
+  assert.ok(app.document.querySelector('.option-btn.correct'), 'correct answer revealed');
+  assert.match(text(app.document.getElementById('feedback')), /Time's up/);
+  assert.ok([...app.document.querySelectorAll('.option-btn')].every((b) => b.disabled), 'options locked');
+  app.run('Aptitude._stopTimer()');
+  assert.deepEqual(app.errors, []);
+});
+
+test('aptitude quiz: untimed by default has no countdown', async () => {
+  const app = await bootApp();
+  await goTo(app, 'aptitude');
+  app.document.getElementById('startQuizBtn').click();
+  await tick(300);
+  assert.equal(app.document.getElementById('quizTimer'), null);
+});

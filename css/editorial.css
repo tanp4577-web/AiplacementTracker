@@ -359,3 +359,7 @@ a:not(.btn):not(.nav-link):not(.chip):not(.brand) { color: var(--accent); }
 }
 .filter-bar > input[type="search"],
 .filter-bar > input[type="text"] { flex: 2 1 240px; }
+
+/* Timed quiz countdown */
+#quizTimer { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.timer-low { color: var(--danger); }
