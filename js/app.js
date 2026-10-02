@@ -95,9 +95,9 @@ const App = {
     document.getElementById('pageSubtitle').textContent = view.subtitle;
 
     // Update active nav
-    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    document.querySelectorAll('.nav-link').forEach(l => { l.classList.remove('active'); l.removeAttribute('aria-current'); });
     const activeLink = document.querySelector(`.nav-link[data-view="${hash}"]`);
-    if (activeLink) activeLink.classList.add('active');
+    if (activeLink) { activeLink.classList.add('active'); activeLink.setAttribute('aria-current', 'page'); }
 
     // Render the view
     const container = document.getElementById('viewContainer');
