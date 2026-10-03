@@ -489,6 +489,7 @@ const Coding = {
           <button class="btn btn-ghost btn-sm" id="focusBtn" aria-pressed="false" title="Hide the sidebar and top bar (Esc to exit)"><i class="bi bi-arrows-fullscreen"></i> Focus mode</button>
         </div>
       </div>
+      ${inSession ? this._paletteHtml(q.id) : ''}
       ${inSession ? `<div class="progress mb-2"><div class="progress-fill" style="width:${((sessionPos + 1) / sessionTotal) * 100}%"></div></div>` : ''}
       <div class="grid grid-2">
         <div class="card">
@@ -551,6 +552,7 @@ const Coding = {
       </div>
     `;
 
+    this._bindPalette();
     document.getElementById('focusBtn').addEventListener('click', () => this._setFocus(!document.body.classList.contains('coding-focus')));
     this._setFocus(document.body.classList.contains('coding-focus'), true);
     document.getElementById('backBtn').addEventListener('click', () => {
@@ -731,7 +733,8 @@ using namespace std;
     this._recordProgress(q, passCount, results.length, allPass);
 
     if (this.state.sessionActive && this.state.session.includes(q.id)) {
-      this.state.sessionResults[q.id] = allPass;
+      this.state.sessionResults[q.id] = allPass || this.state.sessionResults[q.id] === true;
+      this._refreshPalette(q.id);
       const nextBtn = document.getElementById('nextBtn');
       if (nextBtn) nextBtn.style.display = 'inline-flex';
     }
@@ -1093,6 +1096,47 @@ using namespace std;
     }
   },
 
+  /** 'solved' | 'attempted' | 'todo', read straight from state.sessionResults (the single source of truth). */
+  _sessionState(id) {
+    const r = this.state.sessionResults[id];
+    return r === true ? 'solved' : r === false ? 'attempted' : 'todo';
+  },
+
+  _paletteHtml(currentId) {
+    const label = { solved: 'solved', attempted: 'attempted, not solved', todo: 'not attempted' };
+    const done = this.state.session.filter((id) => id in this.state.sessionResults).length;
+    return `<nav class="qpal mb-2" id="qPalette" aria-label="Session questions">
+      ${this.state.session.map((id, i) => {
+        const st = this._sessionState(id);
+        const cur = id === currentId;
+        return `<button type="button" class="qpal-btn ${st}${cur ? ' current' : ''}" data-pal="${i}" aria-label="Question ${i + 1}, ${label[st]}${cur ? ', current' : ''}"${cur ? ' aria-current="true"' : ''}>${i + 1}</button>`;
+      }).join('')}
+      <span class="text-dim" style="font-size:12px;margin-left:6px" id="qPalCount">${done}/${this.state.session.length} attempted</span>
+      ${done === this.state.session.length ? '<button type="button" class="btn btn-sm btn-primary" id="qPalSummary">See session summary</button>' : ''}
+    </nav>`;
+  },
+
+  _bindPalette() {
+    const nav = document.getElementById('qPalette');
+    if (!nav) return;
+    nav.querySelectorAll('[data-pal]').forEach((b) => b.addEventListener('click', () => this._jumpTo(Number(b.dataset.pal))));
+    const sum = document.getElementById('qPalSummary');
+    if (sum) sum.addEventListener('click', () => this._renderSessionSummary());
+  },
+
+  _refreshPalette(currentId) {
+    const nav = document.getElementById('qPalette');
+    if (!nav) return;
+    nav.outerHTML = this._paletteHtml(currentId);
+    this._bindPalette();
+  },
+
+  _jumpTo(index) {
+    if (!this.state.session[index]) return;
+    this.state.sessionIndex = index;
+    this._openQuestion(this.state.session[index]);
+  },
+
   _nextSessionQuestion() {
     this.state.sessionIndex++;
     if (this.state.sessionIndex < this.state.session.length) {
@@ -1106,40 +1150,46 @@ using namespace std;
     const ids = this.state.session;
     await this._hydrate(ids);
     const total = ids.length;
-    const passed = ids.filter(id => this.state.sessionResults[id]).length;
+    const passed = ids.filter((id) => this._sessionState(id) === 'solved').length;
+    const failed = ids.filter((id) => this._sessionState(id) === 'attempted').length;
+    const skipped = total - passed - failed;
+    const groups = [
+      ['solved', 'Solved', 'green', '✓'],
+      ['attempted', 'Attempted, not solved', 'red', '✗'],
+      ['todo', 'Skipped', 'blue', '–']
+    ];
 
     this.container.innerHTML = `
       <div class="mb-2 flex-between">
-        <button class="btn btn-ghost btn-sm" id="backToListBtn"><- Back to Question Bank</button>
-        <span class="chip blue">Session Complete</span>
+        <button class="btn btn-ghost btn-sm" id="backToListBtn">Back to Question Bank</button>
+        <span class="chip blue">Session summary</span>
       </div>
-      <div class="card text-center mb-2" style="padding:36px">
-        <div style="font-size:48px;margin-bottom:8px">${passed === total ? '🎉' : passed >= total / 2 ? '💪' : '📚'}</div>
-        <h2 style="font-size:24px;margin-bottom:6px">Practice Session Complete</h2>
+      <div class="card text-center mb-2" style="padding:28px">
+        <h2 style="font-size:24px;margin-bottom:6px">Practice session</h2>
         <div class="card-stat" style="font-size:42px">${passed}/${total}</div>
         <div class="text-dim mb-2">questions solved</div>
-        <div class="progress mb-3" style="max-width:320px;margin:0 auto"><div class="progress-fill green" style="width:${total ? (passed / total) * 100 : 0}%"></div></div>
-        <p class="text-dim" style="font-size:13.5px">${passed === total ? 'Perfect session — every question solved!' : 'Keep practicing. Revisit the ones you missed to lock in the patterns.'}</p>
+        <div class="progress mb-2" style="max-width:320px;margin:0 auto"><div class="progress-fill green" style="width:${total ? (passed / total) * 100 : 0}%"></div></div>
+        <p class="text-dim" style="font-size:13.5px"><b>${passed}</b> solved · <b>${failed}</b> attempted, not solved · <b>${skipped}</b> skipped</p>
       </div>
-      <div class="card">
-        <div class="card-title">Session Review</div>
-        <div class="card-sub">Tap any question to open it again</div>
-        ${ids.map((id, i) => {
-          const q = this._meta[id];
-          if (!q) return '';
-          const ok = this.state.sessionResults[id];
-          return `
-            <div class="section-check hoverable" style="cursor:pointer" data-reopen="${id}">
-              <div class="check-icon ${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'}</div>
+      ${groups.map(([key, title, color, mark]) => {
+        const list = ids.filter((id) => this._sessionState(id) === key);
+        return `<div class="card mb-2" data-sum-group="${key}">
+          <div class="card-title">${title} (${list.length})</div>
+          <div class="card-sub">Tap a question to open it again</div>
+          ${list.length ? list.map((id) => {
+            const q = this._meta[id] || { title: id };
+            const i = ids.indexOf(id);
+            return `<div class="section-check hoverable" style="cursor:pointer" role="button" tabindex="0" data-reopen="${i}">
+              <div class="check-icon ${key === 'solved' ? 'ok' : 'no'}">${mark}</div>
               <div style="flex:1">
                 <div style="font-weight:600;font-size:13.5px">${i + 1}. ${this._escapeHtml(q.title)}</div>
-                <div class="text-dim" style="font-size:12px">${this._escapeHtml(q.source || 'PlacementPrep')} · ${this._escapeHtml(q.difficulty)} · ${this._escapeHtml(q.topic || '')}</div>
+                <div class="text-dim" style="font-size:12px">${this._escapeHtml(q.source || 'PlacementPrep')} · ${this._escapeHtml(q.difficulty || '')} · ${this._escapeHtml(q.topic || '')}</div>
               </div>
-              <span class="chip ${ok ? 'green' : 'red'}">${ok ? '[OK] Solved' : 'Attempted'}</span>
-            </div>
-          `;
-        }).join('')}
-      </div>
+              <span class="chip ${color}">${title}</span>
+            </div>`;
+          }).join('') : '<div class="text-dim" style="font-size:13px">None</div>'}
+        </div>`;
+      }).join('')}
     `;
 
     document.getElementById('backToListBtn').addEventListener('click', () => {
@@ -1147,8 +1197,9 @@ using namespace std;
       this.state.session = [];
       this._renderList();
     });
-    document.querySelectorAll('[data-reopen]').forEach(el => {
-      el.addEventListener('click', () => this._openQuestion(el.dataset.reopen));
+    document.querySelectorAll('[data-reopen]').forEach((el) => {
+      el.addEventListener('click', () => this._jumpTo(Number(el.dataset.reopen)));
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._jumpTo(Number(el.dataset.reopen)); } });
     });
   },
 
@@ -1226,7 +1277,8 @@ using namespace std;
     this._recordProgress(q, passCount, results.length, allPass);
 
     if (this.state.sessionActive && this.state.session.includes(q.id)) {
-      this.state.sessionResults[q.id] = allPass;
+      this.state.sessionResults[q.id] = allPass || this.state.sessionResults[q.id] === true;
+      this._refreshPalette(q.id);
       const nextBtn = document.getElementById('nextBtn');
       if (nextBtn) nextBtn.style.display = 'inline-flex';
     }
