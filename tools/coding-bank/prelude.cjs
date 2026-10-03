@@ -46,5 +46,11 @@ function toGraph(node) {
   const size = Math.max(...byVal.keys());
   return Array.from({ length: size }, (_, i) => byVal.get(i + 1) || []);
 }
-function isSameGraph(a, b) { return a !== b && JSON.stringify(toGraph(a)) === JSON.stringify(toGraph(b)); }
+function reachable(n) { const seen = new Set(); const st = n ? [n] : []; while (st.length) { const x = st.pop(); if (seen.has(x)) continue; seen.add(x); for (const y of x.neighbors) st.push(y); } return seen; }
+function isDeepClone(orig, copy) {
+  if (!orig) return copy === null;
+  if (!copy) return false;
+  const a = reachable(orig); for (const n of reachable(copy)) if (a.has(n)) return false;
+  return JSON.stringify(toGraph(orig)) === JSON.stringify(toGraph(copy));
+}
 `;

@@ -89,7 +89,7 @@ module.exports = [
   for (let i = 0; i < 32; i++) { c += n % 2; n = Math.floor(n / 2); }
   return c;
 }`, { note: 'Always 32 steps, however few bits are set.' }),
-      A('Clear the lowest set bit', 'n & (n - 1) removes the lowest 1 bit, so loop until n is zero. It runs once per set bit.', 'O(k)', 'O(1)', `function hammingWeight(n) {
+      A('Clear the lowest set bit', 'n & (n - 1) removes the lowest 1 bit, so loop until n is zero. It runs once per set bit.', 'O(1)', 'O(1)', `function hammingWeight(n) {
   let c = 0;
   while (n > 0) { n = Number(BigInt(n) & (BigInt(n) - 1n)); c++; }
   return c;

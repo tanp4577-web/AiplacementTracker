@@ -11,21 +11,50 @@ const CLASSES = vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', '.
 
 const SUP = { '²': '^2', '³': '^3', '⁴': '^4', 'ⁿ': '^n' };
 
-/** Turns "O(n log n)" or "O(n²)" into a class key. Returns null when the label is not recognised.
-    Two-variable and graph forms (O(n·m), O(V+E)) are measured against one size n, with all sizes about equal. */
+const ORDER = ['1', 'logn', 'sqrtn', 'n', 'nlogn', 'nsqrtn', 'n2', 'n2logn', 'n3', 'n4', '2^n', 'n2^n', '3^n', 'n!', 'nn!'];
+
+/** Classifies one additive term such as "m n log n" or "2^n" into a class key. */
+function classifyTerm(t) {
+  if (/!/.test(t)) return /[a-z!].*!|[a-z]!?[a-z]/.test(t.replace(/!/, '')) && t.replace(/[a-z]!/, '').match(/[a-z]/) ? 'nn!' : 'n!';
+  const exp = t.match(/(\d+|[a-z])\^([a-z])/);
+  if (exp) {
+    const rest = t.replace(exp[0], '');
+    const base = /^\d+$/.test(exp[1]) ? Number(exp[1]) : 3;
+    if (base <= 2) return /[a-z]/.test(rest.replace(/log\([^)]*\)/g, '')) ? 'n2^n' : '2^n';
+    return '3^n';
+  }
+  let logs = 0;
+  let s = t.replace(/log(\^\d)?(\([^)]*\)|[a-z])/g, () => { logs++; return ''; });
+  let degree = 0;
+  s = s.replace(/sqrt\([^)]*\)|√[a-z]/g, () => { degree += 0.5; return ''; });
+  s = s.replace(/([a-z])(\^(\d))?/g, (_, _v, _p, k) => { degree += k ? Number(k) : 1; return ''; });
+  if (degree === 0) return logs ? 'logn' : '1';
+  if (degree === 0.5) return 'sqrtn';
+  if (degree === 1) return logs ? 'nlogn' : 'n';
+  if (degree === 1.5) return 'nsqrtn';
+  if (degree === 2) return logs ? 'n2logn' : 'n2';
+  if (degree === 3) return 'n3';
+  return degree > 3 ? 'n4' : 'n';
+}
+
+/** Turns "O(n log n)" or "O(n²)" into a class key, or null when the label cannot be read.
+    Several variables (O(m·n), O(V+E)) are measured against one size n, with all sizes taken as about equal. */
 function classify(label) {
-  let s = String(label).replace(/[²³⁴ⁿ]/g, (c) => SUP[c]).toLowerCase().replace(/\s+/g, '');
-  s = s.replace(/^o\(|\)$/g, '').replace(/[·*×]/g, '');
-  const table = {
-    '1': '1', 'logn': 'logn', 'log(n)': 'logn', 'sqrt(n)': 'sqrtn', '√n': 'sqrtn', 'n': 'n', 'nlogn': 'nlogn', 'nlog(n)': 'nlogn', 'nsqrt(n)': 'nsqrtn', 'n√n': 'nsqrtn',
-    'n^2': 'n2', 'n^2logn': 'n2logn', 'n^3': 'n3', 'n^4': 'n4', '2^n': '2^n', 'n2^n': 'n2^n', '3^n': '3^n', 'n!': 'n!', 'nn!': 'nn!',
-    'n+m': 'n', 'm+n': 'n', 'v+e': 'n', 'e+v': 'n', 'nm': 'n2', 'mn': 'n2', 'elogv': 'nlogn', 'elog(v)': 'nlogn', '(v+e)logv': 'nlogn', 'elogn': 'nlogn',
-    'nlogk': 'nlogn', 'nk': 'n2', 'n+k': 'n', 'logmn': 'logn', 'log(mn)': 'logn', 'log(min(m,n))': 'logn', 'logn+logm': 'logn', 'k': '1', 'h': 'logn',
-    'nlogm': 'nlogn', 'min(n,m)': 'n', 'nlogn+mlogm': 'nlogn', '(n+m)log(n+m)': 'nlogn', '(n+m)log(m+n)': 'nlogn', 'nlogn+m': 'nlogn', 'nlogn+nm': 'n2',
-    'mlogn': 'nlogn', 'm': 'n', 'n+mlogn': 'nlogn', 'v^2': 'n2', 'v^3': 'n3', 'n^2m': 'n3', 'nmk': 'n3', 'mnk': 'n3', 'n^2k': 'n3', 'm^2': 'n2', 's': 'n', 'x': 'n', '√x': 'sqrtn', 'logx': 'logn', 'k': '1', 'n√n': 'nsqrtn', 'nloglogn': 'nlogn', 'loglogn': 'logn', 'log(x)': 'logn', 'sqrt(x)': 'sqrtn', 'nlognm': 'nlogn', 'mnlogn': 'nlogn', 'nmlogn': 'nlogn', 'nlogm+n': 'nlogn', 'mlogm': 'nlogn', 'nlog^2n': 'nlogn', 'n+mlogm': 'nlogn', 'nlogn+mlogn': 'nlogn'
-  };
-  const key = table[s];
-  return key && CLASSES[key] ? key : null;
+  let s = String(label).replace(/[²³⁴ⁿ]/g, (c) => SUP[c]).toLowerCase().replace(/\s+/g, '').replace(/[·*×]/g, '').replace(/α|\u03b1/g, '');
+  const m = s.match(/^o\((.*)\)$/);
+  if (!m) return null;
+  s = m[1]
+    .replace(/(min|max)\([^()]*\)/g, 'n')
+    .replace(/(log)+/g, 'log') // log log n is treated as one log
+    .replace(/\(([^()+]*)\)\^(\d)/g, (_, inner, k) => inner.repeat(Number(k))) // (m n)^2 -> m n m n
+    .replace(/\([^()]*\+[^()]*\)/g, 'n'); // (n + m) as a factor counts as one size
+  let depth = 0; let cur = ''; const terms = [];
+  for (const ch of s) { if (ch === '(') depth++; if (ch === ')') depth--; if (ch === '+' && depth === 0) { terms.push(cur); cur = ''; } else cur += ch; }
+  terms.push(cur);
+  const keys = terms.filter(Boolean).map(classifyTerm);
+  if (!keys.length) return null;
+  const best = keys.reduce((a, b) => (ORDER.indexOf(b) > ORDER.indexOf(a) ? b : a));
+  return CLASSES[best] ? best : null;
 }
 
 /** Approach: name, plain-language idea, time and space labels, code. `opts.note` is shown under the code. */

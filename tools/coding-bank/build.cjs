@@ -118,7 +118,7 @@ function buildAll() {
         if (got === expected[i]) err(`the untouched starter code passes the test ${e}`);
       });
       if (expected.some((x) => x === undefined)) continue;
-      if (expected.every((x) => x === expected[0])) err('every test has the same expected value: tests are too weak');
+      if (!p.uniform && expected.every((x) => x === expected[0])) err('every test has the same expected value: tests are too weak (set uniform: true for property checks)');
 
       const best = p.approaches[p.approaches.length - 1];
       questions.push({
