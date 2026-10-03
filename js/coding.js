@@ -13,7 +13,7 @@ state: {
     code: '',
     results: [],
     lang: 'javascript', // 'javascript' | 'cpp'
-    filters: { difficulty: 'all', source: 'both', role: 'all', count: 10 },
+    filters: { difficulty: 'all', source: 'both', role: 'all', topic: 'all', status: 'all', search: '', count: 10, limit: 30 },
     session: [],
     sessionIndex: 0,
     sessionActive: false,
@@ -22,37 +22,19 @@ state: {
 
 render(container) {
     this.container = container;
+    // The verified bank (tools/coding-bank) comes first; older questions are kept only if the bank does not replace them.
+    const bank = typeof CODING_BANK !== 'undefined' && Array.isArray(CODING_BANK) ? CODING_BANK : [];
+    const have = new Set(bank.map(q => q.id));
     const base = Array.isArray(FALLBACK_CODING) ? FALLBACK_CODING : [];
     const extra = (typeof EXTRA_CODING !== 'undefined' && Array.isArray(EXTRA_CODING)) ? EXTRA_CODING : [];
-    this.state.questions = [...base, ...extra];
+    this.state.questions = [...bank, ...[...base, ...extra].filter(q => !have.has(q.id))];
     this.state.current = null;
     this.state.session = [];
     this.state.sessionIndex = 0;
     this.state.sessionActive = false;
     this.state.sessionResults = {};
+    this.state.filters.limit = 30;
     this._renderList();
-    // Try to enrich the bank with live online questions (best-effort).
-    this._fetchOnlineQuestions();
-  },
-
-  /* Best-effort merge of live questions from the online source. Falls back to
-     the local bank silently if the network is unavailable. */
-  async _fetchOnlineQuestions() {
-    try {
-      const online = await API.fetchCodingQuestions();
-      if (!online || !Array.isArray(online) || !online.length) return;
-      const existing = new Set(this.state.questions.map(q => q.id));
-      const fresh = online.filter(q => !existing.has(q.id));
-      if (fresh.length) {
-        this.state.questions = [...this.state.questions, ...fresh];
-        this._renderList();
-        if (typeof LiveAI !== 'undefined' && LiveAI.getStatus) {
-          // no-op hook; keep offline bank intact
-        }
-      }
-    } catch (e) {
-      // keep local bank
-    }
   },
 
   _availableRoles() {
@@ -69,12 +51,27 @@ render(container) {
 
   _filteredQuestions() {
     const f = this.state.filters;
+    const solved = this._solvedSet();
+    const needle = (f.search || '').trim().toLowerCase();
     return this.state.questions.filter(q => {
       if (f.difficulty !== 'all' && q.difficulty !== f.difficulty) return false;
       if (f.source !== 'both' && (q.source || 'LeetCode') !== f.source) return false;
       if (f.role !== 'all' && !(q.targetRoles || []).includes(f.role)) return false;
+      if (f.topic !== 'all' && (q.topic || 'General') !== f.topic) return false;
+      if (f.status === 'solved' && !solved.has(q.id)) return false;
+      if (f.status === 'unsolved' && solved.has(q.id)) return false;
+      if (needle && !`${q.title} ${q.topic || ''} ${q.description || ''}`.toLowerCase().includes(needle)) return false;
       return true;
     });
+  },
+
+  _solvedSet() {
+    const prog = Auth.getEmail() ? DB.getProgress(Auth.getEmail()) : null;
+    return new Set(prog && prog.coding ? prog.coding.solved : []);
+  },
+
+  _topics() {
+    return [...new Set(this.state.questions.map(q => q.topic || 'General'))].sort();
   },
 
   _renderList() {
@@ -82,36 +79,47 @@ render(container) {
     const solved = prog && prog.coding ? prog.coding.solved : [];
     const solvedIds = new Set(solved);
     const filtered = this._filteredQuestions();
+    const shown = filtered.slice(0, this.state.filters.limit);
     const roles = this._availableRoles();
     const sources = this._availableSources();
+    const topics = this._topics();
     const f = this.state.filters;
+    const esc = (v) => this._escapeHtml(v);
+    const bankCount = (d) => this.state.questions.filter(q => q.difficulty === d).length;
+    const opt = (value, label, current) => `<option value="${esc(value)}" ${current === value ? 'selected' : ''}>${esc(label)}</option>`;
 
     const sourceChip = (q) => {
       const src = q.source || 'LeetCode';
-      return `<span class="chip ${src === 'LeetCode' ? 'blue' : 'purple'}">${src}</span>`;
+      return `<span class="chip ${src === 'LeetCode' ? 'blue' : 'purple'}">${esc(src)}</span>`;
     };
-    const topicChip = (q) => q.topic ? `<span class="chip purple">${q.topic}</span>` : '';
+    const topicChip = (q) => q.topic ? `<span class="chip purple">${esc(q.topic)}</span>` : '';
+    const approachChip = (q) => (q.approaches && q.approaches.length) ? `<span class="chip">${q.approaches.length} approaches</span>` : '';
 
     this.container.innerHTML = `
       <div class="grid grid-2">
         <div class="card">
           <div class="card-title"><i class="bi bi-code-slash text-accent" style="font-size:16px"></i> Coding Practice</div>
-          <div class="card-sub">LeetCode & HackerRank technical problems with instant test suite</div>
+          <div class="card-sub">${this.state.questions.length} problems. Each one has several ways to solve it, with the time and space cost of every approach.</div>
 
           <div class="filter-bar">
-            <select id="difficultyFilter">
-              <option value="all">All Difficulties</option>
-              <option value="Easy" ${f.difficulty === 'Easy' ? 'selected' : ''}>Easy</option>
-              <option value="Medium" ${f.difficulty === 'Medium' ? 'selected' : ''}>Medium</option>
-              <option value="Hard" ${f.difficulty === 'Hard' ? 'selected' : ''}>Hard</option>
+            <input type="search" id="codeSearch" placeholder="Search problems or topics" aria-label="Search problems" value="${esc(f.search)}">
+            <select id="difficultyFilter" aria-label="Difficulty">
+              ${opt('all', 'All difficulties', f.difficulty)}
+              ${['Easy', 'Medium', 'Hard'].map(d => opt(d, `${d} (${bankCount(d)})`, f.difficulty)).join('')}
             </select>
-            <select id="sourceFilter">
-              <option value="both">Both Sources</option>
-              ${sources.map(s => `<option value="${s}" ${f.source === s ? 'selected' : ''}>${s}</option>`).join('')}
+            <select id="topicFilter" aria-label="Topic">
+              ${opt('all', 'All topics', f.topic)}
+              ${topics.map(t => opt(t, t, f.topic)).join('')}
             </select>
-            <select id="roleFilter">
-              <option value="all">All Roles</option>
-              ${roles.map(r => `<option value="${r}" ${f.role === r ? 'selected' : ''}>${r}</option>`).join('')}
+            <select id="statusFilter" aria-label="Status">
+              ${opt('all', 'Solved and unsolved', f.status)}
+              ${opt('unsolved', 'Unsolved only', f.status)}
+              ${opt('solved', 'Solved only', f.status)}
+            </select>
+            ${sources.length > 1 ? `<select id="sourceFilter" aria-label="Source"><option value="both">All sources</option>${sources.map(s => opt(s, s, f.source)).join('')}</select>` : ''}
+            <select id="roleFilter" aria-label="Role">
+              ${opt('all', 'All roles', f.role)}
+              ${roles.map(r => opt(r, r, f.role)).join('')}
             </select>
           </div>
 
@@ -131,27 +139,29 @@ render(container) {
           </div>
 
           <div id="questionList" class="mt-2">
-            ${filtered.map(q => `
-              <div class="card hoverable mb-1" style="padding:14px;cursor:pointer" data-qid="${q.id}">
+            ${shown.map(q => `
+              <div class="card hoverable mb-1" style="padding:14px;cursor:pointer" data-qid="${esc(q.id)}" role="button" tabindex="0">
                 <div class="flex-between">
                   <div>
-                    <b style="font-size:14px">${q.title}</b>
-                    <div class="text-dim" style="font-size:12px;margin-top:3px">${(q.description || '').split('\n')[0]}</div>
+                    <b style="font-size:14px">${esc(q.title)}</b>
+                    <div class="text-dim" style="font-size:12px;margin-top:3px">${esc((q.description || '').split('\n')[0])}</div>
                     <div class="tag-row" style="margin-top:8px">
                       ${sourceChip(q)}
-                      <span class="chip ${q.difficulty === 'Easy' ? 'green' : q.difficulty === 'Medium' ? 'orange' : 'red'}">${q.difficulty}</span>
+                      <span class="chip ${q.difficulty === 'Easy' ? 'green' : q.difficulty === 'Medium' ? 'orange' : 'red'}">${esc(q.difficulty)}</span>
                       ${topicChip(q)}
-                      ${q.targetRoles && q.targetRoles.length ? `<span class="chip cyan">${q.targetRoles.slice(0, 2).join(', ')}${q.targetRoles.length > 2 ? '…' : ''}</span>` : ''}
+                      ${approachChip(q)}
+                      ${q.targetRoles && q.targetRoles.length ? `<span class="chip cyan">${esc(q.targetRoles.slice(0, 2).join(', '))}${q.targetRoles.length > 2 ? '…' : ''}</span>` : ''}
                       ${solvedIds.has(q.id) ? '<span class="chip green">[OK] Solved</span>' : ''}
                     </div>
                   </div>
                 </div>
               </div>
             `).join('') || `<div class="empty-state"><div class="es-icon"></div><h3>No questions found</h3><p>Adjust your filters to see more challenges</p></div>`}
+            ${filtered.length > shown.length ? `<button type="button" class="btn btn-ghost btn-block" id="showMoreBtn">Show ${Math.min(30, filtered.length - shown.length)} more (${filtered.length - shown.length} left)</button>` : ''}
           </div>
         </div>
         <div class="card">
-<div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--accent)"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="8"/></svg> Your Progress</div>
+          <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--accent)"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="8"/></svg> Your Progress</div>
           <div class="card-sub">Coding statistics</div>
           <div class="stat-row" style="margin-bottom:10px">
             <div class="card stat-card" style="padding:14px">
@@ -177,26 +187,29 @@ render(container) {
       </div>
     `;
 
-    document.getElementById('difficultyFilter').addEventListener('change', (e) => {
-      this.state.filters.difficulty = e.target.value;
-      this._renderList();
+    const refilter = (key, value) => { this.state.filters[key] = value; this.state.filters.limit = 30; this._renderList(); };
+    const search = document.getElementById('codeSearch');
+    search.addEventListener('input', (e) => {
+      const pos = e.target.selectionStart;
+      refilter('search', e.target.value);
+      const again = document.getElementById('codeSearch');
+      if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch { /* not supported */ } }
     });
-    document.getElementById('sourceFilter').addEventListener('change', (e) => {
-      this.state.filters.source = e.target.value;
-      this._renderList();
-    });
-    document.getElementById('roleFilter').addEventListener('change', (e) => {
-      this.state.filters.role = e.target.value;
-      this._renderList();
-    });
+    document.getElementById('difficultyFilter').addEventListener('change', (e) => refilter('difficulty', e.target.value));
+    document.getElementById('topicFilter').addEventListener('change', (e) => refilter('topic', e.target.value));
+    document.getElementById('statusFilter').addEventListener('change', (e) => refilter('status', e.target.value));
+    document.getElementById('sourceFilter')?.addEventListener('change', (e) => refilter('source', e.target.value));
+    document.getElementById('roleFilter').addEventListener('change', (e) => refilter('role', e.target.value));
     document.getElementById('countFilter').addEventListener('change', (e) => {
       this.state.filters.count = parseInt(e.target.value, 10) || 10;
       const btn = document.getElementById('startSessionBtn');
       if (btn) btn.innerHTML = `Generate ${this.state.filters.count}Q Session`;
     });
     document.getElementById('startSessionBtn').addEventListener('click', () => this._startSession());
+    document.getElementById('showMoreBtn')?.addEventListener('click', () => { this.state.filters.limit += 30; this._renderList(); });
     document.querySelectorAll('[data-qid]').forEach(el => {
       el.addEventListener('click', () => this._openQuestion(el.dataset.qid));
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._openQuestion(el.dataset.qid); } });
     });
   },
 
@@ -225,7 +238,15 @@ render(container) {
     this._openQuestion(this.state.session[0]);
   },
 
-_lookupCppQuestion(id) {
+  _savedLang() {
+    try { return localStorage.getItem('pp_code_lang') || ''; } catch { return ''; }
+  },
+
+  _saveLang(lang) {
+    try { localStorage.setItem('pp_code_lang', lang); } catch { /* private mode: lasts for this visit only */ }
+  },
+
+  _lookupCppQuestion(id) {
     // Find the matching C++ version of a JS question by id (suffix "-cpp").
     if (typeof EXTRA_CODING_CPP === 'undefined') return null;
     return EXTRA_CODING_CPP.find(c => c.id === id + '-cpp') || null;
@@ -238,7 +259,8 @@ _lookupCppQuestion(id) {
     this.state.code = q.starterCode;
     this.state.results = [];
     // Default language: if a C++ version exists, prefer C++ for this question.
-    this.state.lang = this._lookupCppQuestion(q.id) ? 'cpp' : 'javascript';
+    // Remember the language the user last picked; with no choice yet, prefer C++ where a C++ version exists.
+    this.state.lang = (this._lookupCppQuestion(q.id) && this._savedLang() !== 'javascript') ? 'cpp' : 'javascript';
 
     const inSession = this.state.sessionActive && this.state.session.includes(q.id);
     const sessionPos = inSession ? this.state.session.indexOf(q.id) : -1;
@@ -279,15 +301,16 @@ _lookupCppQuestion(id) {
         <div class="card">
           <div class="flex-between mb-2">
             <div>
-              <div class="card-title">${q.title}</div>
-              <div class="card-sub">${q.description}</div>
+              <div class="card-title">${this._escapeHtml(q.title)}</div>
+              <div class="card-sub" style="white-space:pre-line">${this._escapeHtml(q.description)}</div>
+              ${q.constraints ? `<div class="text-dim mt-1" style="font-size:12.5px"><b>Constraints:</b> ${this._escapeHtml(q.constraints)}</div>` : ''}
             </div>
           </div>
           <div class="tag-row" style="margin-bottom:10px">
-            <span class="chip ${src === 'LeetCode' ? 'blue' : 'purple'}">${src}</span>
-            <span class="chip ${q.difficulty === 'Easy' ? 'green' : q.difficulty === 'Medium' ? 'orange' : 'red'}">${q.difficulty}</span>
-            ${q.topic ? `<span class="chip purple">${q.topic}</span>` : ''}
-            ${(q.targetRoles || []).map(r => `<span class="chip cyan">${r}</span>`).join('')}
+            <span class="chip ${src === 'LeetCode' ? 'blue' : 'purple'}">${this._escapeHtml(src)}</span>
+            <span class="chip ${q.difficulty === 'Easy' ? 'green' : q.difficulty === 'Medium' ? 'orange' : 'red'}">${this._escapeHtml(q.difficulty)}</span>
+            ${q.topic ? `<span class="chip purple">${this._escapeHtml(q.topic)}</span>` : ''}
+            ${(q.targetRoles || []).map(r => `<span class="chip cyan">${this._escapeHtml(r)}</span>`).join('')}
           </div>
           <div class="flex gap-2 mb-2" style="align-items:center">
             <span class="text-dim" style="font-size:12.5px">Language:</span>
@@ -301,7 +324,7 @@ _lookupCppQuestion(id) {
               <div class="code-dots"><span></span><span></span><span></span></div>
               <span class="code-file" id="codeFileLabel">solution.js</span>
             </div>
-            <textarea class="code-input" id="codeEditor" spellcheck="false">${q.starterCode}</textarea>
+            <textarea class="code-input" id="codeEditor" spellcheck="false" aria-label="Code editor. Press Tab to indent, Escape then Tab to leave.">${this._escapeHtml(q.starterCode)}</textarea>
           </div>
           <div class="text-dim" id="cppNote" style="display:none;font-size:12px;margin-top:6px">
             <b style="color:var(--accent)">C++ mode:</b> run via Wandbox GCC compiler (online).
@@ -317,10 +340,12 @@ _lookupCppQuestion(id) {
           <div class="card-title"><i class="bi bi-check2-all text-accent" style="font-size:16px"></i> Test Results</div>
           <div class="card-sub">Automated verification against hidden test cases</div>
           <div id="solutionPanel" style="display:none">
-            <div class="explanation mb-2" style="border-color:rgba(230,162,60,0.35)">
+            ${(q.approaches && q.approaches.length && typeof ComplexityView !== 'undefined')
+              ? ComplexityView.html(q, (v) => this._escapeHtml(v))
+              : `<div class="explanation mb-2" style="border-color:rgba(230,162,60,0.35)">
               <b style="color:var(--accent)">Approach & Solution</b>
               <div class="mt-1" style="line-height:1.6">${this._escapeHtml(q.solution || q.explanation || 'No solution provided.')}</div>
-            </div>
+            </div>`}
           </div>
           <div id="testResults">
             <div class="empty-state">
@@ -365,12 +390,27 @@ _lookupCppQuestion(id) {
     document.getElementById('codeEditor').addEventListener('input', (e) => {
       this.state.code = e.target.value;
     });
+    // Tab inserts two spaces instead of moving focus out of the editor; Escape then Tab leaves it.
+    let tabEnabled = true;
+    document.getElementById('codeEditor').addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { tabEnabled = false; return; }
+      if (e.key !== 'Tab' || !tabEnabled || e.shiftKey) { if (e.key !== 'Tab') tabEnabled = true; return; }
+      e.preventDefault();
+      const ta = e.target;
+      const start = ta.selectionStart;
+      ta.value = ta.value.slice(0, start) + '  ' + ta.value.slice(ta.selectionEnd);
+      ta.selectionStart = ta.selectionEnd = start + 2;
+      this.state.code = ta.value;
+    });
+    if (typeof ComplexityView !== 'undefined') ComplexityView.bind(document.getElementById('solutionPanel'), q, (v) => this._escapeHtml(v));
     document.getElementById('langJsBtn').addEventListener('click', () => {
       this.state.lang = 'javascript';
+      this._saveLang('javascript');
       renderEditor();
     });
     document.getElementById('langCppBtn')?.addEventListener('click', () => {
       this.state.lang = 'cpp';
+      this._saveLang('cpp');
       renderEditor();
     });
 
@@ -927,32 +967,72 @@ using namespace std;
     });
   },
 
-  _runTests() {
+  /* Runs one test expression against the user's code. In a browser it happens inside a Web Worker that is
+     terminated after `timeoutMs`, so an infinite loop cannot freeze the page. Where Workers are not available
+     (older browsers, the test environment) it falls back to running on the main thread. */
+  _sandboxRun(code, input, timeoutMs = 2500) {
+    const prelude = typeof CODING_PRELUDE === 'string' ? CODING_PRELUDE : '';
+    const direct = () => {
+      try {
+        const value = new Function(prelude + '\n' + code + '\nreturn (' + input + ');')();
+        return { ok: true, json: JSON.stringify(value) };
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e) };
+      }
+    };
+    if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || !window.URL || !URL.createObjectURL) return Promise.resolve(direct());
+    return new Promise((resolve) => {
+      let worker;
+      let url;
+      try {
+        const src = 'self.onmessage = (e) => { const d = e.data; try { const v = new Function(d.prelude + "\\n" + d.code + "\\nreturn (" + d.input + ");")(); self.postMessage({ ok: true, json: JSON.stringify(v) }); } catch (err) { self.postMessage({ ok: false, error: String((err && err.message) || err) }); } };';
+        url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+        worker = new Worker(url);
+      } catch {
+        resolve(direct());
+        return;
+      }
+      const finish = (result) => { clearTimeout(timer); worker.terminate(); URL.revokeObjectURL(url); resolve(result); };
+      const timer = setTimeout(() => finish({ ok: false, error: `Time limit exceeded (${timeoutMs / 1000} s). Look for an infinite loop, or a slower approach than the input size allows.` }), timeoutMs);
+      worker.onmessage = (e) => finish(e.data);
+      worker.onerror = (e) => finish({ ok: false, error: String(e.message || 'Script error') });
+      worker.postMessage({ prelude, code, input });
+    });
+  },
+
+  async _runTests() {
     const q = this.state.current;
     const resultsDiv = document.getElementById('testResults');
     const code = document.getElementById('codeEditor').value || this.state.code;
+    const runBtn = document.getElementById('runBtn');
+    if (this._running) return;
+    this._running = true;
+    if (runBtn) { runBtn.disabled = true; runBtn.textContent = 'Running…'; }
 
-    const results = q.testCases.map(tc => {
-      try {
-        const sandbox = new Function(code + '\nreturn ' + tc.input + ';');
-        const output = sandbox();
-        const expected = this._parseExpected(tc.expected);
-        const pass = JSON.stringify(output) === JSON.stringify(expected);
-        return {
+    const results = [];
+    try {
+      let timedOut = false;
+      for (const tc of q.testCases) {
+        if (timedOut) {
+          // One timeout is enough: do not make the user wait for the same infinite loop again.
+          results.push({ input: tc.input, expected: tc.expected, actual: 'Not run (stopped after the first timeout)', pass: false });
+          continue;
+        }
+        const r = await this._sandboxRun(code, tc.input);
+        timedOut = !r.ok && /^Time limit exceeded/.test(r.error);
+        const expectedJson = JSON.stringify(this._parseExpected(tc.expected));
+        results.push({
           input: tc.input,
           expected: tc.expected,
-          actual: JSON.stringify(output),
-          pass
-        };
-      } catch (e) {
-        return {
-          input: tc.input,
-          expected: tc.expected,
-          actual: 'Error: ' + e.message,
-          pass: false
-        };
+          actual: r.ok ? String(r.json) : 'Error: ' + r.error,
+          pass: r.ok && r.json === expectedJson
+        });
       }
-    });
+    } finally {
+      this._running = false;
+      if (runBtn) { runBtn.disabled = false; runBtn.textContent = ' Run Tests'; }
+    }
+    if (this.state.current !== q) return; // the user moved to another question while this ran
 
     this.state.results = results;
     const passCount = results.filter(r => r.pass).length;
@@ -1005,8 +1085,6 @@ using namespace std;
   },
 
   _escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = String(str);
-    return div.innerHTML;
+    return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 };
