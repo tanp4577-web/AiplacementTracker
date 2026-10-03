@@ -92,6 +92,7 @@ const App = {
 
     // Leaving the live interview must switch the camera and microphone off.
     if (typeof MockInterview !== 'undefined' && hash !== 'mockinterview') MockInterview.cleanup();
+    if (typeof Coding !== 'undefined' && hash !== 'coding' && document.body.classList.contains('coding-focus')) Coding._setFocus(false, true);
 
     // Update page title
     document.getElementById('pageTitle').textContent = view.title;

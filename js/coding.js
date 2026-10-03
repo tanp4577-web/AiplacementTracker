@@ -122,6 +122,35 @@ const Coding = {
 
   /* ---------------------------------------------------------------- list */
 
+  /** Focus mode: hides the sidebar and top bar so only the problem, editor and results remain. */
+  _setFocus(on, quiet) {
+    const body = document.body;
+    body.classList.toggle('coding-focus', !!on);
+    let exit = document.getElementById('focusExit');
+    if (on && !exit) {
+      exit = document.createElement('button');
+      exit.type = 'button';
+      exit.id = 'focusExit';
+      exit.className = 'btn btn-sm focus-exit';
+      exit.setAttribute('aria-label', 'Exit focus mode');
+      exit.innerHTML = '<i class="bi bi-fullscreen-exit"></i> Exit focus mode';
+      exit.addEventListener('click', () => this._setFocus(false));
+      body.appendChild(exit);
+    }
+    if (!on && exit) exit.remove();
+    const btn = document.getElementById('focusBtn');
+    if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (!this._focusKey) {
+      this._focusKey = (e) => {
+        if (e.key !== 'Escape' || !document.body.classList.contains('coding-focus')) return;
+        if (document.querySelector('.modal-overlay.show, #appConfirmModal')) return;
+        this._setFocus(false);
+      };
+      document.addEventListener('keydown', this._focusKey);
+    }
+    if (!quiet) (on ? document.getElementById('focusExit') : document.getElementById('focusBtn'))?.focus();
+  },
+
   _renderList() {
     const prog = Auth.getEmail() ? DB.getProgress(Auth.getEmail()) : null;
     const solved = prog && prog.coding ? prog.coding.solved : [];
@@ -455,7 +484,10 @@ const Coding = {
     this.container.innerHTML = `
       <div class="mb-2 flex-between" style="flex-wrap:wrap;gap:10px">
         <button class="btn btn-ghost btn-sm" id="backBtn"><i class="bi bi-arrow-left"></i> ${inSession ? 'Session' : 'Back to Problems'}</button>
-        ${inSession ? `<div class="flex gap-1 items-center"><span class="chip blue">Session ${sessionPos + 1}/${sessionTotal}</span></div>` : ''}
+        <div class="flex gap-1 items-center">
+          ${inSession ? `<span class="chip blue">Session ${sessionPos + 1}/${sessionTotal}</span>` : ''}
+          <button class="btn btn-ghost btn-sm" id="focusBtn" aria-pressed="false" title="Hide the sidebar and top bar (Esc to exit)"><i class="bi bi-arrows-fullscreen"></i> Focus mode</button>
+        </div>
       </div>
       ${inSession ? `<div class="progress mb-2"><div class="progress-fill" style="width:${((sessionPos + 1) / sessionTotal) * 100}%"></div></div>` : ''}
       <div class="grid grid-2">
@@ -519,7 +551,10 @@ const Coding = {
       </div>
     `;
 
+    document.getElementById('focusBtn').addEventListener('click', () => this._setFocus(!document.body.classList.contains('coding-focus')));
+    this._setFocus(document.body.classList.contains('coding-focus'), true);
     document.getElementById('backBtn').addEventListener('click', () => {
+      this._setFocus(false, true);
       if (inSession && this.state.sessionActive) {
         this._renderSessionSummary();
       } else {
