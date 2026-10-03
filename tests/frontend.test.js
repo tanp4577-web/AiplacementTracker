@@ -488,7 +488,9 @@ test('theme: no blue, indigo or violet colours remain in the app styles or scrip
     }
   }
   assert.deepEqual(offenders, []);
-  assert.match(read('css/depth-theme.css'), /--accent:\s*#097a54/);
+  const tokens = read('css/tokens.css');
+  assert.match(tokens, /--accent:\s*#c93b17/, 'the one accent colour the interface actually uses');
+  assert.equal((tokens.match(/^\s*--accent:/gm) || []).length, 2, '--accent is defined once for light and once for dark, not once per stylesheet');
   assert.match(read('index.html'), /name="theme-color" content="#097a54"/);
 });
 
@@ -497,21 +499,24 @@ test('motion is calm: no zoom, tilt, bounce, scroll parallax or drifting backgro
   for (const banned of ['rotateX', 'rotateY', 'perspective', 'elastic', 'scrub', 'ScrollTrigger', 'scale:']) {
     assert.ok(!js.includes(banned), `animations.js must not use ${banned}`);
   }
-  const css = read('css/depth-theme.css');
-  assert.ok(!/scale\(1\.0[1-9]/.test(css), 'cards do not scale up on hover');
+  const css = read('css/app.css');
+  const lifting = [...css.matchAll(/([^{}]*:(?:hover|active)[^{}]*)\{([^}]*)\}/g)]
+    .filter((m) => /(^|[;\s])(transform|translate|scale)\s*:\s*(?!\s|none|translateY\(0\))/.test(m[2]))
+    .map((m) => m[1].trim());
+  assert.deepEqual(lifting, [], 'hover policy: nothing moves or scales on hover');
   assert.ok(!/animation:\s*drift/.test(css), 'background blobs do not drift');
   assert.ok(!/ScrollTrigger/.test(read('index.html')), 'ScrollTrigger script no longer loaded');
 });
 
 test('mobile drawer: sidebar is not trapped under its blurred backdrop, toasts stay fixed on top', () => {
-  const css = read('css/depth-theme.css');
+  const css = read('css/app.css');
   assert.ok(!/\.app-layout[^{]*\{[^}]*z-index/.test(css), '.app-layout must not create a stacking context above the drawer backdrop');
   assert.ok(!/#toastContainer\s*[,{]/.test(css), '#toastContainer must not override the fixed, high z-index toast rule');
   assert.match(css, /\.ambient-blob\s*\{[^}]*z-index:\s*-1/, 'background blobs sit behind the page');
-  const mobile = css.slice(css.lastIndexOf('@media (max-width: 900px)'));
+  const mobile = css;
   assert.match(mobile, /\.sidebar\s*\{[^}]*background:\s*#ffffff[^}]*backdrop-filter:\s*none/s, 'drawer is opaque');
   assert.match(mobile, /\.overlay\s*\{[^}]*backdrop-filter:\s*none/s, 'backdrop dims but does not blur');
-  const layers = read('css/style.css');
+  const layers = read('css/tokens.css');
   const z = (name) => Number(new RegExp(`--z-${name}:\\s*(\\d+)`).exec(layers)[1]);
   assert.ok(z('drawer') > z('drawer-backdrop'), 'drawer above its backdrop');
   assert.ok(z('toast') > z('modal'), 'toasts above modals');

@@ -500,8 +500,7 @@ test('smoothness and tidy-up: no expensive transitions/blur, unused files gone, 
   for (const f of fs.readdirSync(path.join(root, 'css'))) {
     assert.ok(!/transition:\s*all\b/.test(read(`css/${f}`)), `${f} must not use transition: all`);
   }
-  const depth = read('css/depth-theme.css');
-  const tail = depth.slice(depth.lastIndexOf('/* ---------- Smoothness'));
+  const tail = read('css/app.css');
   assert.match(tail, /\.card,\s*\.grid > \.card\s*\{[^}]*backdrop-filter:\s*none/s);
   assert.match(tail, /prefers-reduced-motion: no-preference\)\s*\{\s*html\s*\{\s*scroll-behavior: smooth/s);
   assert.match(tail, /body\.menu-open\s*\{\s*overflow:\s*hidden/);
@@ -746,7 +745,7 @@ test('accessibility: nav is labelled and the current page is marked with aria-cu
   const current = [...app.document.querySelectorAll('.nav-link[aria-current="page"]')];
   assert.equal(current.length, 1);
   assert.equal(current[0].dataset.view, 'resume');
-  assert.ok(read('index.html').includes('css/polish.css'));
+  assert.ok(read('index.html').includes('css/tokens.css') && read('index.html').includes('css/app.css'));
   assert.deepEqual(app.errors, []);
 });
 
