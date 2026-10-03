@@ -515,3 +515,38 @@ body.iv-immersive .iv-empty { color: rgba(255, 255, 255, 0.6); }
 .act-main .text-dim { font-size: 12px; }
 .act-detail { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-dim); text-align: right; flex: none; max-width: 48%; }
 @media (max-width: 680px) { .act-row { flex-direction: column; gap: 2px; } .act-detail { text-align: left; max-width: none; } }
+
+/* Coding focus mode: only the problem, editor and results */
+body.coding-focus .sidebar,body.coding-focus .topbar,body.coding-focus .overlay,body.coding-focus .chatbot-fab{display:none!important}
+body.coding-focus .main-content{margin-left:0!important;max-width:none}
+.focus-exit{position:fixed;top:10px;right:10px;z-index:var(--z-modal,1000);background:var(--accent);color:#fff;border:0;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+@media (max-width:600px){.focus-exit{top:auto;bottom:12px;right:12px}}
+
+/* Session palette */
+.qpal{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.qpal-btn{min-width:34px;height:34px;border-radius:8px;border:1px solid var(--border,#d7ddd9);background:transparent;color:inherit;font-weight:600;cursor:pointer}
+.qpal-btn.solved{background:var(--accent);border-color:var(--accent);color:#fff}
+.qpal-btn.attempted{border-color:#b45309;color:#b45309;background:rgba(180,83,9,.1)}
+.qpal-btn.current{outline:2px solid var(--accent);outline-offset:2px}
+
+.verdict{font-weight:700;font-size:15px;margin-bottom:6px}.verdict.ok{color:var(--accent)}.verdict.bad{color:#b91c1c}
+
+/* Code editor (CodeMirror): emerald / teal on the editor's dark green panel, no blue or violet.
+   The panel is dark in both themes, so these colours do not change with the page theme. */
+.code-wrap{--cm-text:#d7ebe2;--cm-keyword:#34d399;--cm-string:#e6c27a;--cm-number:#5eead4;--cm-function:#86efc4;--cm-type:#f0b46a;--cm-comment:#6f9486;--cm-punct:#9bbcad;--cm-gutter:#5f8274;--cm-caret:#34d399;--cm-active-line:rgba(52,211,153,.08);--cm-selection:rgba(52,211,153,.28)}
+.cm-host{min-height:260px;max-height:520px;overflow:auto;border-radius:0 0 10px 10px}
+.cm-host .cm-editor{min-height:260px}
+
+/* Universal-language coding page: input/output spec, language row, test output */
+.io-spec{margin:0 0 12px;padding:12px 14px;border:1px solid var(--border,#d7ddd9);border-radius:10px;font-size:13px}
+.io-title{font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;margin:8px 0 4px}
+.io-title:first-child{margin-top:0}
+.io-note{margin:0 0 6px;color:var(--text-dim)}
+.io-list{margin:0 0 6px;padding-left:18px}
+.io-example{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.io-label{font-size:11.5px;color:var(--text-dim)}
+.io-spec pre,.io-pre{margin:2px 0 0;padding:6px 8px;border-radius:6px;background:rgba(9,122,84,.06);font-family:'JetBrains Mono',ui-monospace,Consolas,monospace;font-size:12.5px;white-space:pre-wrap;word-break:break-word;max-height:180px;overflow:auto}
+.io-msg{color:#b91c1c;white-space:pre-wrap;margin-top:6px}
+.lang-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lang-row select{width:auto;max-width:100%;min-width:0}
+@media (max-width:600px){.io-example{grid-template-columns:1fr}.lang-row select{flex:1 1 140px}}

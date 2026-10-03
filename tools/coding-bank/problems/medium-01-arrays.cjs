@@ -412,7 +412,7 @@ module.exports = [
     id: 'group-anagrams', title: 'Group Anagrams', d: 'M', topic: 'Hashing', roles: ['SDE', 'Backend Developer'], out: 'sortRows',
     desc: 'Group the strings that are anagrams of each other. Groups and the strings inside them may be in any order (tests normalise them).\n\nExample:\nInput: strs = ["eat","tea","tan","ate","nat","bat"]\nOutput: [["bat"],["nat","tan"],["ate","eat","tea"]]',
     fn: 'groupAnagrams', params: 'strs', constraints: '1 ≤ n ≤ 10^4, lowercase letters',
-    tests: [[['eat', 'tea', 'tan', 'ate', 'nat', 'bat']], [['']], [['a']], [['ab', 'ba', 'abc', 'cab', 'bca', 'x']], [['listen', 'silent', 'enlist', 'google', 'gogole']], [['abc', 'def']]],
+    tests: [[['eat', 'tea', 'tan', 'ate', 'nat', 'bat']], [['zz', 'z']], [['a']], [['ab', 'ba', 'abc', 'cab', 'bca', 'x']], [['listen', 'silent', 'enlist', 'google', 'gogole']], [['abc', 'def']]],
     gen: (r) => [Array.from({ length: r.int(1, 6) }, () => r.str(r.int(0, 3), 'abc'))],
     approaches: [
       A('Compare every pair', 'Put each string in the first existing group whose representative is an anagram of it.', 'O(n²·k)', 'O(n·k)', `function groupAnagrams(strs) {

@@ -6,7 +6,7 @@
    Optional: set CODING_API_URL to use the customer's own question API instead. That API must answer the same
    GET query strings as /api/coding-questions and return the same JSON (documented in the README). Set
    CODING_API_KEY if it needs a bearer token. Nothing else in the site changes. */
-import { CODING_BANK, CODING_PRELUDE } from '../_data/coding-bank.js';
+import { CODING_BANK } from '../_data/coding-bank.js';
 
 const MAX_IDS = 400;
 
@@ -65,7 +65,7 @@ function matching(query) {
 export function localAnswer(query) {
   if (query.id) {
     const q = CODING_BANK.find((x) => x.id === String(query.id));
-    return q ? { status: 200, body: { question: q, prelude: CODING_PRELUDE } } : { status: 404, body: { error: 'Question not found.' } };
+    return q ? { status: 200, body: { question: q } } : { status: 404, body: { error: 'Question not found.' } };
   }
   if (query.ids) {
     const want = csv(query.ids, 100);

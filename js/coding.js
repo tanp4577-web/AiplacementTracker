@@ -16,15 +16,18 @@ const Coding = {
     current: null,
     code: '',
     results: [],
-    lang: 'javascript', // 'javascript' | 'cpp'
+    lang: 'JavaScript', // a Wandbox language name; JavaScript runs in the browser
+    compiler: 'browser', // 'browser' or a Wandbox compiler name
+    langError: '',
     filters: { difficulty: 'all', role: 'all', topic: 'all', status: 'all', search: '', count: 10, limit: 30 },
     session: [],
     sessionIndex: 0,
     sessionActive: false,
     sessionResults: {},
-    prelude: '',     // helpers (ListNode, TreeNode, ...) that the test runner makes available
     tab: null        // activity section tab: 'solved' | 'attempted' (null = automatic)
   },
+  _drafts: {},       // code typed so far, by 'questionId|language'
+  _langs: null,      // languages from Wandbox (plus JavaScript in the browser)
   _cache: {},        // full questions already fetched, by id
   _meta: {},         // title / difficulty / topic for ids seen in lists, sessions and activity
 
@@ -97,13 +100,12 @@ const Coding = {
     }
   },
 
-  /** Full question by id, cached. Also remembers the test-helper prelude the runner needs. */
+  /** Full question by id, cached. */
   async _fetchQuestion(id) {
     if (this._cache[id]) return this._cache[id];
     const data = await this._api(new URLSearchParams({ id }));
     this._cache[id] = data.question;
     this._meta[id] = data.question;
-    if (data.prelude) this.state.prelude = data.prelude;
     return data.question;
   },
 
@@ -121,6 +123,35 @@ const Coding = {
   },
 
   /* ---------------------------------------------------------------- list */
+
+  /** Focus mode: hides the sidebar and top bar so only the problem, editor and results remain. */
+  _setFocus(on, quiet) {
+    const body = document.body;
+    body.classList.toggle('coding-focus', !!on);
+    let exit = document.getElementById('focusExit');
+    if (on && !exit) {
+      exit = document.createElement('button');
+      exit.type = 'button';
+      exit.id = 'focusExit';
+      exit.className = 'btn btn-sm focus-exit';
+      exit.setAttribute('aria-label', 'Exit focus mode');
+      exit.innerHTML = '<i class="bi bi-fullscreen-exit"></i> Exit focus mode';
+      exit.addEventListener('click', () => this._setFocus(false));
+      body.appendChild(exit);
+    }
+    if (!on && exit) exit.remove();
+    const btn = document.getElementById('focusBtn');
+    if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (!this._focusKey) {
+      this._focusKey = (e) => {
+        if (e.key !== 'Escape' || !document.body.classList.contains('coding-focus')) return;
+        if (document.querySelector('.modal-overlay.show, #appConfirmModal')) return;
+        this._setFocus(false);
+      };
+      document.addEventListener('keydown', this._focusKey);
+    }
+    if (!quiet) (on ? document.getElementById('focusExit') : document.getElementById('focusBtn'))?.focus();
+  },
 
   _renderList() {
     const prog = Auth.getEmail() ? DB.getProgress(Auth.getEmail()) : null;
@@ -198,7 +229,7 @@ const Coding = {
               <b>How sessions work:</b> pick filters, choose a question count, then hit <b>Generate Session</b>. You will get a curated sequence of that many questions with a progress tracker and a final summary.
             </div>
           </div>
-          <div class="card mt-3" id="activityCard">${this._activityHtml()}</div>
+          <div class="card mt-3" id="progressTeaser">${this._teaserHtml()}</div>
         </div>
       </div>
     `;
@@ -220,7 +251,7 @@ const Coding = {
       if (btn) btn.innerHTML = `Generate ${this.state.filters.count}Q Session`;
     });
     document.getElementById('startSessionBtn').addEventListener('click', () => this._startSession());
-    this._bindActivity();
+    document.getElementById('openProgressBtn').addEventListener('click', () => this._renderProgress());
     this._paintList();
   },
 
@@ -269,6 +300,62 @@ const Coding = {
     return Object.entries(topics).sort().map(([t, n]) => `<span class="chip purple">${this._escapeHtml(t)} (${n})</span>`).join(' ') || '<span class="text-dim">No topics yet</span>';
   },
 
+  /* ---------------------------------------------------------------- My Progress */
+
+  /** Verdict for one run, from what actually happened in it. */
+  _verdict(results) {
+    if (results.length && results.every((r) => r.pass)) return 'Accepted';
+    if (results.some((r) => r.kind === 'compile')) return 'Compile Error';
+    if (results.some((r) => r.kind === 'timeout')) return 'Time Limit Exceeded';
+    if (results.some((r) => r.kind === 'runtime')) return 'Runtime Error';
+    return 'Wrong Answer';
+  },
+
+  _submissions() {
+    const prog = Auth.getEmail() ? DB.getProgress(Auth.getEmail()) : null;
+    return ((prog && prog.coding && prog.coding.submissions) || []).slice().sort((a, b) => b.at - a.at);
+  },
+
+  _renderProgress() {
+    const esc = (v) => this._escapeHtml(v);
+    const subs = this._submissions();
+    const all = this._attempts();
+    const solved = all.filter((a) => a.solved);
+    const accepted = subs.filter((s) => s.verdict === 'Accepted').length;
+    const filter = this.state.subFilter || 'all';
+    const shown = subs.filter((s) => filter === 'all' || (filter === 'accepted' ? s.verdict === 'Accepted' : s.verdict !== 'Accepted'));
+    const diff = (d) => solved.filter((a) => (a.difficulty || (this._meta[a.id] || {}).difficulty) === d).length;
+    this.container.innerHTML = `
+      <div class="mb-2 flex-between"><button class="btn btn-ghost btn-sm" id="progBack"><i class="bi bi-arrow-left"></i> Back to Problems</button></div>
+      <h2 class="mb-2" style="font-size:22px">My Progress</h2>
+      <div class="grid grid-4 mb-2" id="progStats">
+        <div class="card stat-card"><div class="card-stat">${solved.length}</div><div class="card-stat-label">Solved</div></div>
+        <div class="card stat-card"><div class="card-stat">${all.filter((a) => !a.solved).length}</div><div class="card-stat-label">Attempted, not solved</div></div>
+        <div class="card stat-card"><div class="card-stat">${subs.length}</div><div class="card-stat-label">Submissions</div></div>
+        <div class="card stat-card"><div class="card-stat">${subs.length ? Math.round((accepted / subs.length) * 100) + '%' : '–'}</div><div class="card-stat-label">Accepted</div></div>
+      </div>
+      <p class="text-dim mb-2" style="font-size:12.5px">Solved by level: Easy ${diff('Easy')} · Medium ${diff('Medium')} · Hard ${diff('Hard')}. Everything here was recorded from your own runs on this device.</p>
+      <div class="card mb-2" id="activityCard">${this._activityHtml()}</div>
+      <div class="card" id="historyCard">
+        <div class="card-title">Submission history</div>
+        <div class="card-sub">Every time you pressed Run Tests, newest first. Run time is measured in your browser.</div>
+        <div class="cx-tabs" role="tablist" aria-label="History filter">
+          ${[['all', 'All'], ['accepted', 'Accepted'], ['failed', 'Not accepted']].map(([k, l]) => `<button type="button" class="cx-tab ${filter === k ? 'active' : ''}" role="tab" aria-selected="${filter === k}" data-sub-filter="${k}">${l}</button>`).join('')}
+        </div>
+        <div class="act-list">
+          ${shown.slice(0, 100).map((s) => `
+            <button type="button" class="act-row" data-sub-open="${esc(s.id)}">
+              <span class="act-main"><b>${esc(s.title || s.id)}</b><span class="text-dim">${esc([s.lang === 'cpp' ? 'C++' : s.lang === 'javascript' ? 'JavaScript' : s.lang, s.passed + '/' + s.total + ' tests', s.ms != null ? s.ms + ' ms' : ''].filter(Boolean).join(' · '))}</span></span>
+              <span class="act-detail ${s.verdict === 'Accepted' ? 'cx-ok-t' : ''}">${esc(s.verdict)} · ${esc(this._ago(s.at))}</span>
+            </button>`).join('') || '<p class="text-dim" style="font-size:13px">No submissions yet. Run tests on a problem and each run is listed here.</p>'}
+        </div>
+      </div>`;
+    document.getElementById('progBack').addEventListener('click', () => this._renderList());
+    document.querySelectorAll('[data-sub-filter]').forEach((b) => b.addEventListener('click', () => { this.state.subFilter = b.dataset.subFilter; this._renderProgress(); }));
+    document.querySelectorAll('[data-sub-open]').forEach((b) => b.addEventListener('click', () => this._openQuestion(b.dataset.subOpen)));
+    this._bindActivity();
+  },
+
   /* ---------------------------------------------------------------- your activity */
 
   /** Everything the learner has tried: each problem's tries, best result and when. Older progress that only has a
@@ -310,7 +397,7 @@ const Coding = {
         : `${a.tries} ${a.tries === 1 ? 'try' : 'tries'} · best ${a.best || 0}/${a.total || '?'} tests${a.lastAt ? ` · ${this._ago(a.lastAt)}` : ''}`;
       return `
         <button type="button" class="act-row" data-act-open="${esc(a.id)}">
-          <span class="act-main"><b>${esc(title)}</b><span class="text-dim">${esc([diff, topic, a.lang === 'cpp' ? 'C++' : ''].filter(Boolean).join(' · '))}</span></span>
+          <span class="act-main"><b>${esc(title)}</b><span class="text-dim">${esc([diff, topic, a.lang === 'cpp' ? 'C++' : (a.lang && a.lang !== 'javascript' ? a.lang : '')].filter(Boolean).join(' · '))}</span></span>
           <span class="act-detail ${a.solved ? 'cx-ok-t' : ''}">${esc(detail)}</span>
         </button>`;
     };
@@ -327,6 +414,34 @@ const Coding = {
       ${list.length > 8 ? `<button type="button" class="btn btn-ghost btn-sm mt-1" data-act-more>${this.state.showAllActivity ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}`;
   },
 
+  /** Writes code into the editor (CodeMirror when loaded, always mirrored in the textarea). */
+  _setCode(code) {
+    const ta = document.getElementById('codeEditor');
+    if (ta) ta.value = code;
+    this.state.code = code;
+    if (this._editor) this._editor.setValue(code);
+  },
+
+  /** Upgrades the textarea to CodeMirror in the background. The textarea keeps working if that fails. */
+  _mountEditor() {
+    if (this._editor) { this._editor.destroy(); this._editor = null; }
+    const ta = document.getElementById('codeEditor');
+    if (!ta || typeof CodeEditor === 'undefined') return;
+    const q = this.state.current;
+    CodeEditor.mount(ta, { language: this._highlightName(this.state.lang), onChange: (v) => { this.state.code = v; } }).then((h) => {
+      if (this.state.current !== q || !ta.isConnected) { h.destroy(); return; }
+      this._editor = h;
+    });
+  },
+
+  _teaserHtml() {
+    const all = this._attempts();
+    const solved = all.filter((a) => a.solved).length;
+    return `<div class="card-title">My Progress</div>
+      <div class="card-sub"><b>${solved}</b> solved · <b>${all.length - solved}</b> attempted, not solved · <b>${this._submissions().length}</b> submissions</div>
+      <button type="button" class="btn btn-primary btn-sm mt-1" id="openProgressBtn">Open My Progress</button>`;
+  },
+
   _bindActivity() {
     const card = document.getElementById('activityCard');
     if (!card) return;
@@ -340,7 +455,7 @@ const Coding = {
   },
 
   /** Records one run of the tests: tries, the best result, the last time, and when it was first solved. */
-  _recordProgress(q, passed, total, allPass) {
+  _recordProgress(q, passed, total, allPass, run = {}) {
     const email = Auth.getEmail();
     if (!email) return;
     const prog = DB.getProgress(email);
@@ -359,6 +474,11 @@ const Coding = {
       lang: this.state.lang
     };
     coding.attempts = attempts;
+    coding.submissions = [...(coding.submissions || []), {
+      id: q.id, title: q.title, at: now, passed, total, lang: this.state.lang, compiler: run.compiler || '',
+      verdict: run.verdict || (allPass ? 'Accepted' : 'Wrong Answer'),
+      ms: Number.isFinite(run.ms) ? run.ms : null
+    }].slice(-200);
     if (allPass && !coding.solved.includes(q.id)) {
       coding.solved = [...coding.solved, q.id];
       App.showToast(' All tests passed! Challenge solved.', 'success');
@@ -390,18 +510,129 @@ const Coding = {
     this._openQuestion(this.state.session[0]);
   },
 
+  /* ---------------------------------------------------------------- languages */
+
+  /** The language the learner used last. Older builds stored 'javascript' or 'cpp'. */
   _savedLang() {
-    try { return localStorage.getItem('pp_code_lang') || ''; } catch { return ''; }
+    let v = '';
+    try { v = localStorage.getItem('pp_code_lang') || ''; } catch {}
+    if (v === 'javascript') return 'JavaScript';
+    if (v === 'cpp') return 'C++';
+    return v;
   },
 
-  _saveLang(lang) {
-    try { localStorage.setItem('pp_code_lang', lang); } catch { /* private mode: lasts for this visit only */ }
+  _savedCompiler(language) {
+    try { return localStorage.getItem('pp_code_compiler_' + language) || ''; } catch { return ''; }
   },
 
-  _lookupCppQuestion(id) {
-    // Find the matching C++ version of a JS question by id (suffix "-cpp").
-    if (typeof EXTRA_CODING_CPP === 'undefined') return null;
-    return EXTRA_CODING_CPP.find(c => c.id === id + '-cpp') || null;
+  _saveLang(language, compiler) {
+    try {
+      localStorage.setItem('pp_code_lang', language);
+      localStorage.setItem('pp_code_compiler_' + language, compiler);
+    } catch { /* private mode: lasts for this visit only */ }
+  },
+
+  /** Languages and compilers from Wandbox's live list, plus JavaScript running in the browser. Never rejects. */
+  async _loadLanguages(force) {
+    if (this._langs && !force) return this._langs;
+    this.state.langError = '';
+    let langs = [];
+    try {
+      langs = Wandbox.languages(await Wandbox.compilers(force));
+    } catch (e) {
+      this.state.langError = e.message || 'Could not load the language list.';
+    }
+    const node = langs.find((l) => l.language === 'JavaScript');
+    const browser = { name: 'browser', version: '', display: 'Browser (instant, no network)', head: false };
+    const js = { language: 'JavaScript', compilers: [browser, ...(node ? node.compilers : [])], default: 'browser' };
+    this._langs = [js, ...langs.filter((l) => l.language !== 'JavaScript')];
+    return this._langs;
+  },
+
+  /** Name CodeMirror knows the language by. */
+  _highlightName(language) {
+    const n = String(language || '').toLowerCase();
+    return n === 'bash script' ? 'bash' : n;
+  },
+
+  _langEntry(language) {
+    return (this._langs || []).find((l) => l.language === language) || null;
+  },
+
+  /** Fills the language and compiler selects from this._langs and selects the current choice. */
+  _paintLangControls() {
+    const sel = document.getElementById('langSelect');
+    const comp = document.getElementById('compilerSelect');
+    if (!sel || !comp) return;
+    const langs = this._langs || [];
+    sel.innerHTML = langs.map((l) => `<option value="${this._escapeHtml(l.language)}">${this._escapeHtml(l.language)}</option>`).join('');
+    sel.value = this.state.lang;
+    const entry = this._langEntry(this.state.lang);
+    comp.innerHTML = (entry ? entry.compilers : []).map((c) => {
+      const label = c.name === 'browser' ? c.display : `${c.display || c.name}${c.head ? ' (development build)' : ''}`;
+      return `<option value="${this._escapeHtml(c.name)}">${this._escapeHtml(label)}</option>`;
+    }).join('');
+    comp.value = this.state.compiler;
+    const note = document.getElementById('langNote');
+    if (note) {
+      note.innerHTML = this.state.langError
+        ? `${this._escapeHtml(this.state.langError)} Only JavaScript (in the browser) is available. <button type="button" class="btn btn-ghost btn-sm" id="langRetryBtn">Retry</button>`
+        : this.state.compiler === 'browser' ? 'Runs instantly in your browser.' : 'Runs on Wandbox (online), so each run needs a network connection.';
+      document.getElementById('langRetryBtn')?.addEventListener('click', async () => {
+        note.textContent = 'Loading languages…';
+        await this._loadLanguages(true);
+        this._paintLangControls();
+      });
+    }
+  },
+
+  /** Switches language: keeps what was typed in the old one, and starts the new one from its template. */
+  _selectLanguage(language, compiler) {
+    const q = this.state.current;
+    const entry = this._langEntry(language);
+    if (!q || !entry) return;
+    this._drafts[`${q.id}|${this.state.lang}`] = this._getCode();
+    const wanted = compiler || this._savedCompiler(language);
+    const compilerName = entry.compilers.some((c) => c.name === wanted) ? wanted : entry.default;
+    this.state.lang = language;
+    this.state.compiler = compilerName;
+    this._saveLang(language, compilerName);
+    const draft = this._drafts[`${q.id}|${language}`];
+    const skeleton = Skeletons.for(language);
+    this._setCode(draft != null ? draft : skeleton.code);
+    const file = document.getElementById('codeFileLabel');
+    if (file) file.textContent = `solution.${skeleton.ext}`;
+    if (this._editor) this._editor.setLanguage(this._highlightName(language));
+    this._paintLangControls();
+  },
+
+  _getCode() {
+    const ta = document.getElementById('codeEditor');
+    return this._editor ? this._editor.getValue() : (ta ? ta.value : this.state.code);
+  },
+
+  /* ---------------------------------------------------------------- one question */
+
+  /** `code` spans in the generated Input / Output text. */
+  _fmt(text) {
+    return this._escapeHtml(text).replace(/`([^`]+)`/g, '<code>$1</code>');
+  },
+
+  _ioHtml(q) {
+    const io = q.io;
+    if (!io || !Array.isArray(io.inputFormat)) return '';
+    const sample = (q.testCases || [])[0];
+    return `
+      <div class="io-spec" id="ioSpec">
+        <div class="io-title">Input</div>
+        <p class="io-note">Your program reads standard input and prints to standard output. Wherever the statement says "return", print instead.</p>
+        <ul class="io-list">${io.inputFormat.map((l) => `<li>${this._fmt(l)}</li>`).join('')}</ul>
+        <div class="io-title">Output</div>
+        <p class="io-note">${this._fmt(io.outputFormat || '')}</p>
+        ${sample ? `<div class="io-title">Example</div>
+        <div class="io-example"><div><span class="io-label">Input</span><pre>${this._escapeHtml(sample.stdin)}</pre></div>
+        <div><span class="io-label">${io.check ? 'One valid output' : 'Output'}</span><pre>${this._escapeHtml(sample.expectedStdout)}</pre></div></div>` : ''}
+      </div>`;
   },
 
   async _openQuestion(id) {
@@ -417,46 +648,36 @@ const Coding = {
       }
     }
     this.state.current = q;
-    this.state.code = q.starterCode;
     this.state.results = [];
-    // Default language: if a C++ version exists, prefer C++ for this question.
-    // Remember the language the user last picked; with no choice yet, prefer C++ where a C++ version exists.
-    this.state.lang = (this._lookupCppQuestion(q.id) && this._savedLang() !== 'javascript') ? 'cpp' : 'javascript';
+    const langs = await this._loadLanguages();
+    if (this.state.current !== q) return; // the learner opened another problem while the languages loaded
+
+    // Language: what they used last when it still exists, else JavaScript in the browser.
+    const saved = this._savedLang();
+    const first = langs.find((l) => l.language === saved) || langs[0];
+    const savedCompiler = this._savedCompiler(first.language);
+    this.state.lang = first.language;
+    this.state.compiler = first.compilers.some((c) => c.name === savedCompiler) ? savedCompiler : first.default;
+    const skeleton = Skeletons.for(this.state.lang);
+    const draft = this._drafts[`${q.id}|${this.state.lang}`];
+    this.state.code = draft != null ? draft : skeleton.code;
 
     const inSession = this.state.sessionActive && this.state.session.includes(q.id);
     const sessionPos = inSession ? this.state.session.indexOf(q.id) : -1;
     const sessionTotal = this.state.session.length;
     const src = q.source || 'LeetCode';
 
-    const renderEditor = () => {
-      const isCpp = this.state.lang === 'cpp';
-      const cppQ = this._lookupCppQuestion(q.id);
-      const starter = isCpp ? (cppQ ? cppQ.starterCpp : this._cppTemplate(q)) : q.starterCode;
-      const fileLabel = isCpp ? 'solution.cpp' : 'solution.js';
-      const editor = document.getElementById('codeEditor');
-      if (editor) {
-        editor.value = starter;
-        this.state.code = starter;
-      }
-      const fileEl = document.getElementById('codeFileLabel');
-      if (fileEl) fileEl.textContent = fileLabel;
-      const jsBtn = document.getElementById('langJsBtn');
-      const cppBtn = document.getElementById('langCppBtn');
-      if (jsBtn) jsBtn.classList.toggle('active', !isCpp);
-      if (cppBtn) cppBtn.classList.toggle('active', isCpp);
-      // The C++ button only exists in the DOM when this question has a C++ harness
-      // (see the template below), so there is nothing to disable here otherwise.
-      const runBtn = document.getElementById('runBtn');
-      if (runBtn) runBtn.textContent = isCpp ? '▶ Run C++ Tests' : ' Run Tests';
-      const cppNote = document.getElementById('cppNote');
-      if (cppNote) cppNote.style.display = (isCpp && cppQ) ? 'block' : 'none';
-    };
-
+    // The learner caused this render (a click that waited for the network): show it as it is, no entrance replay.
+    if (typeof Animations !== 'undefined') Animations._lastInteraction = performance.now();
     this.container.innerHTML = `
       <div class="mb-2 flex-between" style="flex-wrap:wrap;gap:10px">
         <button class="btn btn-ghost btn-sm" id="backBtn"><i class="bi bi-arrow-left"></i> ${inSession ? 'Session' : 'Back to Problems'}</button>
-        ${inSession ? `<div class="flex gap-1 items-center"><span class="chip blue">Session ${sessionPos + 1}/${sessionTotal}</span></div>` : ''}
+        <div class="flex gap-1 items-center">
+          ${inSession ? `<span class="chip blue">Session ${sessionPos + 1}/${sessionTotal}</span>` : ''}
+          <button class="btn btn-ghost btn-sm" id="focusBtn" aria-pressed="false" title="Hide the sidebar and top bar (Esc to exit)"><i class="bi bi-arrows-fullscreen"></i> Focus mode</button>
+        </div>
       </div>
+      ${inSession ? this._paletteHtml(q.id) : ''}
       ${inSession ? `<div class="progress mb-2"><div class="progress-fill" style="width:${((sessionPos + 1) / sessionTotal) * 100}%"></div></div>` : ''}
       <div class="grid grid-2">
         <div class="card">
@@ -473,22 +694,19 @@ const Coding = {
             ${q.topic ? `<span class="chip purple">${this._escapeHtml(q.topic)}</span>` : ''}
             ${(q.targetRoles || []).map(r => `<span class="chip cyan">${this._escapeHtml(r)}</span>`).join('')}
           </div>
-          <div class="flex gap-2 mb-2" style="align-items:center">
-            <span class="text-dim" style="font-size:12.5px">Language:</span>
-            <button class="btn btn-ghost btn-sm ${this.state.lang === 'javascript' ? 'active' : ''}" id="langJsBtn">JavaScript</button>
-            ${this._lookupCppQuestion(q.id)
-              ? `<button class="btn btn-ghost btn-sm ${this.state.lang === 'cpp' ? 'active' : ''}" id="langCppBtn">C++</button>`
-              : `<span class="chip gray" title="No C++ version of this question yet">C++ not available</span>`}
+          ${this._ioHtml(q)}
+          <div class="lang-row mb-2">
+            <label for="langSelect" class="text-dim" style="font-size:12.5px">Language</label>
+            <select id="langSelect" aria-label="Programming language"></select>
+            <select id="compilerSelect" aria-label="Compiler or runtime version"></select>
+            <span class="text-dim" id="langNote" style="font-size:12px" role="status"></span>
           </div>
           <div class="code-wrap">
             <div class="code-header">
               <div class="code-dots"><span></span><span></span><span></span></div>
-              <span class="code-file" id="codeFileLabel">solution.js</span>
+              <span class="code-file" id="codeFileLabel">solution.${skeleton.ext}</span>
             </div>
-            <textarea class="code-input" id="codeEditor" spellcheck="false" aria-label="Code editor. Press Tab to indent, Escape then Tab to leave.">${this._escapeHtml(q.starterCode)}</textarea>
-          </div>
-          <div class="text-dim" id="cppNote" style="display:none;font-size:12px;margin-top:6px">
-            <b style="color:var(--accent)">C++ mode:</b> run via Wandbox GCC compiler (online).
+            <textarea class="code-input" id="codeEditor" spellcheck="false" aria-label="Code editor. Press Tab to indent, Escape then Tab to leave.">${this._escapeHtml(this.state.code)}</textarea>
           </div>
           <div class="flex gap-2 mt-2">
             <button class="btn btn-primary" id="runBtn"><i class="bi bi-play-fill" style="margin-right:4px"></i>Run Tests</button>
@@ -499,8 +717,9 @@ const Coding = {
         </div>
         <div class="card">
           <div class="card-title"><i class="bi bi-check2-all text-accent" style="font-size:16px"></i> Test Results</div>
-          <div class="card-sub">Automated verification against hidden test cases</div>
+          <div class="card-sub">Your program runs on every test; its output is compared with the expected answer</div>
           <div id="solutionPanel" style="display:none">
+            <p class="text-dim" style="font-size:12.5px">The code below is the core algorithm as a JavaScript function. Your program also has to read the input and print the answer in the format described on the left.</p>
             ${(q.approaches && q.approaches.length && typeof ComplexityView !== 'undefined')
               ? ComplexityView.html(q, (v) => this._escapeHtml(v))
               : `<div class="explanation mb-2" style="border-color:rgba(230,162,60,0.35)">
@@ -519,23 +738,21 @@ const Coding = {
       </div>
     `;
 
+    this._bindPalette();
+    document.getElementById('focusBtn').addEventListener('click', () => this._setFocus(!document.body.classList.contains('coding-focus')));
+    this._setFocus(document.body.classList.contains('coding-focus'), true);
     document.getElementById('backBtn').addEventListener('click', () => {
+      this._setFocus(false, true);
       if (inSession && this.state.sessionActive) {
         this._renderSessionSummary();
       } else {
         this._renderList();
       }
     });
-    document.getElementById('runBtn').addEventListener('click', () => {
-      if (this.state.lang === 'cpp') this._runCppTests();
-      else this._runTests();
-    });
+    document.getElementById('runBtn').addEventListener('click', () => this._runTests());
     document.getElementById('resetCodeBtn').addEventListener('click', () => {
-      const isCpp = this.state.lang === 'cpp';
-      const cppQ = this._lookupCppQuestion(q.id);
-      const starter = isCpp ? (cppQ ? cppQ.starterCpp : this._cppTemplate(q)) : q.starterCode;
-      document.getElementById('codeEditor').value = starter;
-      this.state.code = starter;
+      this._drafts[`${q.id}|${this.state.lang}`] = undefined;
+      this._setCode(Skeletons.for(this.state.lang).code);
     });
     document.getElementById('solutionBtn').addEventListener('click', () => {
       const panel = document.getElementById('solutionPanel');
@@ -564,18 +781,15 @@ const Coding = {
       this.state.code = ta.value;
     });
     if (typeof ComplexityView !== 'undefined') ComplexityView.bind(document.getElementById('solutionPanel'), q, (v) => this._escapeHtml(v));
-    document.getElementById('langJsBtn').addEventListener('click', () => {
-      this.state.lang = 'javascript';
-      this._saveLang('javascript');
-      renderEditor();
-    });
-    document.getElementById('langCppBtn')?.addEventListener('click', () => {
-      this.state.lang = 'cpp';
-      this._saveLang('cpp');
-      renderEditor();
+    document.getElementById('langSelect').addEventListener('change', (e) => this._selectLanguage(e.target.value));
+    document.getElementById('compilerSelect').addEventListener('change', (e) => {
+      this.state.compiler = e.target.value;
+      this._saveLang(this.state.lang, this.state.compiler);
+      this._paintLangControls();
     });
 
-    renderEditor();
+    this._paintLangControls();
+    this._mountEditor();
 
     if (inSession) {
       const nextBtn = document.getElementById('nextBtn');
@@ -583,479 +797,168 @@ const Coding = {
     }
   },
 
-  /* A generic C++ template for JS-only questions that have no pre-supplied C++ candidate. */
-  _cppTemplate(q) {
-    if (q.topic === 'Trees') {
-      return `struct TreeNode {
-    int val;
-    TreeNode *left, *right;
-    TreeNode(int x) : val(x), left(nullptr), right(nullptr) {}
-};
+  /* ---------------------------------------------------------------- running and judging */
 
-// Implement below
-`;
+  /** One test: run the program, then judge its stdout. -> { kind, pass, stdout, stderr, message, ms, actual } */
+  async _runOne(q, test, code) {
+    const r = this.state.compiler === 'browser'
+      ? await JsRunner.run(code, test.stdin, 3000).then((x) => ({ kind: x.kind, stdout: x.stdout, stderr: x.stderr, message: x.error, ms: x.ms }))
+      : await Wandbox.run({ compiler: this.state.compiler, code, stdin: test.stdin });
+    const out = { kind: r.kind, pass: false, stdout: r.stdout || '', stderr: r.stderr || '', message: r.message || '', ms: r.ms || 0 };
+    if (r.kind !== 'ok') return out;
+    try {
+      const expected = Judge.decodeOutput(q.io.out, test.expectedStdout);
+      const inputs = q.io.script ? [] : Judge.decodeInput(q.io.in.map((a) => a.type), test.stdin);
+      const res = Judge.compare(q.io, expected, r.stdout, inputs);
+      out.pass = res.pass;
+      out.kind = res.pass ? 'ok' : 'wrong';
+      if (res.message) out.message = res.message;
+    } catch (e) {
+      out.kind = 'wrong';
+      out.message = `This test could not be checked: ${e.message}`;
     }
-    return `#include <bits/stdc++.h>
-using namespace std;
-
-// Implement the solution here
-`;
+    return out;
   },
 
-  /* ---- Run C++ test cases via Wandbox (with offline fallback) ---- */
-  async _runCppTests() {
-    const q = this.state.current;
-    const cppQ = this._lookupCppQuestion(q.id);
-    const resultsDiv = document.getElementById('testResults');
-    const bodyCode = document.getElementById('codeEditor').value || this.state.code;
-
-    if (!cppQ || !Array.isArray(cppQ.cppTestCases) || !cppQ.cppTestCases.length) {
-      resultsDiv.innerHTML = `<div class="empty-state"><h3>No C++ test cases</h3><p>This question has no C++ test harness yet. Switch to JavaScript to run it.</p><button class="btn btn-primary btn-sm mt-2" id="switchToJsBtn">Switch to JavaScript</button></div>`;
-      document.getElementById('switchToJsBtn')?.addEventListener('click', () => {
-        this.state.lang = 'javascript';
-        this._openQuestion(q.id);
-      });
-      return;
-    }
-
-    resultsDiv.innerHTML = `
-      <div class="empty-state">
-        <div class="spinner" style="width:26px;height:26px"></div>
-        <h3>Compiling ${cppQ.cppTestCases.length} test(s)...</h3>
-        <p>Running C++ (GCC) through Wandbox</p>
-      </div>
-    `;
-
-    const results = [];
-    let allPass = true;
-    let networkError = null;
-
-    for (let i = 0; i < cppQ.cppTestCases.length; i++) {
-      const tc = cppQ.cppTestCases[i];
-      const harness = this._cppHarness(cppQ, bodyCode);
-      try {
-        let data = null;
-        try {
-          const res = await fetch('/api/compile', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ compiler: 'gcc-head', code: harness, stdin: tc.input || '' })
-          });
-          if (res.ok) data = await res.json();
-        } catch (err) {}
-
-        if (!data) {
-          const res = await fetch('https://wandbox.org/api/compile.json', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              compiler: 'gcc-head',
-              code: harness,
-              options: 'warning,gnu++17',
-              stdin: tc.input || ''
-            })
-          });
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          data = await res.json();
-        }
-
-        const program = (data.program || '').trim();
-        const errors = data.compiler_error || data.stderr || '';
-        if (errors) {
-          results.push({ input: tc.input, expected: tc.expected, actual: 'Compile Error: ' + errors.trim().split('\n').slice(0, 3).join('\n'), pass: false });
-          allPass = false;
-        } else {
-          const pass = program === tc.expected.trim();
-          results.push({ input: tc.input, expected: tc.expected, actual: program, pass });
-          if (!pass) allPass = false;
-        }
-      } catch (e) {
-        networkError = e;
-        break;
-      }
-    }
-
-    if (networkError && results.length === 0) {
-      resultsDiv.innerHTML = `
-        <div class="card test-case" style="background:rgba(230,162,60,0.08);border-color:rgba(230,162,60,0.4)">
-          <div class="test-title"><span>⚠ Offline mode</span><span class="text-warning">Network unavailable</span></div>
-          <div class="test-io">
-            <div style="color:var(--text)">Could not reach the online C++ compiler (${this._escapeHtml(networkError.message)}).</div>
-            <div style="margin-top:4px">Run this locally to verify, or check the expected outputs below.</div>
-          </div>
+  _testCardHtml(q, t, r, i) {
+    const esc = (v) => this._escapeHtml(v);
+    const label = { ok: 'PASS', wrong: 'WRONG ANSWER', runtime: 'RUNTIME ERROR', timeout: 'TIME LIMIT', compile: 'COMPILE ERROR', skipped: 'NOT RUN', network: 'NO ANSWER' }[r.kind] || 'FAIL';
+    return `
+      <div class="test-case ${r.pass ? 'pass' : 'fail'}">
+        <div class="test-title">
+          <span>Test ${i + 1}</span>
+          <span class="${r.pass ? 'text-success' : 'text-danger'}">${label}${r.ms ? ` · ${r.ms} ms` : ''}</span>
         </div>
-        ${cppQ.cppTestCases.map(tc => `<div class="test-io mt-1"><div>Expected: <code style="color:var(--success)">${this._escapeHtml(tc.expected)}</code></div></div>`).join('')}
-      `;
+        <div class="test-io">
+          <div>Input:<pre class="io-pre">${esc(t.stdin)}</pre></div>
+          <div>${q.io.check ? 'One valid output' : 'Expected'}:<pre class="io-pre">${esc(t.expectedStdout)}</pre></div>
+          ${r.kind === 'skipped' ? '' : `<div>Your output:<pre class="io-pre">${esc(r.stdout)}</pre></div>`}
+          ${r.message ? `<div class="io-msg">${esc(r.message)}</div>` : ''}
+          ${r.stderr ? `<div>Error output:<pre class="io-pre">${esc(r.stderr)}</pre></div>` : ''}
+        </div>
+      </div>`;
+  },
+
+  async _runTests() {
+    const q = this.state.current;
+    const resultsDiv = document.getElementById('testResults');
+    const code = this._getCode();
+    const runBtn = document.getElementById('runBtn');
+    if (this._running) return;
+    if (!code.trim()) { App.showToast('Write some code first', 'error'); return; }
+    const tests = q.testCases || [];
+    if (!q.io || !tests.length || !tests.every((t) => typeof t.stdin === 'string' && typeof t.expectedStdout === 'string')) {
+      resultsDiv.innerHTML = '<div class="card test-case fail"><div class="test-title"><span>Cannot run</span></div><div class="test-io">This question has no stdin/stdout tests, so it cannot be judged here.</div></div>';
       return;
     }
+    const lang = this.state.lang;
+    const compiler = this.state.compiler;
+    this._running = true;
+    if (runBtn) { runBtn.disabled = true; runBtn.textContent = 'Running…'; }
+    resultsDiv.innerHTML = `<div class="empty-state"><div class="spinner"></div><h3>Running ${tests.length} tests…</h3><p id="runProgress" role="status">${compiler === 'browser' ? 'In your browser' : 'On Wandbox'}</p></div>`;
 
+    const results = new Array(tests.length).fill(null);
+    let stop = null;      // a result that ends the whole run (compile error, no answer, time limit)
+    let next = 0;
+    let finished = 0;
+    const worker = async () => {
+      while (!stop && next < tests.length) {
+        const i = next++;
+        const r = await this._runOne(q, tests[i], code);
+        results[i] = r;
+        finished++;
+        const note = document.getElementById('runProgress');
+        if (note) note.textContent = `${finished} of ${tests.length} done`;
+        if (r.kind === 'compile' || r.kind === 'network' || r.kind === 'timeout') stop = stop || r;
+      }
+    };
+    try {
+      await Promise.all(Array.from({ length: compiler === 'browser' ? 1 : 2 }, worker));
+    } finally {
+      this._running = false;
+      if (runBtn) { runBtn.disabled = false; runBtn.textContent = ' Run Tests'; }
+    }
+    if (this.state.current !== q) return; // the learner moved to another question while this ran
+
+    const reasons = { compile: 'Stopped after the compile error.', timeout: 'Stopped after the first time limit.', network: 'Stopped: the compiler service did not answer.' };
+    results.forEach((r, i) => { if (!r) results[i] = { kind: 'skipped', pass: false, stdout: '', stderr: '', message: reasons[stop && stop.kind] || 'Not run.', ms: 0 }; });
     this.state.results = results;
-    const passCount = results.filter(r => r.pass).length;
-    allPass = passCount === results.length;
 
-    this._recordProgress(q, passCount, results.length, allPass);
+    const passCount = results.filter((r) => r.pass).length;
+    const noAnswer = results.some((r) => r.kind === 'network');
+    const verdict = noAnswer ? 'No answer from the compiler service' : this._verdict(results);
+    const allPass = !noAnswer && passCount === results.length;
+    const ms = Math.round(results.reduce((t, r) => t + (r.pass || r.kind === 'wrong' ? r.ms : 0), 0));
+
+    // A run that never got an answer says nothing about the program, so it is not recorded as a submission.
+    if (!noAnswer) this._recordProgress(q, passCount, results.length, allPass, { verdict, ms, compiler });
 
     if (this.state.sessionActive && this.state.session.includes(q.id)) {
-      this.state.sessionResults[q.id] = allPass;
+      if (!noAnswer) this.state.sessionResults[q.id] = allPass || this.state.sessionResults[q.id] === true;
+      this._refreshPalette(q.id);
       const nextBtn = document.getElementById('nextBtn');
       if (nextBtn) nextBtn.style.display = 'inline-flex';
     }
 
+    // The learner caused this render (a click that waited for the network): show it as it is, no entrance replay.
+    if (typeof Animations !== 'undefined') Animations._lastInteraction = performance.now();
+    const compileErr = results.find((r) => r.kind === 'compile');
+    const netErr = results.find((r) => r.kind === 'network');
+    const timeLabel = compiler === 'browser' ? `${ms} ms measured in your browser` : `${ms} ms including the trip to Wandbox`;
     resultsDiv.innerHTML = `
       <div class="mb-2">
         <div class="card stat-card" style="padding:14px">
+          <div class="verdict ${allPass ? 'ok' : 'bad'}" id="verdict" role="status">${this._escapeHtml(verdict)}</div>
           <div class="card-stat ${allPass ? 'text-success' : ''}">${passCount}/${results.length}</div>
-          <div class="card-stat-label">Tests Passed</div>
+          <div class="card-stat-label">Tests passed${noAnswer ? '' : ` · ${timeLabel}`} · ${this._escapeHtml(lang)}</div>
         </div>
       </div>
-      ${results.map((r, i) => `
-        <div class="test-case ${r.pass ? 'pass' : 'fail'}">
-          <div class="test-title">
-            <span>Test ${i + 1}</span>
-            <span class="${r.pass ? 'text-success' : 'text-danger'}">${r.pass ? '[OK] PASS' : '[X] FAIL'}</span>
-          </div>
-          <div class="test-io">
-            <div>Input: <code>${this._escapeHtml(r.input)}</code></div>
-            <div>Expected: <code>${this._escapeHtml(r.expected)}</code></div>
-            <div>Your Output: <code>${this._escapeHtml(r.actual)}</code></div>
-          </div>
-        </div>
-      `).join('')}
+      ${netErr ? `<div class="test-case fail" id="runError"><div class="test-title"><span>Could not reach the compiler service</span></div><div class="test-io io-msg">${this._escapeHtml(netErr.message)} Nothing was recorded for this run. <button type="button" class="btn btn-ghost btn-sm" id="retryRunBtn">Try again</button></div></div>` : ''}
+      ${compileErr ? `<div class="test-case fail" id="compileError"><div class="test-title"><span>Compile error</span></div><div class="test-io"><pre class="io-pre">${this._escapeHtml(compileErr.message)}</pre></div></div>` : ''}
+      ${results.map((r, i) => (r.kind === 'compile' ? '' : this._testCardHtml(q, tests[i], r, i))).join('')}
     `;
+    document.getElementById('retryRunBtn')?.addEventListener('click', () => this._runTests());
   },
 
-  /* Build a full compilable C++ program from the user's function + a
-     test harness that reads the given stdin and prints the result. */
-  _cppHarness(cppQ, bodyCode) {
-    const includes = `#include <bits/stdc++.h>
-using namespace std;
-`;
-    return includes + bodyCode + '\n' + this._cppMainFor(cppQ);
+  /** 'solved' | 'attempted' | 'todo', read straight from state.sessionResults (the single source of truth). */
+  _sessionState(id) {
+    const r = this.state.sessionResults[id];
+    return r === true ? 'solved' : r === false ? 'attempted' : 'todo';
   },
 
-  _cppMainFor(cppQ) {
-    const id = cppQ.id;
-    switch (id) {
-      case 'two-sum-cpp':
-        return `int main(){
-  int n, target; cin >> n >> target;
-  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
-  auto r = twoSum(nums, target);
-  cout << r[0] << " " << r[1];
-  return 0;
-}`;
-      case 'valid-anagram-cpp':
-        return `int main(){
-  string s, t; getline(cin, s); getline(cin, t);
-  cout << (isAnagram(s, t) ? "true" : "false");
-  return 0;
-}`;
-      case 'missing-number-cpp':
-        return `int main(){
-  int n; cin >> n;
-  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
-  cout << missingNumber(nums);
-  return 0;
-}`;
-      case 'single-number-cpp':
-        return `int main(){
-  int n; cin >> n;
-  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
-  cout << singleNumber(nums);
-  return 0;
-}`;
-      case 'valid-palindrome-cpp':
-        return `int main(){
-  string s; getline(cin, s);
-  cout << (isPalindrome(s) ? "true" : "false");
-  return 0;
-}`;
-      case 'first-unique-char-cpp':
-        return `int main(){
-  string s; cin >> s;
-  cout << firstUniqChar(s);
-  return 0;
-}`;
-      case 'fizzbuzz-cpp':
-        return `int main(){
-  int n; cin >> n;
-  auto r = fizzBuzz(n);
-  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
-  return 0;
-}`;
-      case 'move-zeroes-cpp':
-        return `int main(){
-  int n; cin >> n;
-  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
-  moveZeroes(nums);
-  for (size_t i=0;i<nums.size();i++) cout << nums[i] << (i+1==nums.size()?"":" ");
-  return 0;
-}`;
-      case 'container-most-water-cpp':
-        return `int main(){
-  int n; cin >> n;
-  vector<int> h(n); for (int i=0;i<n;i++) cin >> h[i];
-  cout << maxArea(h);
-  return 0;
-}`;
-      case 'binary-search-cpp':
-        return `int main(){
-  int n, target; cin >> n >> target;
-  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
-  cout << search(nums, target);
-  return 0;
-}`;
-      case 'kth-largest-cpp':
-        return `int main(){
-  int n, k; cin >> n >> k;
-  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
-  cout << findKthLargest(nums, k);
-  return 0;
-}`;
-      case 'max-subarray-cpp':
-        return `int main(){
-  int n; cin >> n;
-  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
-  cout << maxSubArray(nums);
-  return 0;
-}`;
-      case 'climbing-stairs-cpp':
-        return `int main(){
-  int n; cin >> n;
-  cout << climbStairs(n);
-  return 0;
-}`;
-      case 'coin-change-cpp':
-        return `int main(){
-  int m, amount; cin >> m >> amount;
-  vector<int> coins(m); for (int i=0;i<m;i++) cin >> coins[i];
-  cout << coinChange(coins, amount);
-  return 0;
-}`;
-      case 'valid-parentheses-cpp':
-        return `int main(){
-  string s; cin >> s;
-  cout << (isValid(s) ? "true" : "false");
-  return 0;
-}`;
-      case 'daily-temperatures-cpp':
-        return `int main(){
-  int n; cin >> n;
-  vector<int> t(n); for (int i=0;i<n;i++) cin >> t[i];
-  auto r = dailyTemperatures(t);
-  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
-  return 0;
-}`;
-      case 'merge-intervals-cpp':
-        return `int main(){
-  int n; cin >> n;
-  vector<vector<int>> itv(n, vector<int>(2));
-  for (int i=0;i<n;i++) cin >> itv[i][0] >> itv[i][1];
-  auto r = merge(itv);
-  for (size_t i=0;i<r.size();i++) cout << r[i][0] << " " << r[i][1] << (i+1==r.size()?"":" ");
-  return 0;
-}`;
-      case 'jump-game-cpp':
-        return `int main(){
-  int n; cin >> n;
-  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
-  cout << (canJump(nums) ? "true" : "false");
-  return 0;
-}`;
-      case 'group-anagrams-cpp':
-        return `int main(){
-  int n; cin >> n; cin.ignore();
-  vector<string> strs(n);
-  for (int i=0;i<n;i++) getline(cin, strs[i]);
-  auto r = groupAnagrams(strs);
-  cout << r.size();
-  return 0;
-}`;
-      case 'top-k-frequent-cpp':
-        return `int main(){
-  int n, k; cin >> n >> k;
-  vector<int> nums(n); for (int i=0;i<n;i++) cin >> nums[i];
-  auto r = topKFrequent(nums, k);
-  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
-  return 0;
-}`;
-      case 'max-depth-tree-cpp':
-        return `int main(){
-  int n; if (!(cin >> n)) return 0;
-  vector<int> a(n);
-  for (int i=0;i<n;i++) cin >> a[i];
-  vector<TreeNode*> v(n, nullptr);
-  TreeNode* root = nullptr;
-  for (int i=0;i<n;i++){ if(a[i]!=-1) v[i]=new TreeNode(a[i]); }
-  for (int i=0;i<n;i++){
-    if(!v[i]) continue;
-    if(!root) root=v[i];
-    if(2*i+1<n) v[i]->left=v[2*i+1];
-    if(2*i+2<n) v[i]->right=v[2*i+2];
-  }
-  cout << maxDepth(root);
-  return 0;
-}`;
-      case 'inorder-traversal-cpp':
-        return `int main(){
-  int n; if (!(cin >> n)) return 0;
-  vector<int> a(n);
-  for (int i=0;i<n;i++) cin >> a[i];
-  if(n==0){ return 0; }
-  vector<TreeNode*> v(n, nullptr);
-  TreeNode* root=nullptr;
-  for (int i=0;i<n;i++){ if(a[i]!=-1) v[i]=new TreeNode(a[i]); }
-  for (int i=0;i<n;i++){
-    if(!v[i]) continue;
-    if(!root) root=v[i];
-    if(2*i+1<n) v[i]->left=v[2*i+1];
-    if(2*i+2<n) v[i]->right=v[2*i+2];
-  }
-  auto r = inorderTraversal(root);
-  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
-  return 0;
-}`;
-      case 'number-of-islands-cpp':
-        return `int main(){
-  int R, C; cin >> R >> C;
-  vector<vector<char>> g(R, vector<char>(C));
-  for (int i=0;i<R;i++) for (int j=0;j<C;j++) cin >> g[i][j];
-  cout << numIslands(g);
-  return 0;
-}`;
-      case "reverse-string-cpp":
-        return `int main(){
-  string t; cin >> t;
-  vector<char> s(t.begin(), t.end());
-  reverseString(s);
-  cout << string(s.begin(), s.end());
-  return 0;
-}`;
-      case "best-time-stock-cpp":
-        return `int main(){
-  int n; cin >> n;
-  vector<int> p(n); for (int i=0;i<n;i++) cin >> p[i];
-  cout << maxProfit(p);
-  return 0;
-}`;
-      case "contains-duplicate-cpp":
-        return `int main(){
-  int n; cin >> n;
-  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
-  cout << (containsDuplicate(a) ? "true" : "false");
-  return 0;
-}`;
-      case "merge-sorted-arrays-cpp":
-        return `int main(){
-  int n, m; cin >> n >> m;
-  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
-  vector<int> b(m); for (int i=0;i<m;i++) cin >> b[i];
-  auto r = mergeSorted(a, b);
-  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
-  return 0;
-}`;
-      case "valid-palindrome-2-cpp":
-        return `int main(){
-  string s; cin >> s;
-  cout << (validPalindrome(s) ? "true" : "false");
-  return 0;
-}`;
-      case "two-sum-2-sorted-cpp":
-        return `int main(){
-  int n, target; cin >> n >> target;
-  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
-  auto r = twoSumSorted(a, target);
-  cout << r[0] << " " << r[1];
-  return 0;
-}`;
-      case "longest-substr-no-repeat-cpp":
-        return `int main(){
-  string s; cin >> s;
-  cout << lengthOfLongestSubstring(s);
-  return 0;
-}`;
-      case "min-window-substring-cpp":
-        return `int main(){
-  string s, t; cin >> s >> t;
-  cout << minWindow(s, t);
-  return 0;
-}`;
-      case "longest-common-subseq-cpp":
-        return `int main(){
-  string a, b; cin >> a >> b;
-  cout << longestCommonSubsequence(a, b);
-  return 0;
-}`;
-      case "edit-distance-cpp":
-        return `int main(){
-  string a, b; getline(cin, a); getline(cin, b);
-  cout << minDistance(a, b);
-  return 0;
-}`;
-      case "intersection-two-arrays-cpp":
-        return `int main(){
-  int n, m; cin >> n >> m;
-  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
-  vector<int> b(m); for (int i=0;i<m;i++) cin >> b[i];
-  auto r = intersection(a, b);
-  sort(r.begin(), r.end());
-  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
-  return 0;
-}`;
-      case "isomorphic-strings-cpp":
-        return `int main(){
-  string s, t; cin >> s >> t;
-  cout << (isIsomorphic(s, t) ? "true" : "false");
-  return 0;
-}`;
-      case "sort-colors-cpp":
-        return `int main(){
-  int n; cin >> n;
-  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
-  sortColors(a);
-  for (size_t i=0;i<a.size();i++) cout << a[i] << (i+1==a.size()?"":" ");
-  return 0;
-}`;
-      case "meeting-rooms-cpp":
-        return `int main(){
-  int n; cin >> n;
-  vector<vector<int>> v(n, vector<int>(2));
-  for (int i=0;i<n;i++) cin >> v[i][0] >> v[i][1];
-  cout << (canAttendMeetings(v) ? "true" : "false");
-  return 0;
-}`;
-      case "product-array-except-self-cpp":
-        return `int main(){
-  int n; cin >> n;
-  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
-  auto r = productExceptSelf(a);
-  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
-  return 0;
-}`;
-      case "subarray-sum-equals-k-cpp":
-        return `int main(){
-  int n, k; cin >> n >> k;
-  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
-  cout << subarraySum(a, k);
-  return 0;
-}`;
-      case "longest-consecutive-sequence-cpp":
-        return `int main(){
-  int n; cin >> n;
-  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
-  cout << longestConsecutive(a);
-  return 0;
-}`;
-      case "task-scheduler-cpp":
-        return `int main(){
-  string s; int n; cin >> s >> n;
-  vector<char> t(s.begin(), s.end());
-  cout << leastInterval(t, n);
-  return 0;
-}`;
-      default:
-        return `int main(){ cout << ""; return 0; }`;
-    }
+  _paletteHtml(currentId) {
+    const label = { solved: 'solved', attempted: 'attempted, not solved', todo: 'not attempted' };
+    const done = this.state.session.filter((id) => id in this.state.sessionResults).length;
+    return `<nav class="qpal mb-2" id="qPalette" aria-label="Session questions">
+      ${this.state.session.map((id, i) => {
+        const st = this._sessionState(id);
+        const cur = id === currentId;
+        return `<button type="button" class="qpal-btn ${st}${cur ? ' current' : ''}" data-pal="${i}" aria-label="Question ${i + 1}, ${label[st]}${cur ? ', current' : ''}"${cur ? ' aria-current="true"' : ''}>${i + 1}</button>`;
+      }).join('')}
+      <span class="text-dim" style="font-size:12px;margin-left:6px" id="qPalCount">${done}/${this.state.session.length} attempted</span>
+      ${done === this.state.session.length ? '<button type="button" class="btn btn-sm btn-primary" id="qPalSummary">See session summary</button>' : ''}
+    </nav>`;
+  },
+
+  _bindPalette() {
+    const nav = document.getElementById('qPalette');
+    if (!nav) return;
+    nav.querySelectorAll('[data-pal]').forEach((b) => b.addEventListener('click', () => this._jumpTo(Number(b.dataset.pal))));
+    const sum = document.getElementById('qPalSummary');
+    if (sum) sum.addEventListener('click', () => this._renderSessionSummary());
+  },
+
+  _refreshPalette(currentId) {
+    const nav = document.getElementById('qPalette');
+    if (!nav) return;
+    nav.outerHTML = this._paletteHtml(currentId);
+    this._bindPalette();
+  },
+
+  _jumpTo(index) {
+    if (!this.state.session[index]) return;
+    this.state.sessionIndex = index;
+    this._openQuestion(this.state.session[index]);
   },
 
   _nextSessionQuestion() {
@@ -1071,40 +974,46 @@ using namespace std;
     const ids = this.state.session;
     await this._hydrate(ids);
     const total = ids.length;
-    const passed = ids.filter(id => this.state.sessionResults[id]).length;
+    const passed = ids.filter((id) => this._sessionState(id) === 'solved').length;
+    const failed = ids.filter((id) => this._sessionState(id) === 'attempted').length;
+    const skipped = total - passed - failed;
+    const groups = [
+      ['solved', 'Solved', 'green', '✓'],
+      ['attempted', 'Attempted, not solved', 'red', '✗'],
+      ['todo', 'Skipped', 'blue', '–']
+    ];
 
     this.container.innerHTML = `
       <div class="mb-2 flex-between">
-        <button class="btn btn-ghost btn-sm" id="backToListBtn"><- Back to Question Bank</button>
-        <span class="chip blue">Session Complete</span>
+        <button class="btn btn-ghost btn-sm" id="backToListBtn">Back to Question Bank</button>
+        <span class="chip blue">Session summary</span>
       </div>
-      <div class="card text-center mb-2" style="padding:36px">
-        <div style="font-size:48px;margin-bottom:8px">${passed === total ? '🎉' : passed >= total / 2 ? '💪' : '📚'}</div>
-        <h2 style="font-size:24px;margin-bottom:6px">Practice Session Complete</h2>
+      <div class="card text-center mb-2" style="padding:28px">
+        <h2 style="font-size:24px;margin-bottom:6px">Practice session</h2>
         <div class="card-stat" style="font-size:42px">${passed}/${total}</div>
         <div class="text-dim mb-2">questions solved</div>
-        <div class="progress mb-3" style="max-width:320px;margin:0 auto"><div class="progress-fill green" style="width:${total ? (passed / total) * 100 : 0}%"></div></div>
-        <p class="text-dim" style="font-size:13.5px">${passed === total ? 'Perfect session — every question solved!' : 'Keep practicing. Revisit the ones you missed to lock in the patterns.'}</p>
+        <div class="progress mb-2" style="max-width:320px;margin:0 auto"><div class="progress-fill green" style="width:${total ? (passed / total) * 100 : 0}%"></div></div>
+        <p class="text-dim" style="font-size:13.5px"><b>${passed}</b> solved · <b>${failed}</b> attempted, not solved · <b>${skipped}</b> skipped</p>
       </div>
-      <div class="card">
-        <div class="card-title">Session Review</div>
-        <div class="card-sub">Tap any question to open it again</div>
-        ${ids.map((id, i) => {
-          const q = this._meta[id];
-          if (!q) return '';
-          const ok = this.state.sessionResults[id];
-          return `
-            <div class="section-check hoverable" style="cursor:pointer" data-reopen="${id}">
-              <div class="check-icon ${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'}</div>
+      ${groups.map(([key, title, color, mark]) => {
+        const list = ids.filter((id) => this._sessionState(id) === key);
+        return `<div class="card mb-2" data-sum-group="${key}">
+          <div class="card-title">${title} (${list.length})</div>
+          <div class="card-sub">Tap a question to open it again</div>
+          ${list.length ? list.map((id) => {
+            const q = this._meta[id] || { title: id };
+            const i = ids.indexOf(id);
+            return `<div class="section-check hoverable" style="cursor:pointer" role="button" tabindex="0" data-reopen="${i}">
+              <div class="check-icon ${key === 'solved' ? 'ok' : 'no'}">${mark}</div>
               <div style="flex:1">
                 <div style="font-weight:600;font-size:13.5px">${i + 1}. ${this._escapeHtml(q.title)}</div>
-                <div class="text-dim" style="font-size:12px">${this._escapeHtml(q.source || 'PlacementPrep')} · ${this._escapeHtml(q.difficulty)} · ${this._escapeHtml(q.topic || '')}</div>
+                <div class="text-dim" style="font-size:12px">${this._escapeHtml(q.source || 'PlacementPrep')} · ${this._escapeHtml(q.difficulty || '')} · ${this._escapeHtml(q.topic || '')}</div>
               </div>
-              <span class="chip ${ok ? 'green' : 'red'}">${ok ? '[OK] Solved' : 'Attempted'}</span>
-            </div>
-          `;
-        }).join('')}
-      </div>
+              <span class="chip ${color}">${title}</span>
+            </div>`;
+          }).join('') : '<div class="text-dim" style="font-size:13px">None</div>'}
+        </div>`;
+      }).join('')}
     `;
 
     document.getElementById('backToListBtn').addEventListener('click', () => {
@@ -1112,115 +1021,10 @@ using namespace std;
       this.state.session = [];
       this._renderList();
     });
-    document.querySelectorAll('[data-reopen]').forEach(el => {
-      el.addEventListener('click', () => this._openQuestion(el.dataset.reopen));
+    document.querySelectorAll('[data-reopen]').forEach((el) => {
+      el.addEventListener('click', () => this._jumpTo(Number(el.dataset.reopen)));
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._jumpTo(Number(el.dataset.reopen)); } });
     });
-  },
-
-  /* Runs one test expression against the user's code. In a browser it happens inside a Web Worker that is
-     terminated after `timeoutMs`, so an infinite loop cannot freeze the page. Where Workers are not available
-     (older browsers, the test environment) it falls back to running on the main thread. */
-  _sandboxRun(code, input, timeoutMs = 2500) {
-    const prelude = this.state.prelude || '';
-    const direct = () => {
-      try {
-        const value = new Function(prelude + '\n' + code + '\nreturn (' + input + ');')();
-        return { ok: true, json: JSON.stringify(value) };
-      } catch (e) {
-        return { ok: false, error: String((e && e.message) || e) };
-      }
-    };
-    if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || !window.URL || !URL.createObjectURL) return Promise.resolve(direct());
-    return new Promise((resolve) => {
-      let worker;
-      let url;
-      try {
-        const src = 'self.onmessage = (e) => { const d = e.data; try { const v = new Function(d.prelude + "\\n" + d.code + "\\nreturn (" + d.input + ");")(); self.postMessage({ ok: true, json: JSON.stringify(v) }); } catch (err) { self.postMessage({ ok: false, error: String((err && err.message) || err) }); } };';
-        url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
-        worker = new Worker(url);
-      } catch {
-        resolve(direct());
-        return;
-      }
-      const finish = (result) => { clearTimeout(timer); worker.terminate(); URL.revokeObjectURL(url); resolve(result); };
-      const timer = setTimeout(() => finish({ ok: false, error: `Time limit exceeded (${timeoutMs / 1000} s). Look for an infinite loop, or a slower approach than the input size allows.` }), timeoutMs);
-      worker.onmessage = (e) => finish(e.data);
-      worker.onerror = (e) => finish({ ok: false, error: String(e.message || 'Script error') });
-      worker.postMessage({ prelude, code, input });
-    });
-  },
-
-  async _runTests() {
-    const q = this.state.current;
-    const resultsDiv = document.getElementById('testResults');
-    const code = document.getElementById('codeEditor').value || this.state.code;
-    const runBtn = document.getElementById('runBtn');
-    if (this._running) return;
-    this._running = true;
-    if (runBtn) { runBtn.disabled = true; runBtn.textContent = 'Running…'; }
-
-    const results = [];
-    try {
-      let timedOut = false;
-      for (const tc of q.testCases) {
-        if (timedOut) {
-          // One timeout is enough: do not make the user wait for the same infinite loop again.
-          results.push({ input: tc.input, expected: tc.expected, actual: 'Not run (stopped after the first timeout)', pass: false });
-          continue;
-        }
-        const r = await this._sandboxRun(code, tc.input);
-        timedOut = !r.ok && /^Time limit exceeded/.test(r.error);
-        const expectedJson = JSON.stringify(this._parseExpected(tc.expected));
-        results.push({
-          input: tc.input,
-          expected: tc.expected,
-          actual: r.ok ? String(r.json) : 'Error: ' + r.error,
-          pass: r.ok && r.json === expectedJson
-        });
-      }
-    } finally {
-      this._running = false;
-      if (runBtn) { runBtn.disabled = false; runBtn.textContent = ' Run Tests'; }
-    }
-    if (this.state.current !== q) return; // the user moved to another question while this ran
-
-    this.state.results = results;
-    const passCount = results.filter(r => r.pass).length;
-    const allPass = passCount === results.length;
-
-    this._recordProgress(q, passCount, results.length, allPass);
-
-    if (this.state.sessionActive && this.state.session.includes(q.id)) {
-      this.state.sessionResults[q.id] = allPass;
-      const nextBtn = document.getElementById('nextBtn');
-      if (nextBtn) nextBtn.style.display = 'inline-flex';
-    }
-
-    resultsDiv.innerHTML = `
-      <div class="mb-2">
-        <div class="card stat-card" style="padding:14px">
-          <div class="card-stat ${allPass ? 'text-success' : ''}">${passCount}/${results.length}</div>
-          <div class="card-stat-label">Tests Passed</div>
-        </div>
-      </div>
-      ${results.map((r, i) => `
-        <div class="test-case ${r.pass ? 'pass' : 'fail'}">
-          <div class="test-title">
-            <span>Test ${i + 1}</span>
-            <span class="${r.pass ? 'text-success' : 'text-danger'}">${r.pass ? '[OK] PASS' : '[X] FAIL'}</span>
-          </div>
-          <div class="test-io">
-            <div>Input: <code>${this._escapeHtml(r.input)}</code></div>
-            <div>Expected: <code>${this._escapeHtml(r.expected)}</code></div>
-            <div>Your Output: <code>${this._escapeHtml(r.actual)}</code></div>
-          </div>
-        </div>
-      `).join('')}
-    `;
-  },
-
-  _parseExpected(str) {
-    try { return JSON.parse(str); } catch { return str; }
   },
 
   _escapeHtml(str) {

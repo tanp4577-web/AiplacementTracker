@@ -5,7 +5,7 @@ import { makeReq, makeRes, mockFetch, jsonResponse, geminiReply, freshIp } from 
 import chat from '../api/chat.js';
 import aptitude from '../api/aptitude.js';
 import jobApply from '../api/job-apply.js';
-import compile from '../api/compile.js';
+import compile, { resetWandboxCache } from '../api/compile.js';
 
 const OLD_ENV = { ...process.env };
 let net;
@@ -154,9 +154,18 @@ test('job-apply: clamps very long resumes', async () => {
 });
 
 /* --------------------------------------------------------------- /api/compile */
-test('compile: validates input and enforces the compiler allow-list', async () => {
+const LIST = [
+  { name: 'gcc-13.2.0', version: '13.2.0', language: 'C++', 'display-name': 'gcc 13.2.0', switches: [] },
+  { name: 'cpython-3.12.7', version: '3.12.7', language: 'Python', 'display-name': 'CPython 3.12.7' },
+  { name: 'rust-1.82.0', version: '1.82.0', language: 'Rust', 'display-name': 'rustc 1.82.0' }
+];
+const wandbox = (compile) => (url, init) => (url.endsWith('/list.json') ? jsonResponse(LIST) : compile(url, init));
+
+test('compile: validates input and accepts only compilers Wandbox lists right now', async () => {
+  resetWandboxCache();
+  net = mockFetch(wandbox(() => jsonResponse({ status: '0', program_output: 'x' })));
   let res = makeRes();
-  await compile(makeReq({ body: { code: '' } }), res);
+  await compile(makeReq({ body: { code: '', compiler: 'gcc-13.2.0' } }), res);
   assert.equal(res.statusCode, 400);
 
   res = makeRes();
@@ -164,24 +173,51 @@ test('compile: validates input and enforces the compiler allow-list', async () =
   assert.equal(res.statusCode, 400);
 
   res = makeRes();
-  await compile(makeReq({ body: { code: 'x'.repeat(40_000) } }), res);
+  await compile(makeReq({ body: { code: 'int main(){}' } }), res);
+  assert.equal(res.statusCode, 400, 'a compiler is required');
+
+  res = makeRes();
+  await compile(makeReq({ body: { code: 'x'.repeat(40_000), compiler: 'gcc-13.2.0' } }), res);
   assert.equal(res.statusCode, 413);
 });
 
-test('compile: passes Wandbox fields through and hides upstream error detail', async () => {
-  net = mockFetch(() => jsonResponse({ program: '42\n', status: '0', compiler_error: '' }));
+test('compile: any language on the live list works, with no per-language code', async () => {
+  resetWandboxCache();
+  net = mockFetch(wandbox(() => jsonResponse({ status: '0', program_output: '42\n', compiler_error: '' })));
+  for (const compiler of ['gcc-13.2.0', 'cpython-3.12.7', 'rust-1.82.0']) {
+    const res = makeRes();
+    await compile(makeReq({ body: { code: 'code', stdin: '1', compiler } }), res);
+    assert.equal(res.statusCode, 200, compiler);
+    assert.equal(res.json().program_output, '42\n');
+  }
+  const sent = JSON.parse(net.calls.filter((c) => c.url.endsWith('compile.json')).at(-1).init.body);
+  assert.equal(sent.compiler, 'rust-1.82.0');
+  assert.equal(sent.stdin, '1');
+  assert.equal(net.calls.filter((c) => c.url.endsWith('list.json')).length, 1, 'the list is fetched once and cached');
+});
+
+test('compile: GET ?list=1 returns the live list, and failures never leak upstream detail', async () => {
+  resetWandboxCache();
+  net = mockFetch(wandbox(() => jsonResponse({})));
   let res = makeRes();
-  await compile(makeReq({ body: { code: 'int main(){}' } }), res);
+  await compile(makeReq({ method: 'GET', query: { list: '1' } }), res);
   assert.equal(res.statusCode, 200);
-  assert.equal(res.json().program, '42\n');
-  assert.deepEqual(JSON.parse(net.calls[0].init.body).compiler, 'gcc-head');
+  assert.deepEqual(res.json().map((c) => c.name), LIST.map((c) => c.name));
+  assert.ok(!('switches' in res.json()[0]), 'trimmed to the fields the page needs');
   net.restore();
 
-  net = mockFetch(() => {
-    throw new Error('ECONNRESET internal-host');
-  });
+  resetWandboxCache();
+  net = mockFetch(() => { throw new Error('ECONNRESET internal-host'); });
   res = makeRes();
-  await compile(makeReq({ body: { code: 'int main(){}' } }), res);
+  await compile(makeReq({ body: { code: 'int main(){}', compiler: 'gcc-13.2.0' } }), res);
+  assert.equal(res.statusCode, 502);
+  assert.ok(!res.body.includes('internal-host'));
+  net.restore();
+
+  resetWandboxCache();
+  net = mockFetch(wandbox(() => { throw new Error('ECONNRESET internal-host'); }));
+  res = makeRes();
+  await compile(makeReq({ body: { code: 'int main(){}', compiler: 'gcc-13.2.0' } }), res);
   assert.equal(res.statusCode, 502);
   assert.ok(!res.body.includes('internal-host'));
 });

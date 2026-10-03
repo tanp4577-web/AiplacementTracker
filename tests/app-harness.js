@@ -24,6 +24,21 @@ async function codingApi(u) {
   return { ok: res.statusCode < 400, status: res.statusCode, json: async () => res.json(), text: async () => res.body };
 }
 
+/** A small copy of Wandbox's /api/list.json (real field names). */
+export const WANDBOX_LIST = [
+  { name: 'gcc-head', version: '17.0.0 20260817 (experimental)', language: 'C++', 'display-name': 'gcc HEAD' },
+  { name: 'gcc-13.2.0', version: '13.2.0', language: 'C++', 'display-name': 'gcc' },
+  { name: 'clang-17.0.1', version: '17.0.1', language: 'C++', 'display-name': 'clang' },
+  { name: 'cpython-head', version: '', language: 'Python', 'display-name': 'CPython HEAD' },
+  { name: 'cpython-3.12.7', version: '3.12.7', language: 'Python', 'display-name': 'CPython' },
+  { name: 'cpython-3.14.0', version: '3.14.0', language: 'Python', 'display-name': 'CPython' },
+  { name: 'openjdk-jdk-22+36', version: 'jdk-22+36', language: 'Java', 'display-name': 'OpenJDK' },
+  { name: 'rust-1.82.0', version: '1.82.0', language: 'Rust', 'display-name': 'rustc' },
+  { name: 'nodejs-20.17.0', version: '20.17.0', language: 'JavaScript', 'display-name': 'Node.js' },
+  { name: 'lazyk', version: '', language: 'Lazy K', 'display-name': 'Lazy K' },
+  { name: 'gcc-head-pp', version: '17.0.0', language: 'CPP', 'display-name': 'gcc HEAD (preprocessor)' }
+];
+
 export function defaultFetch(url) {
   const u = String(url);
   if (u.startsWith('/api/coding-questions')) return codingApi(u);
@@ -40,7 +55,8 @@ export function defaultFetch(url) {
     return okJson({ questions: Array.from({ length: 5 }, (_, i) => ({ id: `q${i}`, category: 'Quant', difficulty: 'medium', question: `What is ${i} + 1?`, options: [`${i}`, `${i + 1}`, `${i + 2}`, `${i + 3}`], correct: 1, explanation: 'Add one.' })) });
   }
   if (u.startsWith('/api/chat')) return okJson({ reply: 'Practise data structures daily.' });
-  if (u.startsWith('/api/compile')) return okJson({ program: '', status: '0', compiler_error: '' });
+  if (u.endsWith('/api/list.json') || u.startsWith('/api/compile?list')) return okJson(WANDBOX_LIST);
+  if (u.includes('wandbox.org/api/compile.json') || u.startsWith('/api/compile')) return okJson({ status: '0', signal: '', compiler_error: '', program_output: '', program_error: '' });
   if (u.startsWith('/api/job-apply')) return okJson({ matchScore: 72, matchedSkills: ['Node.js'], missingSkills: ['Docker'], skillGapSummary: 'Learn Docker.', recommendations: [{ action: 'Build an API', resourceType: 'Project', outcome: 'Ship it' }], recommendedInterviewQuestions: ['Q1', 'Q2', 'Q3'] });
   return okJson({}, 503);
 }

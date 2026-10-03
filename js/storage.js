@@ -204,7 +204,9 @@ const DB = {
       },
       coding: {
         solved: Array.isArray(p.coding && p.coding.solved) ? p.coding.solved.filter((x) => typeof x === 'string' || typeof x === 'number').slice(0, 500) : [],
-        totalAttempts: num(p.coding && p.coding.totalAttempts)
+        totalAttempts: num(p.coding && p.coding.totalAttempts),
+        attempts: isObj(p.coding && p.coding.attempts) ? p.coding.attempts : {},
+        submissions: Array.isArray(p.coding && p.coding.submissions) ? p.coding.submissions.slice(-200) : []
       },
       interview: isObj(p.interview) ? p.interview : base.interview,
       resumeScore: Math.min(num(p.resumeScore), 100),
