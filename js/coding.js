@@ -150,6 +150,28 @@ const Coding = {
       };
       document.addEventListener('keydown', this._focusKey);
     }
+    // Real full screen (the whole monitor), like the live interview. It must start from the click, so only when
+    // the learner asked for it (not when a question re-renders while focus mode is already on).
+    const root = document.documentElement;
+    if (on && !quiet && root.requestFullscreen && !document.fullscreenElement) {
+      this._fsByFocus = true;
+      Promise.resolve(root.requestFullscreen()).catch(() => { this._fsByFocus = false; }); // refused: the big layout still works
+    } else if (!on && this._fsByFocus && document.fullscreenElement && document.exitFullscreen) {
+      this._fsByFocus = false;
+      Promise.resolve(document.exitFullscreen()).catch(() => {});
+    } else if (!on) {
+      this._fsByFocus = false;
+    }
+    if (!this._fsListener) {
+      // The browser's own Esc leaves full screen without a key event for the page: leave focus mode with it.
+      this._fsListener = () => {
+        if (!document.fullscreenElement && this._fsByFocus && document.body.classList.contains('coding-focus')) {
+          this._fsByFocus = false;
+          this._setFocus(false, true);
+        }
+      };
+      document.addEventListener('fullscreenchange', this._fsListener);
+    }
     if (!quiet) (on ? document.getElementById('focusExit') : document.getElementById('focusBtn'))?.focus();
   },
 
