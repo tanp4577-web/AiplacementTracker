@@ -5,7 +5,9 @@
   "scripts": {
     "lint": "eslint api tests js eslint.config.js",
     "lint:all": "eslint .",
-    "test": "node --test \"tests/**/*.test.js\""
+    "test": "node --test \"tests/**/*.test.js\"",
+    "bank:build": "node tools/coding-bank/build.cjs",
+    "bank:check": "node tools/coding-bank/build.cjs --check"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

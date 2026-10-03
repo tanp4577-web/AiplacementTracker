@@ -144,12 +144,12 @@ test('coding practice: a session runs tests, and a correct solution passes and i
   await tick(100);
   app.document.getElementById('runBtn').click();
   await tick(200);
-  assert.match(text(app.document.getElementById('testResults')), /0\/3 Tests Passed/, 'starter code fails');
+  assert.match(text(app.document.getElementById('testResults')), /0\/\d+ Tests Passed/, 'starter code fails');
 
   app.document.getElementById('codeEditor').value = 'function twoSum(nums, target) { const seen = {}; for (let i = 0; i < nums.length; i++) { const need = target - nums[i]; if (need in seen) return [seen[need], i]; seen[nums[i]] = i; } }';
   app.document.getElementById('runBtn').click();
   await tick(200);
-  assert.match(text(app.document.getElementById('testResults')), /3\/3 Tests Passed/);
+  assert.match(text(app.document.getElementById('testResults')), /([1-9]\d*)\/\1 Tests Passed/);
   assert.ok(app.run(`DB.getProgress('guest@local').coding.solved.includes('two-sum')`));
   assert.deepEqual(app.errors, []);
 });
@@ -811,11 +811,13 @@ test('coding practice: the C++ toggle only appears for questions that actually h
   const withCpp = app.run("EXTRA_CODING_CPP.map(c => c.id.replace(/-cpp$/, ''))");
   const withoutCppTitle = app.run(`(() => {
     const cppIds = new Set(EXTRA_CODING_CPP.map(c => c.id));
-    const q = [...FALLBACK_CODING, ...EXTRA_CODING].find(q => !cppIds.has(q.id + '-cpp'));
+    const q = Coding.state.questions.find(q => !cppIds.has(q.id + '-cpp'));
     return q.title;
   })()`);
   assert.ok(withoutCppTitle, 'fixture must contain at least one JS-only question');
 
+  // The list is paged, so narrow it to this question first.
+  app.run('Coding.state.filters.search = ' + JSON.stringify(withoutCppTitle) + '; Coding._renderList()');
   const item = [...app.document.querySelectorAll('#questionList > *')].find((el) => el.textContent.includes(withoutCppTitle));
   item.click();
   await tick(200);

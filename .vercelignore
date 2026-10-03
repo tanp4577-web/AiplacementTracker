@@ -8,3 +8,4 @@ temp-deploy/
 tests/
 .github/
 eslint.config.js
+tools/
