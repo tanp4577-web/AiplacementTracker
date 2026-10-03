@@ -667,6 +667,8 @@ const Coding = {
     const sessionTotal = this.state.session.length;
     const src = q.source || 'LeetCode';
 
+    // The learner caused this render (a click that waited for the network): show it as it is, no entrance replay.
+    if (typeof Animations !== 'undefined') Animations._lastInteraction = performance.now();
     this.container.innerHTML = `
       <div class="mb-2 flex-between" style="flex-wrap:wrap;gap:10px">
         <button class="btn btn-ghost btn-sm" id="backBtn"><i class="bi bi-arrow-left"></i> ${inSession ? 'Session' : 'Back to Problems'}</button>
@@ -898,6 +900,8 @@ const Coding = {
       if (nextBtn) nextBtn.style.display = 'inline-flex';
     }
 
+    // The learner caused this render (a click that waited for the network): show it as it is, no entrance replay.
+    if (typeof Animations !== 'undefined') Animations._lastInteraction = performance.now();
     const compileErr = results.find((r) => r.kind === 'compile');
     const netErr = results.find((r) => r.kind === 'network');
     const timeLabel = compiler === 'browser' ? `${ms} ms measured in your browser` : `${ms} ms including the trip to Wandbox`;
