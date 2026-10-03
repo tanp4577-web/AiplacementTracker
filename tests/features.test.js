@@ -811,11 +811,13 @@ test('coding practice: the C++ toggle only appears for questions that actually h
   const withCpp = app.run("EXTRA_CODING_CPP.map(c => c.id.replace(/-cpp$/, ''))");
   const withoutCppTitle = app.run(`(() => {
     const cppIds = new Set(EXTRA_CODING_CPP.map(c => c.id));
-    const q = [...FALLBACK_CODING, ...EXTRA_CODING].find(q => !cppIds.has(q.id + '-cpp'));
+    const q = Coding.state.questions.find(q => !cppIds.has(q.id + '-cpp'));
     return q.title;
   })()`);
   assert.ok(withoutCppTitle, 'fixture must contain at least one JS-only question');
 
+  // The list is paged, so narrow it to this question first.
+  app.run('Coding.state.filters.search = ' + JSON.stringify(withoutCppTitle) + '; Coding._renderList()');
   const item = [...app.document.querySelectorAll('#questionList > *')].find((el) => el.textContent.includes(withoutCppTitle));
   item.click();
   await tick(200);
