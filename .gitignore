@@ -17,3 +17,4 @@ __pycache__/
 recordings/
 *.webm
 *.wav
+.cssaudit/
