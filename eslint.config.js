@@ -2,7 +2,7 @@ import js from '@eslint/js';
 import globals from 'globals';
 
 export default [
-  { ignores: ['node_modules/**', 'js/data/**'] },
+  { ignores: ['node_modules/**', 'js/data/**', 'js/vendor/**', 'tools/**'] },
   js.configs.recommended,
   {
     // Serverless functions and tests (Node, ES modules)

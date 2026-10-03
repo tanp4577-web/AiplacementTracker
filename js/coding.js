@@ -412,6 +412,26 @@ const Coding = {
       ${list.length > 8 ? `<button type="button" class="btn btn-ghost btn-sm mt-1" data-act-more>${this.state.showAllActivity ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}`;
   },
 
+  /** Writes code into the editor (CodeMirror when loaded, always mirrored in the textarea). */
+  _setCode(code) {
+    const ta = document.getElementById('codeEditor');
+    if (ta) ta.value = code;
+    this.state.code = code;
+    if (this._editor) this._editor.setValue(code);
+  },
+
+  /** Upgrades the textarea to CodeMirror in the background. The textarea keeps working if that fails. */
+  _mountEditor() {
+    if (this._editor) { this._editor.destroy(); this._editor = null; }
+    const ta = document.getElementById('codeEditor');
+    if (!ta || typeof CodeEditor === 'undefined') return;
+    const q = this.state.current;
+    CodeEditor.mount(ta, { language: this.state.lang === 'cpp' ? 'c++' : 'javascript', onChange: (v) => { this.state.code = v; } }).then((h) => {
+      if (this.state.current !== q || !ta.isConnected) { h.destroy(); return; }
+      this._editor = h;
+    });
+  },
+
   _teaserHtml() {
     const all = this._attempts();
     const solved = all.filter((a) => a.solved).length;
@@ -532,10 +552,8 @@ const Coding = {
       const starter = isCpp ? (cppQ ? cppQ.starterCpp : this._cppTemplate(q)) : q.starterCode;
       const fileLabel = isCpp ? 'solution.cpp' : 'solution.js';
       const editor = document.getElementById('codeEditor');
-      if (editor) {
-        editor.value = starter;
-        this.state.code = starter;
-      }
+      if (editor) this._setCode(starter);
+      if (this._editor) this._editor.setLanguage(isCpp ? 'c++' : 'javascript');
       const fileEl = document.getElementById('codeFileLabel');
       if (fileEl) fileEl.textContent = fileLabel;
       const jsBtn = document.getElementById('langJsBtn');
@@ -640,8 +658,7 @@ const Coding = {
       const isCpp = this.state.lang === 'cpp';
       const cppQ = this._lookupCppQuestion(q.id);
       const starter = isCpp ? (cppQ ? cppQ.starterCpp : this._cppTemplate(q)) : q.starterCode;
-      document.getElementById('codeEditor').value = starter;
-      this.state.code = starter;
+      this._setCode(starter);
     });
     document.getElementById('solutionBtn').addEventListener('click', () => {
       const panel = document.getElementById('solutionPanel');
@@ -682,6 +699,7 @@ const Coding = {
     });
 
     renderEditor();
+    this._mountEditor();
 
     if (inSession) {
       const nextBtn = document.getElementById('nextBtn');

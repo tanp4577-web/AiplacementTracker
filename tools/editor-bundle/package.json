@@ -1,0 +1,24 @@
+{
+  "name": "editor-bundle",
+  "private": true,
+  "description": "Builds js/vendor/codemirror.js (CodeMirror 6 + language modes) used by the coding page. Not part of the site's CI install.",
+  "type": "module",
+  "scripts": { "build": "node build.mjs" },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.18.0",
+    "@codemirror/commands": "^6.7.0",
+    "@codemirror/lang-cpp": "^6.0.2",
+    "@codemirror/lang-go": "^6.0.1",
+    "@codemirror/lang-java": "^6.0.1",
+    "@codemirror/lang-javascript": "^6.2.2",
+    "@codemirror/lang-php": "^6.0.1",
+    "@codemirror/lang-python": "^6.1.6",
+    "@codemirror/lang-rust": "^6.0.1",
+    "@codemirror/language": "^6.10.0",
+    "@codemirror/legacy-modes": "^6.4.0",
+    "@codemirror/state": "^6.4.0",
+    "@codemirror/view": "^6.30.0",
+    "@lezer/highlight": "^1.2.0",
+    "esbuild": "^0.24.0"
+  }
+}

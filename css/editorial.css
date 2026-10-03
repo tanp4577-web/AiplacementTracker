@@ -530,3 +530,9 @@ body.coding-focus .main-content{margin-left:0!important;max-width:none}
 .qpal-btn.current{outline:2px solid var(--accent);outline-offset:2px}
 
 .verdict{font-weight:700;font-size:15px;margin-bottom:6px}.verdict.ok{color:var(--accent)}.verdict.bad{color:#b91c1c}
+
+/* Code editor (CodeMirror): emerald / teal on the editor's dark green panel, no blue or violet.
+   The panel is dark in both themes, so these colours do not change with the page theme. */
+.code-wrap{--cm-text:#d7ebe2;--cm-keyword:#34d399;--cm-string:#e6c27a;--cm-number:#5eead4;--cm-function:#86efc4;--cm-type:#f0b46a;--cm-comment:#6f9486;--cm-punct:#9bbcad;--cm-gutter:#5f8274;--cm-caret:#34d399;--cm-active-line:rgba(52,211,153,.08);--cm-selection:rgba(52,211,153,.28)}
+.cm-host{min-height:260px;max-height:520px;overflow:auto;border-radius:0 0 10px 10px}
+.cm-host .cm-editor{min-height:260px}
