@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootApp, goTo, tick, defaultFetch, read } from './app-harness.js';
 import { fileURLToPath } from 'node:url';
+import { CODING_BANK } from '../api/_data/coding-bank.js';
 
 const text = (el, n = 400) => (el ? el.textContent.replace(/\s+/g, ' ').trim().slice(0, n) : '');
 const fire = (app, el, type) => el.dispatchEvent(new app.window.Event(type, { bubbles: true }));
@@ -111,27 +112,6 @@ test('aptitude quiz works offline using the built-in question bank', async () =>
 });
 
 /* ---------------------------------------------------------------- Coding */
-test('coding practice: every JavaScript question is well-formed', async () => {
-  const app = await bootApp();
-  const problems = JSON.parse(app.run(`JSON.stringify((() => {
-    const problems = []; const ids = new Set();
-    for (const q of [...FALLBACK_CODING, ...EXTRA_CODING]) {
-      const tag = q.id + ': ';
-      if (!q.id || ids.has(q.id)) problems.push(tag + 'missing/duplicate id'); ids.add(q.id);
-      if (!['Easy', 'Medium', 'Hard'].includes(q.difficulty)) problems.push(tag + 'bad difficulty');
-      if (!q.testCases || !q.testCases.length) { problems.push(tag + 'no tests'); continue; }
-      const fn = /(?:function|class)\\s+([A-Za-z0-9_$]+)/.exec(q.starterCode || '');
-      if (!fn) { problems.push(tag + 'starter code defines nothing'); continue; }
-      for (const tc of q.testCases) {
-        if (!String(tc.input).includes(fn[1])) problems.push(tag + 'test does not use ' + fn[1]);
-        try { new Function('return ' + tc.input); } catch (e) { problems.push(tag + 'invalid test input ' + tc.input); }
-      }
-    }
-    return problems;
-  })())`));
-  assert.deepEqual(problems, []);
-});
-
 test('coding practice: a session runs tests, and a correct solution passes and is recorded', async () => {
   const app = await bootApp();
   await goTo(app, 'coding');
@@ -809,15 +789,13 @@ test('coding practice: the C++ toggle only appears for questions that actually h
   const app = await bootApp();
   await goTo(app, 'coding');
   const withCpp = app.run("EXTRA_CODING_CPP.map(c => c.id.replace(/-cpp$/, ''))");
-  const withoutCppTitle = app.run(`(() => {
-    const cppIds = new Set(EXTRA_CODING_CPP.map(c => c.id));
-    const q = Coding.state.questions.find(q => !cppIds.has(q.id + '-cpp'));
-    return q.title;
-  })()`);
+  const cppIds = new Set(app.run('EXTRA_CODING_CPP.map(c => c.id)'));
+  const withoutCppTitle = CODING_BANK.find((q) => !cppIds.has(q.id + '-cpp')).title;
   assert.ok(withoutCppTitle, 'fixture must contain at least one JS-only question');
 
   // The list is paged, so narrow it to this question first.
-  app.run('Coding.state.filters.search = ' + JSON.stringify(withoutCppTitle) + '; Coding._renderList()');
+  app.run('Coding.state.filters.search = ' + JSON.stringify(withoutCppTitle) + '; Coding._loadList()');
+  await tick(150);
   const item = [...app.document.querySelectorAll('#questionList > *')].find((el) => el.textContent.includes(withoutCppTitle));
   item.click();
   await tick(200);
@@ -880,9 +858,10 @@ test('accessibility: nav is labelled and the current page is marked with aria-cu
 
 test('coding practice: every C++ question has a real harness, a JS twin and test cases', async () => {
   const app = await bootApp();
+  app.run('window.__bankIds = ' + JSON.stringify(CODING_BANK.map((q) => q.id)));
   const problems = app.run(`(() => {
     const out = [];
-    const jsIds = new Set([...FALLBACK_CODING, ...EXTRA_CODING].map(q => q.id));
+    const jsIds = new Set(window.__bankIds);
     const stub = Coding._cppMainFor({ id: 'no-such-question-cpp' });
     for (const c of EXTRA_CODING_CPP) {
       if (!jsIds.has(c.id.replace(/-cpp$/, '')) && c.id !== 'max-subarray-cpp') out.push(c.id + ': no JS twin');

@@ -6,6 +6,8 @@ import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { JSDOM, VirtualConsole } from 'jsdom';
+import codingQuestions from '../api/coding-questions.js';
+import { makeReq, makeRes } from './helpers.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -14,8 +16,17 @@ export const tick = (ms = 30) => new Promise((r) => setTimeout(r, ms));
 const okJson = (data, status = 200) => ({ ok: status < 400, status, json: async () => data, text: async () => JSON.stringify(data), blob: async () => ({}) });
 
 /** Default network: every /api call answers plausibly; anything else is "offline". */
+/** Runs the real /api/coding-questions handler in-process, like the serverless function would. */
+async function codingApi(u) {
+  const req = makeReq({ method: 'GET', query: Object.fromEntries(new URL(u, 'https://app.vercel.app').searchParams) });
+  const res = makeRes();
+  await codingQuestions(req, res);
+  return { ok: res.statusCode < 400, status: res.statusCode, json: async () => res.json(), text: async () => res.body };
+}
+
 export function defaultFetch(url) {
   const u = String(url);
+  if (u.startsWith('/api/coding-questions')) return codingApi(u);
   if (u.startsWith('/api/jobs')) {
     return okJson({
       source: u.includes('source=remote') ? 'remote' : 'india', mode: 'remote-fallback', needsSetup: true, notice: 'On-site local listings are not connected yet.', count: 2, page: 1,

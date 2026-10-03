@@ -1,12 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
+import { CODING_BANK as bank, CODING_PRELUDE as prelude } from '../api/_data/coding-bank.js';
 
-/* Fast checks on the SHIPPED bank (js/data/coding-bank.js). The slow, thorough verification (random inputs,
+/* Fast checks on the SHIPPED bank (api/_data/coding-bank.js). The slow, thorough verification (random inputs,
    every approach against the first) runs with: npm run bank:check */
-const file = fs.readFileSync(new URL('../js/data/coding-bank.js', import.meta.url), 'utf8');
-const { bank, prelude } = vm.runInNewContext(`${file}\n;({ bank: CODING_BANK, prelude: CODING_PRELUDE })`);
 
 const run = (code, expr) => {
   const ctx = vm.createContext({ Math, JSON, Array, Object, Map, Set, Number, String, Infinity, NaN, parseInt, parseFloat, isNaN, Symbol, BigInt });
