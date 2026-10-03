@@ -30,7 +30,8 @@ const SquadRoom = (() => {
     };
   }
 
-  const clean = (s, n) => String(s == null ? '' : s).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n);
+  // control characters (below the space character) become spaces
+  const clean = (s, n) => Array.from(String(s == null ? '' : s), (ch) => (ch.charCodeAt(0) < 32 ? ' ' : ch)).join('').trim().slice(0, n);
 
   /** The only way room state changes. Returns a new state, or the same one when the event is not allowed. */
   function reduce(state, ev) {

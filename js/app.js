@@ -11,6 +11,7 @@ const App = {
       resume: { render: (c) => Resume.render(c), title: 'Resume Analyzer', subtitle: 'ATS score & improvement suggestions' },
       aptitude: { render: (c) => Aptitude.render(c), title: 'Aptitude Quiz', subtitle: 'Practice with adaptive difficulty' },
       coding: { render: (c) => Coding.render(c), title: 'Coding Practice', subtitle: 'Write a program in any language' },
+      squad: { render: (c) => Squad.render(c), title: 'Squad Practice', subtitle: 'Code together with friends and score points' },
       mockinterview: { render: (c) => MockInterview.render(c), title: 'Live Interview', subtitle: 'Spoken mock rounds with an AI interviewer' },
       interview: { render: (c) => InterviewWall.render(c), title: 'Interview Experiences', subtitle: 'Interview rounds and tips you have saved' },
       jobs: { render: (c) => Jobs.render(c), title: 'Hiring Hub', subtitle: 'Find roles and check your resume fit' },
@@ -66,7 +67,7 @@ const App = {
   },
 
   _route() {
-    const hash = window.location.hash.slice(1) || 'dashboard';
+    const hash = (window.location.hash.slice(1) || 'dashboard').split('?')[0]; // '#squad?join=ABC123' is the squad page
     if (this.currentView === hash) return;
     if (this._routeTimer) return; // debounce rapid route changes
 
@@ -92,6 +93,7 @@ const App = {
 
     // Leaving the live interview must switch the camera and microphone off.
     if (typeof MockInterview !== 'undefined' && hash !== 'mockinterview') MockInterview.cleanup();
+    if (typeof Squad !== 'undefined' && hash !== 'squad') Squad.cleanup();
     if (typeof Coding !== 'undefined' && hash !== 'coding' && document.body.classList.contains('coding-focus')) Coding._setFocus(false, true);
 
     // Update page title

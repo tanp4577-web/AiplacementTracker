@@ -822,10 +822,10 @@ const Coding = {
   /* ---------------------------------------------------------------- running and judging */
 
   /** One test: run the program, then judge its stdout. -> { kind, pass, stdout, stderr, message, ms, actual } */
-  async _runOne(q, test, code) {
-    const r = this.state.compiler === 'browser'
+  async _runOne(q, test, code, compiler = this.state.compiler) {
+    const r = compiler === 'browser'
       ? await JsRunner.run(code, test.stdin, 3000).then((x) => ({ kind: x.kind, stdout: x.stdout, stderr: x.stderr, message: x.error, ms: x.ms }))
-      : await Wandbox.run({ compiler: this.state.compiler, code, stdin: test.stdin });
+      : await Wandbox.run({ compiler, code, stdin: test.stdin });
     const out = { kind: r.kind, pass: false, stdout: r.stdout || '', stderr: r.stderr || '', message: r.message || '', ms: r.ms || 0 };
     if (r.kind !== 'ok') return out;
     try {

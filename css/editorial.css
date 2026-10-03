@@ -555,3 +555,18 @@ body.coding-focus .main-content{margin-left:0!important;max-width:none}
 body.coding-focus .main-content{padding:12px 16px}
 body.coding-focus .cm-host{max-height:none;height:calc(100vh - 300px);min-height:320px}
 body.coding-focus .code-input{min-height:calc(100vh - 300px)}
+
+/* Squad practice */
+.sq-code{font-family:var(--font-mono);font-size:34px;letter-spacing:.3em;margin:14px 0 4px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius);text-align:center;user-select:all}
+.sq-members{display:grid;gap:8px}
+.sq-member{display:flex;align-items:center;gap:10px}
+.sq-avatar{width:34px;height:34px;border-radius:50%;background:var(--text);color:var(--bg);display:grid;place-items:center;font-weight:700}
+.sq-settings{display:grid;grid-template-columns:max-content 1fr;gap:8px 12px;align-items:center;margin:12px 0}
+.sq-settings .field-label{margin:0}
+.sq-chat-log{height:160px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;font-size:13px;margin-bottom:8px}
+.sq-board{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.sq-board li{display:grid;grid-template-columns:28px 1fr auto auto;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
+.sq-rank{font-family:var(--font-mono);font-weight:700}
+.sq-palette{display:flex;gap:6px;flex-wrap:wrap}
+.sq-table{overflow:auto}.sq-table table{width:100%;border-collapse:collapse;font-size:13px}.sq-table th,.sq-table td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--border)}
+@media (max-width:600px){.sq-settings{grid-template-columns:1fr}.sq-code{font-size:24px}.sq-board li{grid-template-columns:24px 1fr auto}.sq-board li .text-dim{display:none}}
