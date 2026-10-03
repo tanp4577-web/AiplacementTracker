@@ -5,7 +5,7 @@ class ListNode { constructor(val = 0, next = null) { this.val = val; this.next =
 class TreeNode { constructor(val = 0, left = null, right = null) { this.val = val; this.left = left; this.right = right; } }
 class GraphNode { constructor(val = 0, neighbors = []) { this.val = val; this.neighbors = neighbors; } }
 function fromList(a) { let h = null; for (let i = a.length - 1; i >= 0; i--) h = new ListNode(a[i], h); return h; }
-function toList(h) { const o = []; let guard = 0; while (h && guard++ < 10000) { o.push(h.val); h = h.next; } return o; }
+function toList(h) { if (h === undefined) return undefined; const o = []; let guard = 0; while (h && guard++ < 10000) { o.push(h.val); h = h.next; } return o; }
 function fromListCycle(a, pos) {
   const h = fromList(a); if (pos < 0 || !h) return h;
   let tail = h, target = h, i = 0;
@@ -24,6 +24,7 @@ function fromTree(a) {
   return root;
 }
 function toTree(root) {
+  if (root === undefined) return undefined;
   if (!root) return [];
   const out = []; const q = [root];
   while (q.length) { const n = q.shift(); if (n) { out.push(n.val); q.push(n.left, n.right); } else out.push(null); }
@@ -37,6 +38,7 @@ function fromGraph(adj) {
   return nodes[0];
 }
 function toGraph(node) {
+  if (node === undefined) return undefined;
   if (!node) return [];
   const seen = new Map(); const q = [node]; seen.set(node, true);
   const byVal = new Map();

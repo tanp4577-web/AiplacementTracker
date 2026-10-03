@@ -22,7 +22,7 @@ function classify(label) {
     'n+m': 'n', 'm+n': 'n', 'v+e': 'n', 'e+v': 'n', 'nm': 'n2', 'mn': 'n2', 'elogv': 'nlogn', 'elog(v)': 'nlogn', '(v+e)logv': 'nlogn', 'elogn': 'nlogn',
     'nlogk': 'nlogn', 'nk': 'n2', 'n+k': 'n', 'logmn': 'logn', 'log(mn)': 'logn', 'log(min(m,n))': 'logn', 'logn+logm': 'logn', 'k': '1', 'h': 'logn',
     'nlogm': 'nlogn', 'min(n,m)': 'n', 'nlogn+mlogm': 'nlogn', '(n+m)log(n+m)': 'nlogn', '(n+m)log(m+n)': 'nlogn', 'nlogn+m': 'nlogn', 'nlogn+nm': 'n2',
-    'mlogn': 'nlogn', 'm': 'n', 'n+mlogn': 'nlogn', 'v^2': 'n2', 'v^3': 'n3', 'n^2m': 'n3', 'nmk': 'n3', 'mnk': 'n3', 'n^2k': 'n3', 'm^2': 'n2'
+    'mlogn': 'nlogn', 'm': 'n', 'n+mlogn': 'nlogn', 'v^2': 'n2', 'v^3': 'n3', 'n^2m': 'n3', 'nmk': 'n3', 'mnk': 'n3', 'n^2k': 'n3', 'm^2': 'n2', 's': 'n', 'x': 'n', '√x': 'sqrtn', 'logx': 'logn', 'k': '1', 'n√n': 'nsqrtn', 'nloglogn': 'nlogn', 'loglogn': 'logn', 'log(x)': 'logn', 'sqrt(x)': 'sqrtn', 'nlognm': 'nlogn', 'mnlogn': 'nlogn', 'nmlogn': 'nlogn', 'nlogm+n': 'nlogn', 'mlogm': 'nlogn', 'nlog^2n': 'nlogn', 'n+mlogm': 'nlogn', 'nlogn+mlogn': 'nlogn'
   };
   const key = table[s];
   return key && CLASSES[key] ? key : null;

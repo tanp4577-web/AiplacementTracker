@@ -44,6 +44,8 @@ function wrap(call, out) {
 function exprFor(p, test) {
   if (typeof test === 'string') return test;
   if (test && typeof test === 'object' && !Array.isArray(test) && test.expr) return test.expr;
+  // `expr` lets list/tree/class problems build their inputs and read their outputs: expr(...args) -> expression text
+  if (typeof p.expr === 'function') return wrap(p.expr(...test), p.out);
   return wrap(`${p.fn}(${test.map((a) => JSON.stringify(a)).join(', ')})`, p.out);
 }
 
