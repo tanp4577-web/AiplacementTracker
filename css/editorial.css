@@ -528,3 +528,5 @@ body.coding-focus .main-content{margin-left:0!important;max-width:none}
 .qpal-btn.solved{background:var(--accent);border-color:var(--accent);color:#fff}
 .qpal-btn.attempted{border-color:#b45309;color:#b45309;background:rgba(180,83,9,.1)}
 .qpal-btn.current{outline:2px solid var(--accent);outline-offset:2px}
+
+.verdict{font-weight:700;font-size:15px;margin-bottom:6px}.verdict.ok{color:var(--accent)}.verdict.bad{color:#b91c1c}

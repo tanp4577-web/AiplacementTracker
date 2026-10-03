@@ -13,6 +13,11 @@ async function openProblem(app, title) {
   await tick(60);
 }
 
+async function openProgress(app) {
+  app.document.getElementById('openProgressBtn').click();
+  await tick(60);
+}
+
 async function run(app, code) {
   if (code) app.document.getElementById('codeEditor').value = code;
   app.document.getElementById('runBtn').click();
@@ -82,8 +87,10 @@ test('coding: when the question service is down you get a clear message and a wo
 test('coding activity: tries are recorded, unfinished problems are listed as attempted, solved ones as solved', async () => {
   const app = await bootApp();
   await goTo(app, 'coding');
+  await openProgress(app);
   assert.match(text(app.document.getElementById('activityCard')), /Solved \(0\)/);
   assert.match(text(app.document.getElementById('activityCard')), /Nothing solved yet/);
+  app.document.getElementById('progBack').click();
 
   await openProblem(app, 'Two Sum');
   await run(app); // untouched starter: fails
@@ -100,6 +107,7 @@ test('coding activity: tries are recorded, unfinished problems are listed as att
 
   app.document.getElementById('backBtn').click();
   await tick(60);
+  await openProgress(app);
   app.document.querySelector('[data-act-tab="attempted"]').click();
   let card = text(app.document.getElementById('activityCard'));
   assert.match(card, /Attempted, not solved \(1\)/);
@@ -108,6 +116,7 @@ test('coding activity: tries are recorded, unfinished problems are listed as att
   assert.match(card, new RegExp(`best ${rec.best}/${rec.total} tests`));
 
   // solve it
+  app.document.getElementById('progBack').click();
   await openProblem(app, 'Two Sum');
   await run(app, TWO_SUM);
   rec = app.run(`DB.getProgress('guest@local').coding.attempts['two-sum']`);
@@ -117,6 +126,7 @@ test('coding activity: tries are recorded, unfinished problems are listed as att
 
   app.document.getElementById('backBtn').click();
   await tick(60);
+  await openProgress(app);
   app.document.querySelector('[data-act-tab="solved"]').click();
   card = text(app.document.getElementById('activityCard'));
   assert.match(card, /Solved \(1\)/);
@@ -135,6 +145,7 @@ test('coding activity: problems solved before attempts were tracked still appear
   const app = await bootApp();
   app.run(`DB.saveProgress('guest@local', { coding: { solved: ['fizzbuzz', 'three-sum'], totalAttempts: 2 } })`);
   await goTo(app, 'coding');
+  await openProgress(app);
   await tick(250);
   const card = text(app.document.getElementById('activityCard'));
   assert.match(card, /Solved \(2\)/);
@@ -160,5 +171,38 @@ test('coding: the solved-only filter and sessions use the same API', async () =>
   await tick(400);
   assert.equal(app.run('Coding.state.session.length'), 5);
   assert.match(text(app.document.getElementById('viewContainer')), /Session 1\/5/);
+  assert.deepEqual(app.errors, []);
+});
+
+test('my progress: every run is a stored submission with a verdict and a measured time, shown in the view', async () => {
+  const app = await bootApp();
+  await goTo(app, 'coding');
+  await openProblem(app, 'Two Sum');
+  await run(app); // untouched starter: wrong answer
+  assert.match(text(app.document.getElementById('verdict')), /Wrong Answer/);
+  app.run(`window.__sr = Coding._sandboxRun; Coding._sandboxRun = async () => ({ ok: false, error: 'Time limit exceeded (2.5 s).' })`);
+  await run(app, 'function twoSum() {}');
+  assert.match(text(app.document.getElementById('verdict')), /Time Limit Exceeded/);
+  app.run('Coding._sandboxRun = window.__sr');
+  await run(app, 'function twoSum(nums, target) { throw new Error("boom"); }');
+  assert.match(text(app.document.getElementById('verdict')), /Runtime Error/);
+  await run(app, TWO_SUM);
+  assert.match(text(app.document.getElementById('verdict')), /Accepted/);
+  const subs = app.run(`DB.getProgress('guest@local').coding.submissions`);
+  assert.equal(subs.length, 4, 'stored inside the existing DB.coding record');
+  assert.deepEqual([...subs.map((s) => s.verdict)].slice(-2), ['Runtime Error', 'Accepted']);
+  assert.ok(subs.every((s) => Number.isFinite(s.ms) && s.total >= 5));
+
+  app.document.getElementById('backBtn').click();
+  await tick(60);
+  assert.match(text(app.document.getElementById('progressTeaser')), /1 solved/);
+  await openProgress(app);
+  assert.match(text(app.document.getElementById('progStats')), /4\s*Submissions/);
+  assert.match(text(app.document.getElementById('historyCard')), /Accepted/);
+  app.document.querySelector('[data-sub-filter="accepted"]').click();
+  assert.equal(app.document.querySelectorAll('[data-sub-open]').length, 1);
+  app.document.querySelector('[data-sub-open]').click();
+  await tick(250);
+  assert.match(text(app.document.getElementById('viewContainer')), /Two Sum/);
   assert.deepEqual(app.errors, []);
 });

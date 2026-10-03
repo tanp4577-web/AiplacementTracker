@@ -227,7 +227,7 @@ const Coding = {
               <b>How sessions work:</b> pick filters, choose a question count, then hit <b>Generate Session</b>. You will get a curated sequence of that many questions with a progress tracker and a final summary.
             </div>
           </div>
-          <div class="card mt-3" id="activityCard">${this._activityHtml()}</div>
+          <div class="card mt-3" id="progressTeaser">${this._teaserHtml()}</div>
         </div>
       </div>
     `;
@@ -249,7 +249,7 @@ const Coding = {
       if (btn) btn.innerHTML = `Generate ${this.state.filters.count}Q Session`;
     });
     document.getElementById('startSessionBtn').addEventListener('click', () => this._startSession());
-    this._bindActivity();
+    document.getElementById('openProgressBtn').addEventListener('click', () => this._renderProgress());
     this._paintList();
   },
 
@@ -296,6 +296,62 @@ const Coding = {
   _topicSummary() {
     const topics = this.state.facets ? this.state.facets.topics : {};
     return Object.entries(topics).sort().map(([t, n]) => `<span class="chip purple">${this._escapeHtml(t)} (${n})</span>`).join(' ') || '<span class="text-dim">No topics yet</span>';
+  },
+
+  /* ---------------------------------------------------------------- My Progress */
+
+  /** Verdict for one run, from what actually happened in it. */
+  _verdict(results) {
+    if (results.length && results.every((r) => r.pass)) return 'Accepted';
+    if (results.some((r) => r.kind === 'compile')) return 'Compile Error';
+    if (results.some((r) => r.kind === 'timeout')) return 'Time Limit Exceeded';
+    if (results.some((r) => r.kind === 'runtime')) return 'Runtime Error';
+    return 'Wrong Answer';
+  },
+
+  _submissions() {
+    const prog = Auth.getEmail() ? DB.getProgress(Auth.getEmail()) : null;
+    return ((prog && prog.coding && prog.coding.submissions) || []).slice().sort((a, b) => b.at - a.at);
+  },
+
+  _renderProgress() {
+    const esc = (v) => this._escapeHtml(v);
+    const subs = this._submissions();
+    const all = this._attempts();
+    const solved = all.filter((a) => a.solved);
+    const accepted = subs.filter((s) => s.verdict === 'Accepted').length;
+    const filter = this.state.subFilter || 'all';
+    const shown = subs.filter((s) => filter === 'all' || (filter === 'accepted' ? s.verdict === 'Accepted' : s.verdict !== 'Accepted'));
+    const diff = (d) => solved.filter((a) => (a.difficulty || (this._meta[a.id] || {}).difficulty) === d).length;
+    this.container.innerHTML = `
+      <div class="mb-2 flex-between"><button class="btn btn-ghost btn-sm" id="progBack"><i class="bi bi-arrow-left"></i> Back to Problems</button></div>
+      <h2 class="mb-2" style="font-size:22px">My Progress</h2>
+      <div class="grid grid-4 mb-2" id="progStats">
+        <div class="card stat-card"><div class="card-stat">${solved.length}</div><div class="card-stat-label">Solved</div></div>
+        <div class="card stat-card"><div class="card-stat">${all.filter((a) => !a.solved).length}</div><div class="card-stat-label">Attempted, not solved</div></div>
+        <div class="card stat-card"><div class="card-stat">${subs.length}</div><div class="card-stat-label">Submissions</div></div>
+        <div class="card stat-card"><div class="card-stat">${subs.length ? Math.round((accepted / subs.length) * 100) + '%' : '–'}</div><div class="card-stat-label">Accepted</div></div>
+      </div>
+      <p class="text-dim mb-2" style="font-size:12.5px">Solved by level: Easy ${diff('Easy')} · Medium ${diff('Medium')} · Hard ${diff('Hard')}. Everything here was recorded from your own runs on this device.</p>
+      <div class="card mb-2" id="activityCard">${this._activityHtml()}</div>
+      <div class="card" id="historyCard">
+        <div class="card-title">Submission history</div>
+        <div class="card-sub">Every time you pressed Run Tests, newest first. Run time is measured in your browser.</div>
+        <div class="cx-tabs" role="tablist" aria-label="History filter">
+          ${[['all', 'All'], ['accepted', 'Accepted'], ['failed', 'Not accepted']].map(([k, l]) => `<button type="button" class="cx-tab ${filter === k ? 'active' : ''}" role="tab" aria-selected="${filter === k}" data-sub-filter="${k}">${l}</button>`).join('')}
+        </div>
+        <div class="act-list">
+          ${shown.slice(0, 100).map((s) => `
+            <button type="button" class="act-row" data-sub-open="${esc(s.id)}">
+              <span class="act-main"><b>${esc(s.title || s.id)}</b><span class="text-dim">${esc([s.lang === 'cpp' ? 'C++' : s.lang, s.passed + '/' + s.total + ' tests', s.ms != null ? s.ms + ' ms' : ''].filter(Boolean).join(' · '))}</span></span>
+              <span class="act-detail ${s.verdict === 'Accepted' ? 'cx-ok-t' : ''}">${esc(s.verdict)} · ${esc(this._ago(s.at))}</span>
+            </button>`).join('') || '<p class="text-dim" style="font-size:13px">No submissions yet. Run tests on a problem and each run is listed here.</p>'}
+        </div>
+      </div>`;
+    document.getElementById('progBack').addEventListener('click', () => this._renderList());
+    document.querySelectorAll('[data-sub-filter]').forEach((b) => b.addEventListener('click', () => { this.state.subFilter = b.dataset.subFilter; this._renderProgress(); }));
+    document.querySelectorAll('[data-sub-open]').forEach((b) => b.addEventListener('click', () => this._openQuestion(b.dataset.subOpen)));
+    this._bindActivity();
   },
 
   /* ---------------------------------------------------------------- your activity */
@@ -356,6 +412,14 @@ const Coding = {
       ${list.length > 8 ? `<button type="button" class="btn btn-ghost btn-sm mt-1" data-act-more>${this.state.showAllActivity ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}`;
   },
 
+  _teaserHtml() {
+    const all = this._attempts();
+    const solved = all.filter((a) => a.solved).length;
+    return `<div class="card-title">My Progress</div>
+      <div class="card-sub"><b>${solved}</b> solved · <b>${all.length - solved}</b> attempted, not solved · <b>${this._submissions().length}</b> submissions</div>
+      <button type="button" class="btn btn-primary btn-sm mt-1" id="openProgressBtn">Open My Progress</button>`;
+  },
+
   _bindActivity() {
     const card = document.getElementById('activityCard');
     if (!card) return;
@@ -369,7 +433,7 @@ const Coding = {
   },
 
   /** Records one run of the tests: tries, the best result, the last time, and when it was first solved. */
-  _recordProgress(q, passed, total, allPass) {
+  _recordProgress(q, passed, total, allPass, run = {}) {
     const email = Auth.getEmail();
     if (!email) return;
     const prog = DB.getProgress(email);
@@ -388,6 +452,11 @@ const Coding = {
       lang: this.state.lang
     };
     coding.attempts = attempts;
+    coding.submissions = [...(coding.submissions || []), {
+      id: q.id, title: q.title, at: now, passed, total, lang: this.state.lang,
+      verdict: run.verdict || (allPass ? 'Accepted' : 'Wrong Answer'),
+      ms: Number.isFinite(run.ms) ? run.ms : null
+    }].slice(-200);
     if (allPass && !coding.solved.includes(q.id)) {
       coding.solved = [...coding.solved, q.id];
       App.showToast(' All tests passed! Challenge solved.', 'success');
@@ -1246,6 +1315,7 @@ using namespace std;
     if (runBtn) { runBtn.disabled = true; runBtn.textContent = 'Running…'; }
 
     const results = [];
+    let totalMs = 0;
     try {
       let timedOut = false;
       for (const tc of q.testCases) {
@@ -1254,13 +1324,16 @@ using namespace std;
           results.push({ input: tc.input, expected: tc.expected, actual: 'Not run (stopped after the first timeout)', pass: false });
           continue;
         }
+        const t0 = performance.now();
         const r = await this._sandboxRun(code, tc.input);
+        totalMs += performance.now() - t0;
         timedOut = !r.ok && /^Time limit exceeded/.test(r.error);
         const expectedJson = JSON.stringify(this._parseExpected(tc.expected));
         results.push({
           input: tc.input,
           expected: tc.expected,
           actual: r.ok ? String(r.json) : 'Error: ' + r.error,
+          kind: r.ok ? '' : (timedOut ? 'timeout' : 'runtime'),
           pass: r.ok && r.json === expectedJson
         });
       }
@@ -1273,8 +1346,10 @@ using namespace std;
     this.state.results = results;
     const passCount = results.filter(r => r.pass).length;
     const allPass = passCount === results.length;
+    const verdict = this._verdict(results);
+    const ms = Math.round(totalMs);
 
-    this._recordProgress(q, passCount, results.length, allPass);
+    this._recordProgress(q, passCount, results.length, allPass, { verdict, ms });
 
     if (this.state.sessionActive && this.state.session.includes(q.id)) {
       this.state.sessionResults[q.id] = allPass || this.state.sessionResults[q.id] === true;
@@ -1286,8 +1361,9 @@ using namespace std;
     resultsDiv.innerHTML = `
       <div class="mb-2">
         <div class="card stat-card" style="padding:14px">
+          <div class="verdict ${allPass ? 'ok' : 'bad'}" id="verdict" role="status">${this._escapeHtml(verdict)}</div>
           <div class="card-stat ${allPass ? 'text-success' : ''}">${passCount}/${results.length}</div>
-          <div class="card-stat-label">Tests Passed</div>
+          <div class="card-stat-label">Tests Passed · ${ms} ms measured in your browser</div>
         </div>
       </div>
       ${results.map((r, i) => `
