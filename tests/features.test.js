@@ -4,7 +4,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootApp, goTo, tick, defaultFetch, read } from './app-harness.js';
 import { fileURLToPath } from 'node:url';
-import { CODING_BANK } from '../api/_data/coding-bank.js';
 
 const text = (el, n = 400) => (el ? el.textContent.replace(/\s+/g, ' ').trim().slice(0, n) : '');
 const fire = (app, el, type) => el.dispatchEvent(new app.window.Event(type, { bubbles: true }));
@@ -112,66 +111,6 @@ test('aptitude quiz works offline using the built-in question bank', async () =>
 });
 
 /* ---------------------------------------------------------------- Coding */
-test('coding practice: a session runs tests, and a correct solution passes and is recorded', async () => {
-  const app = await bootApp();
-  await goTo(app, 'coding');
-  assert.ok(app.document.querySelectorAll('#questionList > *').length > 20);
-  const twoSum = [...app.document.querySelectorAll('#questionList > *')].find((el) => /Two Sum/.test(el.textContent));
-  twoSum.click();
-  await tick(300);
-  assert.match(text(app.document.getElementById('viewContainer')), /Two Sum/);
-  app.document.getElementById('langJsBtn').click();
-  await tick(100);
-  app.document.getElementById('runBtn').click();
-  await tick(200);
-  assert.match(text(app.document.getElementById('testResults')), /0\/\d+ Tests Passed/, 'starter code fails');
-
-  app.document.getElementById('codeEditor').value = 'function twoSum(nums, target) { const seen = {}; for (let i = 0; i < nums.length; i++) { const need = target - nums[i]; if (need in seen) return [seen[need], i]; seen[nums[i]] = i; } }';
-  app.document.getElementById('runBtn').click();
-  await tick(200);
-  assert.match(text(app.document.getElementById('testResults')), /([1-9]\d*)\/\1 Tests Passed/);
-  assert.ok(app.run(`DB.getProgress('guest@local').coding.solved.includes('two-sum')`));
-  assert.deepEqual(app.errors, []);
-});
-
-test('coding practice: a syntax error in your code is reported, not thrown', async () => {
-  const app = await bootApp();
-  await goTo(app, 'coding');
-  [...app.document.querySelectorAll('#questionList > *')].find((el) => /Two Sum/.test(el.textContent)).click();
-  await tick(300);
-  app.document.getElementById('langJsBtn').click();
-  await tick(100);
-  app.document.getElementById('codeEditor').value = 'function twoSum( {';
-  app.document.getElementById('runBtn').click();
-  await tick(200);
-  assert.match(text(app.document.getElementById('testResults')), /Error/);
-  assert.deepEqual(app.errors, []);
-});
-
-test('coding practice: the C++ runner uses the API and falls back to Wandbox when the API is down', async () => {
-  const calls = [];
-  const app = await bootApp({
-    fetch: (url, init) => {
-      calls.push(String(url));
-      if (String(url).startsWith('/api/compile')) return { ok: false, status: 502, json: async () => ({}) };
-      if (String(url).includes('wandbox.org')) return { ok: true, status: 200, json: async () => ({ program: '0 1\n', status: '0', compiler_error: '' }) };
-      return defaultFetch(url, init);
-    }
-  });
-  await goTo(app, 'coding');
-  [...app.document.querySelectorAll('#questionList > *')].find((el) => /Two Sum/.test(el.textContent)).click();
-  await tick(300);
-  app.document.getElementById('langCppBtn').click();
-  await tick(100);
-  const run = app.document.getElementById('runBtn');
-  assert.ok(run, 'run button present in C++ mode');
-  run.click();
-  await tick(800);
-  assert.ok(calls.some((u) => u.startsWith('/api/compile')), 'tries the server first');
-  assert.ok(calls.some((u) => u.includes('wandbox.org')), 'then falls back to Wandbox directly');
-  assert.deepEqual(app.errors, []);
-});
-
 /* ------------------------------------------------- Interview Experiences */
 test('interview experiences: add, filter, search-as-you-type keeps focus, delete is admin-only', async () => {
   const app = await bootApp();
@@ -466,7 +405,7 @@ test('hiring hub: an ATS error from the server is shown to the user', async () =
 /* --------------------------------------------------- Lecture questions + player */
 test('lecture questions: multiple-choice feedback and the C++ runner report results', async () => {
   const app = await bootApp({
-    fetch: (url, init) => (String(url).startsWith('/api/compile') ? { ok: true, status: 200, json: async () => ({ program: '2 1\n', status: '0', compiler_error: '' }) } : defaultFetch(url, init))
+    fetch: (url, init) => (String(url).includes('wandbox.org/api/compile.json') ? { ok: true, status: 200, json: async () => ({ program_output: '2 1\n', status: '0', compiler_error: '' }) } : defaultFetch(url, init))
   });
   await goTo(app, 'lecturequestions');
   const items = [...app.document.querySelectorAll('#lqQuestionList > *')];
@@ -785,51 +724,6 @@ test('feedback nav link is the last item in the sidebar', () => {
   const order = [...read('index.html').matchAll(/data-view="([a-z]+)"/g)].map((m) => m[1]);
   assert.equal(order.at(-1), 'feedback');
 });
-test('coding practice: the C++ toggle only appears for questions that actually have a C++ harness', async () => {
-  const app = await bootApp();
-  await goTo(app, 'coding');
-  const withCpp = app.run("EXTRA_CODING_CPP.map(c => c.id.replace(/-cpp$/, ''))");
-  const cppIds = new Set(app.run('EXTRA_CODING_CPP.map(c => c.id)'));
-  const withoutCppTitle = CODING_BANK.find((q) => !cppIds.has(q.id + '-cpp')).title;
-  assert.ok(withoutCppTitle, 'fixture must contain at least one JS-only question');
-
-  // The list is paged, so narrow it to this question first.
-  app.run('Coding.state.filters.search = ' + JSON.stringify(withoutCppTitle) + '; Coding._loadList()');
-  await tick(150);
-  const item = [...app.document.querySelectorAll('#questionList > *')].find((el) => el.textContent.includes(withoutCppTitle));
-  item.click();
-  await tick(200);
-  assert.equal(app.document.getElementById('langCppBtn'), null, 'no clickable C++ button for a question with no C++ harness');
-  assert.match(text(app.document.getElementById('viewContainer'), 3000), /C\+\+ not available/);
-  assert.equal(app.document.getElementById('runBtn').textContent.trim(), 'Run Tests', 'defaults to JavaScript, ready to run');
-
-  const runResult = app.document.getElementById('testResults');
-  app.document.getElementById('runBtn').click();
-  await tick(200);
-  assert.doesNotMatch(text(runResult), /No C\+\+ test cases/, 'never reaches the C++ dead end for a JS-only question');
-  assert.deepEqual(app.errors, []);
-  void withCpp;
-});
-
-test('coding practice: if the C++ dead end is ever reached, a button switches back to a working JavaScript run', async () => {
-  const app = await bootApp();
-  await goTo(app, 'coding');
-  const twoSum = [...app.document.querySelectorAll('#questionList > *')].find((el) => /Two Sum/.test(el.textContent));
-  twoSum.click();
-  await tick(200);
-  app.document.getElementById('langCppBtn').click();
-  await tick(50);
-  // Force the dead-end path even though Two Sum has a harness, to prove the rescue button works.
-  app.run('Coding._lookupCppQuestion = () => null;');
-  app.document.getElementById('runBtn').click();
-  await tick(100);
-  assert.match(text(app.document.getElementById('testResults')), /Switch to JavaScript/);
-  app.document.getElementById('switchToJsBtn').click();
-  await tick(150);
-  assert.equal(app.document.getElementById('runBtn').textContent.trim(), 'Run Tests');
-  assert.deepEqual(app.errors, []);
-});
-
 test('dark mode: toggle flips data-theme, updates the button label and remembers the choice', async () => {
   const app = await bootApp();
   const root = app.document.documentElement;
@@ -854,23 +748,6 @@ test('accessibility: nav is labelled and the current page is marked with aria-cu
   assert.equal(current[0].dataset.view, 'resume');
   assert.ok(read('index.html').includes('css/polish.css'));
   assert.deepEqual(app.errors, []);
-});
-
-test('coding practice: every C++ question has a real harness, a JS twin and test cases', async () => {
-  const app = await bootApp();
-  app.run('window.__bankIds = ' + JSON.stringify(CODING_BANK.map((q) => q.id)));
-  const problems = app.run(`(() => {
-    const out = [];
-    const jsIds = new Set(window.__bankIds);
-    const stub = Coding._cppMainFor({ id: 'no-such-question-cpp' });
-    for (const c of EXTRA_CODING_CPP) {
-      if (!jsIds.has(c.id.replace(/-cpp$/, '')) && c.id !== 'max-subarray-cpp') out.push(c.id + ': no JS twin');
-      if (Coding._cppMainFor(c) === stub) out.push(c.id + ': falls through to the empty harness');
-      if (!c.cppTestCases || !c.cppTestCases.length) out.push(c.id + ': no test cases');
-    }
-    return out;
-  })()`);
-  assert.deepEqual([...problems], []);
 });
 
 test('hiring hub: failures read as plain language with a retry, never raw parser errors', async () => {

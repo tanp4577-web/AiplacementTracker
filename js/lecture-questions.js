@@ -221,47 +221,22 @@ const LectureQuestions = {
       </div>
     `;
 
-    try {
-      let data = null;
-      try {
-        const res = await fetch('/api/compile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ compiler: 'gcc-head', code, stdin: '' })
-        });
-        if (res.ok) data = await res.json();
-      } catch (err) {}
-
-      if (!data) {
-        const res = await fetch('https://wandbox.org/api/compile.json', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            compiler: 'gcc-head',
-            code: code,
-            options: 'warning,gnu++17',
-            stdin: ''
-          })
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        data = await res.json();
-      }
-
-      const program = data.program || '';
-      const errors = data.compiler_error || data.stderr || '';
-      this._renderRunResult(out, program, errors);
-    } catch (e) {
-      // Fallback: show expected output if we can't reach the compiler.
+    // Wandbox answers with program_output / program_error / compiler_error; js/wandbox.js reads them and reports a
+    // compile error, a runtime error, a time limit or "no answer" separately.
+    const r = await Wandbox.run({ compiler: 'gcc-head', code, stdin: '' });
+    if (r.kind === 'network') {
       out.innerHTML = `
         <div class="card test-case" style="background:rgba(230,162,60,0.08);border-color:rgba(230,162,60,0.4)">
           <div class="test-title"><span><i class="bi bi-exclamation-triangle"></i> Offline mode</span><span class="text-warning">Network unavailable</span></div>
           <div class="test-io">
-            <div style="color:var(--text)">Could not reach the online C++ compiler (${Sanitize.html(e.message)}).</div>
-            <div style="margin-top:4px">Expected output: <code style="color:var(--success)">${this.state.active.expectedOutput}</code></div>
+            <div style="color:var(--text)">Could not reach the online C++ compiler (${this._escapeHtml(r.message)}).</div>
+            <div style="margin-top:4px">Expected output: <code style="color:var(--success)">${this._escapeHtml(this.state.active.expectedOutput)}</code></div>
           </div>
         </div>
       `;
+      return;
     }
+    this._renderRunResult(out, r.stdout, r.kind === 'ok' ? '' : r.message);
   },
 
   _renderRunResult(out, program, errors) {

@@ -361,7 +361,7 @@ module.exports = [
     id: 'make-the-string-great', title: 'Make The String Great', d: 'E', topic: 'Stacks', roles: ['SDE'],
     desc: 'A string is good if it has no two adjacent characters that are the same letter in different cases (like "aA" or "Bb"). Repeatedly remove such adjacent pairs until the string is good, and return it.\n\nExample:\nInput: s = "leEeetcode"\nOutput: "leetcode"',
     fn: 'makeGood', params: 's', constraints: '1 ≤ length ≤ 100',
-    tests: [['leEeetcode'], ['abBAcC'], ['s'], ['aA'], ['Pp'], ['abc'], ['aaBbAA']],
+    tests: [['leEeetcode'], ['abBAcC'], ['s'], ['aAb'], ['PpQ'], ['abc'], ['aaBbAA']],
     gen: (r) => [r.str(r.int(0, 9), 'aAbB')],
     approaches: [
       A('Rescan after each removal', 'Find an adjacent pair that differs only by case, remove it, and start again until none is left.', 'O(n²)', 'O(n)', `function makeGood(s) {

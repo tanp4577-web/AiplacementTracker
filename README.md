@@ -21,7 +21,7 @@ Dark mode (toggle in the top bar; follows your OS setting by default):
 | **Dashboard** | Readiness overview across all modules, with the exact score formula, a "Start here" checklist for new users, and **Export / Import backup** so local progress is never trapped in one browser |
 | **Resume Analyzer** | Extracts text from PDF / DOCX / TXT / RTF in the browser and scores it against a target role |
 | **Aptitude Quiz** | AI-generated questions (Gemini) with OpenTriviaDB and offline question banks as fallbacks; optional timed mode (60 s per question) |
-| **Coding Practice** | 250 problems (101 Easy, 100 Medium, 49 Hard) fetched from `/api/coding-questions`, never bundled into the page. Each has several ways to solve it: code, idea, time and space cost, and a slider showing how the work grows with input size. Tests run in a sandboxed worker with a time limit. A **Your activity** section lists what you have solved and what you have tried (tries, best result, when). Every approach in the bank is verified against every test and random inputs by `tools/coding-bank`. C++ versions for the original problems run through the Wandbox compiler |
+| **Coding Practice** | 250 problems (101 Easy, 100 Medium, 49 Hard) fetched from `/api/coding-questions`, never bundled into the page. Each has several ways to solve it: code, idea, time and space cost, and a slider showing how the work grows with input size. Write a complete program (read stdin, print stdout) in **any language Wandbox offers**, picked from a live list; JavaScript runs instantly in the browser. CodeMirror editor, focus mode, a session palette with a summary, and a **My Progress** view with submission history. Every approach in the bank is verified as a real program against every test by `tools/coding-bank` |
 | **Live Interview** | Spoken mock interview with an AI interviewer (Aria): she asks questions aloud, you answer aloud with camera and microphone on (voice answers need Chrome or Edge; typing works anywhere). Eight interview types (mixed, technical, HR, CS fundamentals, coding, system design, situational, puzzles), a resume-based mode that asks about your own projects, company-style modes (Amazon, Google, Microsoft, Meta, TCS, Infosys, Wipro, Cognizant, Accenture), an optional per-answer time limit for pressure rounds, and cancel or end-early at any time. Adaptive follow-ups and a scored feedback report via Gemini, with a built-in question bank (about 150 questions) as offline fallback. The interview opens in **full screen with your video filling the screen** (Aria floats in a corner, captions and controls overlay the bottom). Video and audio never leave your browser |
 | **Interview Experiences** | Interview rounds and tips you add, filterable by company and difficulty (stored in your browser) |
 | **Hiring Hub** | **India (Local)** tab for city jobs and internships (Adzuna), never blank: without Adzuna keys it shows remote roles open to India plus pre-filled searches on Internshala, LinkedIn, Naukri, Indeed and Google Jobs. **Remote (Global)** tab merges Remote OK, Remotive and Jobicy (Jobicy tags internships explicitly). **Analyze resume fit** returns an ATS match score, matched/missing skills, learning actions and practice interview questions |
@@ -91,7 +91,7 @@ All routes are same-origin only, size-capped and rate-limited per client IP (def
 | `/api/chat` | POST | PrepAI chatbot (last 20 messages, 4,000 chars each) | 30 |
 | `/api/aptitude` | POST | Generate up to 20 quiz questions | 10 |
 | `/api/job-apply` | POST | Resume-vs-job ATS analysis (resume capped at 20,000 chars) | 8 |
-| `/api/compile` | POST | C++ compile/run through Wandbox (allow-listed compilers, 30,000-char code cap) | 30 |
+| `/api/compile` | GET, POST | Fallback proxy to Wandbox for any language it lists right now (`?list=1` returns the live list; code cap 30,000 chars, stdin cap 20,000) | 200 |
 | `/api/coding-questions` | GET | Coding practice questions: paged list with filters, one full question, ids for sessions (see below). Edge-cached | 240 |
 | `/api/jobs` | GET | Live listings: `source=india` (Adzuna, or remote-for-India fallback) or `source=remote` (Remote OK + Remotive + Jobicy); supports `q`, `where`, `distance`, `internship=1`, `page`. Edge-cached 1–5 minutes | 60 |
 
@@ -103,14 +103,22 @@ The website never contains the questions. The Coding Practice page asks `GET /ap
 
 | Query | Returns |
 | --- | --- |
-| `id=two-sum` | `{ question, prelude }`: one full question (`id, title, difficulty, topic, targetRoles, description, constraints, starterCode, testCases[{input, expected}], approaches[...]`) and the helper code (ListNode, TreeNode, ...) the test runner defines |
+| `id=two-sum` | `{ question }`: one full question (`id, title, difficulty, topic, targetRoles, description, constraints, io, testCases[{stdin, expectedStdout}], approaches[...]`) |
 | `ids=a,b,c` | `{ items: [summary] }` for those ids (up to 100) |
 | `difficulty`, `topic`, `role`, `q`, `include=a,b`, `exclude=c`, `offset`, `limit` (max 100) | `{ total, offset, limit, items: [summary], facets: { total, difficulty: {Easy, Medium, Hard}, topics: {name: count}, roles: [] } }` |
 | the same filters plus `idsOnly=1` | `{ total, ids: [...] }` (used to build practice sessions) |
 
-A *summary* is `{ id, title, difficulty, topic, targetRoles, source, summary, approaches }`. `testCases[].input` is a JavaScript expression that calls the learner's function and `expected` is its JSON result.
+A *summary* is `{ id, title, difficulty, topic, targetRoles, source, summary, approaches }`. `testCases[].stdin` is the text a solution reads and `expectedStdout` the text it must print, so the same question works in every language. `io` describes the layout: `io.in` (name and type of each input), `io.out` (type of the answer), `io.inputFormat` / `io.outputFormat` (the sentences shown on the page), and how answers are compared (`io.cmp` for order-free answers, `io.check` for questions that accept any valid answer).
 
-**By default** the answers come from `api/_data/coding-bank.js`, generated by `npm run bank:build` from `tools/coding-bank/problems/` (`npm run bank:check` verifies every approach against every test and against random inputs).
+### Input and output layout (every language)
+
+Stdin and stdout use the **same** layout (`js/judge.js`): `int`, `float`, `bool` are one value on a line; a `str` is one raw line (spaces kept, may be empty); an array is a line with the count, then the values on one line (strings: one per line); a 2D array is the row count, then one line per row: the row length followed by the values. A binary tree is its level-order array with the word `null` for a missing child. The judge reads your stdout back into values and compares values, so extra spaces or blank lines never matter and a float within 1e-6 matches. Class-design questions (LRU cache, min stack, ...) read a script of operations and print what the operations return.
+
+### Languages
+
+The language and compiler lists come from Wandbox's live `GET /api/list.json`, so a language Wandbox adds appears with no code change. Programs run with `POST /api/compile.json`, called straight from the browser (and through `/api/compile` when that is blocked). Left out: `CPP` (preprocessor only), `OpenSSL`, `Lazy K`, `Vim script` and `SQL`, which cannot run a stdin/stdout program. Each language has one generic starter template (`js/skeletons.js`), not one per question. `npm run wandbox:smoke` runs a sample program and the template in every listed language against the real service (needs the internet). Some Wandbox compilers are broken on Wandbox's side from time to time; the compile or runtime error from Wandbox is shown as-is and another version can be picked from the version list.
+
+**By default** the answers come from `api/_data/coding-bank.js`, generated by `npm run bank:build` from `tools/coding-bank/problems/` (`npm run bank:check` verifies every approach against every test and against random inputs, and runs every approach as a complete JavaScript program through the same runner and judge the browser uses).
 
 **To use your own API**, set `CODING_API_URL` (and `CODING_API_KEY` if it needs a bearer token). The server forwards the same query string to that URL and returns its JSON, so your API only has to follow the table above. If it is down, the page shows a clear message with a retry button.
 
@@ -161,7 +169,6 @@ Attribution is required: Remote OK, Remotive and Jobicy listings link back to th
 
 - [ ] Real authentication and a database so progress syncs across devices
 - [ ] Move the frontend to ES modules and add browser end-to-end tests
-- [ ] Multi-language coding runner (Java, Python)
 
 ## Legal
 

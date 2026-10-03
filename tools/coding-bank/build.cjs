@@ -12,6 +12,7 @@ const path = require('path');
 const vm = require('vm');
 const { classify } = require('./dsl.cjs');
 const PRELUDE = require('./prelude.cjs');
+const io = require('./io.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT = path.join(ROOT, 'api', '_data', 'coding-bank.js');
@@ -57,15 +58,54 @@ function run(code, expr, timeout = 4000) {
 
 function loadProblems() {
   const dir = path.join(__dirname, 'problems');
-  return fs.readdirSync(dir).filter((f) => f.endsWith('.cjs')).sort().flatMap((f) => require(path.join(dir, f)).map((p) => ({ ...p, _file: f })));
+  const only = process.env.BANK_ONLY ? process.env.BANK_ONLY.split(',') : null; // debugging: BANK_ONLY=two-sum,lru-cache
+  return fs.readdirSync(dir).filter((f) => f.endsWith('.cjs')).sort().flatMap((f) => require(path.join(dir, f)).map((p) => ({ ...p, _file: f }))).filter((p) => !only || only.includes(p.id));
 }
 
-function buildAll() {
+/** Runs every approach as a COMPLETE program on every test's stdin and judges the stdout like the browser does. */
+async function verifyStdio(p, spec, tests, oldExpected, err) {
+  const { Judge, JsRunner } = io;
+  const isScript = Boolean(spec.script);
+  const types = spec.in.map((a) => a.type);
+  const judge = { out: spec.out, cmp: spec.cmp, check: spec.check };
+  tests.forEach((t, i) => {
+    if (t.stdin.length > 20000) err(`test ${i + 1}: stdin is too long`);
+    if (t.stdin.indexOf('\r') >= 0 || t.expectedStdout.indexOf('\r') >= 0) err(`test ${i + 1}: carriage return in a test`);
+    try {
+      const out = Judge.decodeOutput(spec.out, t.expectedStdout);
+      if (Judge.encode(spec.out, out) !== t.expectedStdout) err(`test ${i + 1}: expected stdout does not round-trip`);
+      if (!isScript) {
+        const back = Judge.decodeInput(types, t.stdin);
+        if (Judge.encode(types, back) !== t.stdin) err(`test ${i + 1}: stdin does not round-trip`);
+      }
+      if (!spec.check && !isScript && !io.CUSTOM[p.id] && oldExpected[i] !== undefined && !spec.cmp) {
+        if (JSON.stringify(out) !== oldExpected[i] && !(typeof out === 'number' && Math.abs(out - JSON.parse(oldExpected[i])) < 1e-6)) err(`test ${i + 1}: expected stdout decodes to ${JSON.stringify(out)} but the verified answer is ${oldExpected[i]}`);
+      }
+    } catch (x) { err(`test ${i + 1}: ${x.message}`); }
+  });
+  // an untouched (silent) program must not pass everything
+  const silent = tests.map((t) => Judge.compare(judge, Judge.decodeOutput(spec.out, t.expectedStdout), '', isScript ? [] : Judge.decodeInput(types, t.stdin)).pass);
+  if (silent.every(Boolean)) err('a program that prints nothing passes every test');
+  if (silent.filter(Boolean).length * 2 > tests.length) err(`a program that prints nothing passes ${silent.filter(Boolean).length} of ${tests.length} tests`);
+  for (const a of p.approaches) {
+    const program = (code) => io.referenceProgram(p, spec, code);
+    for (let i = 0; i < tests.length; i++) {
+      const t = tests[i];
+      const r = await JsRunner.run(program(a.code), t.stdin);
+      if (r.kind !== 'ok') { err(`approach "${a.name}" crashed as a program on test ${i + 1}: ${r.error || r.kind}`); break; }
+      const res = Judge.compare(judge, Judge.decodeOutput(spec.out, t.expectedStdout), r.stdout, isScript ? [] : Judge.decodeInput(types, t.stdin));
+      if (!res.pass) { err(`approach "${a.name}" printed the wrong answer on test ${i + 1}: ${JSON.stringify(r.stdout.slice(0, 80))} (expected ${JSON.stringify(t.expectedStdout.slice(0, 80))})${res.message ? ' ' + res.message : ''}`); break; }
+    }
+  }
+}
+
+async function buildAll() {
   const errors = [];
   const questions = [];
   const ids = new Set();
   const titles = new Set();
   for (const p of loadProblems()) {
+    if (process.env.BANK_TRACE) console.error(p.id);
     const where = `${p._file}:${p.id}`;
     const err = (m) => errors.push(`${where}: ${m}`);
     try {
@@ -110,15 +150,25 @@ function buildAll() {
         }
       });
 
-      const starter = p.starter || `function ${p.fn}(${p.params || ''}) {\n  // Your code here\n}`;
-      exprs.forEach((e, i) => {
-        if (expected[i] === undefined) return;
-        let got;
-        try { got = run(starter, e); } catch { got = 'ERR'; }
-        if (got === expected[i]) err(`the untouched starter code passes the test ${e}`);
-      });
       if (expected.some((x) => x === undefined)) continue;
       if (!p.uniform && expected.every((x) => x === expected[0])) err('every test has the same expected value: tests are too weak (set uniform: true for property checks)');
+
+      // ---- the language-agnostic form: stdin / stdout
+      const oldTests = exprs.map((e, i) => ({ input: e, expected: expected[i] }));
+      const conv = io.convert(p, oldTests);
+      conv.errors.forEach(err);
+      const tests = conv.tests;
+      const spec = conv.io;
+      for (const t of tests) {
+        if (t._program) {
+          const r = await io.JsRunner.run(t._program, t.stdin);
+          if (r.kind !== 'ok') { err(`the first approach failed as a program on ${JSON.stringify(t.stdin.slice(0, 60))}: ${r.error || r.kind}`); continue; }
+          t.expectedStdout = r.stdout;
+          delete t._program;
+        }
+      }
+      if (tests.some((t) => t.expectedStdout == null)) continue;
+      await verifyStdio(p, spec, tests, expected, err);
 
       const best = p.approaches[p.approaches.length - 1];
       questions.push({
@@ -130,8 +180,8 @@ function buildAll() {
         topic: p.topic,
         description: p.desc,
         constraints: p.constraints || '',
-        starterCode: starter,
-        testCases: exprs.map((e, i) => ({ input: e, expected: expected[i] })),
+        io: spec,
+        testCases: tests.map((t) => ({ stdin: t.stdin, expectedStdout: t.expectedStdout })),
         approaches: p.approaches.map((a) => ({ name: a.name, idea: a.idea, time: a.time, space: a.space, timeClass: classify(a.time), spaceClass: classify(a.space), code: a.code, note: a.note })),
         sizes: p.sizes || null,
         solution: `${best.name}: ${best.idea} Time ${best.time}, space ${best.space}.`,
@@ -152,11 +202,11 @@ function emit(questions) {
    ${questions.length} problems. Every approach was run against every test and against random inputs at build time. */
 `;
   const lines = questions.map((q) => '  ' + JSON.stringify(q));
-  fs.writeFileSync(OUT, `${head}export const CODING_PRELUDE = ${JSON.stringify(PRELUDE)};\nexport const CODING_BANK = [\n${lines.join(',\n')}\n];\n`);
+  fs.writeFileSync(OUT, `${head}export const CODING_BANK = [\n${lines.join(',\n')}\n];\n`);
 }
 
 if (require.main === module) {
-  const { questions, errors } = buildAll();
+  buildAll().then(({ questions, errors }) => {
   const count = (d) => questions.filter((q) => q.difficulty === d).length;
   if (errors.length) {
     console.error(errors.join('\n'));
@@ -165,6 +215,7 @@ if (require.main === module) {
   }
   console.log(`OK: ${questions.length} problems (Easy ${count('Easy')}, Medium ${count('Medium')}, Hard ${count('Hard')})`);
   if (!process.argv.includes('--check')) { emit(questions); console.log('wrote ' + path.relative(ROOT, OUT)); }
+  });
 }
 
 module.exports = { buildAll, rng };

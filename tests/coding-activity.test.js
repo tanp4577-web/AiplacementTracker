@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootApp, goTo, tick, defaultFetch } from './app-harness.js';
+import { TWO_SUM, TWO_SUM_PARTIAL } from './coding-programs.js';
 
 const text = (el, n = 3000) => (el ? el.textContent.replace(/\s+/g, ' ').trim().slice(0, n) : '');
 const items = (app) => [...app.document.querySelectorAll('#questionList [data-qid]')];
@@ -9,8 +10,6 @@ async function openProblem(app, title) {
   const item = items(app).find((el) => el.textContent.includes(title));
   item.click();
   await tick(250);
-  app.document.getElementById('langJsBtn').click();
-  await tick(60);
 }
 
 async function openProgress(app) {
@@ -24,7 +23,6 @@ async function run(app, code) {
   await tick(250);
 }
 
-const TWO_SUM = 'function twoSum(nums, target) { const seen = {}; for (let i = 0; i < nums.length; i++) { const need = target - nums[i]; if (need in seen) return [seen[need], i]; seen[nums[i]] = i; } }';
 
 test('coding: questions are fetched from the API, nothing is bundled in the page', async () => {
   const app = await bootApp();
@@ -100,7 +98,7 @@ test('coding activity: tries are recorded, unfinished problems are listed as att
   assert.equal(rec.best, 0);
   assert.equal(rec.title, 'Two Sum');
 
-  await run(app, 'function twoSum(nums, target) { return [0, 1]; }'); // passes some tests only
+  await run(app, TWO_SUM_PARTIAL); // wrong on some tests
   rec = app.run(`DB.getProgress('guest@local').coding.attempts['two-sum']`);
   assert.equal(rec.tries, 2);
   assert.ok(rec.best >= 1 && rec.best < rec.total, 'partial result is remembered as the best so far');
@@ -180,11 +178,11 @@ test('my progress: every run is a stored submission with a verdict and a measure
   await openProblem(app, 'Two Sum');
   await run(app); // untouched starter: wrong answer
   assert.match(text(app.document.getElementById('verdict')), /Wrong Answer/);
-  app.run(`window.__sr = Coding._sandboxRun; Coding._sandboxRun = async () => ({ ok: false, error: 'Time limit exceeded (2.5 s).' })`);
-  await run(app, 'function twoSum() {}');
+  app.run(`window.__sr = JsRunner.run; JsRunner.run = async () => ({ kind: 'timeout', stdout: '', stderr: '', error: 'Time limit exceeded (3 s).', ms: 3000 })`);
+  await run(app, 'console.log(1)');
   assert.match(text(app.document.getElementById('verdict')), /Time Limit Exceeded/);
-  app.run('Coding._sandboxRun = window.__sr');
-  await run(app, 'function twoSum(nums, target) { throw new Error("boom"); }');
+  app.run('JsRunner.run = window.__sr');
+  await run(app, "throw new Error('boom');");
   assert.match(text(app.document.getElementById('verdict')), /Runtime Error/);
   await run(app, TWO_SUM);
   assert.match(text(app.document.getElementById('verdict')), /Accepted/);

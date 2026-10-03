@@ -7,7 +7,8 @@
     "lint:all": "eslint .",
     "test": "node --test \"tests/**/*.test.js\"",
     "bank:build": "node tools/coding-bank/build.cjs",
-    "bank:check": "node tools/coding-bank/build.cjs --check"
+    "bank:check": "node tools/coding-bank/build.cjs --check",
+    "wandbox:smoke": "node tools/coding-bank/wandbox-smoke.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -13,8 +13,6 @@ async function start(app, n = '5') {
   await tick(400);
 }
 async function runWith(app, code) {
-  app.document.getElementById('langJsBtn').click();
-  await tick(40);
   app.document.getElementById('codeEditor').value = code;
   app.document.getElementById('runBtn').click();
   await tick(300);

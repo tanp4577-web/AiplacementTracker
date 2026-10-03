@@ -77,8 +77,10 @@ test('coding api: ids only, summaries by id, and one full question', async () =>
   assert.equal(one.question.id, 'two-sum');
   assert.ok(one.question.testCases.length >= 5);
   assert.ok(one.question.approaches.length >= 2);
-  assert.match(one.question.starterCode, /function twoSum/);
-  assert.match(one.prelude, /class ListNode/, 'the test-helper prelude comes with the question');
+  assert.deepEqual(one.question.testCases[0], { stdin: '4\n2 7 11 15\n9\n', expectedStdout: '2\n0 1\n' });
+  assert.deepEqual(one.question.io.in, [{ name: 'nums', type: 'int[]' }, { name: 'target', type: 'int' }]);
+  assert.equal('starterCode' in one.question, false, 'no language-specific starter: every language has its own template');
+  assert.equal('prelude' in one, false);
 
   const missing = await get({ id: 'does-not-exist' });
   assert.equal(missing.statusCode, 404);
