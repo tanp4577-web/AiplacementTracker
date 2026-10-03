@@ -21,8 +21,8 @@ Dark mode (toggle in the top bar; follows your OS setting by default):
 | **Dashboard** | Readiness overview across all modules, with the exact score formula, a "Start here" checklist for new users, and **Export / Import backup** so local progress is never trapped in one browser |
 | **Resume Analyzer** | Extracts text from PDF / DOCX / TXT / RTF in the browser and scores it against a target role |
 | **Aptitude Quiz** | AI-generated questions (Gemini) with OpenTriviaDB and offline question banks as fallbacks; optional timed mode (60 s per question) |
-| **Coding Practice** | 250 problems (101 Easy, 100 Medium, 49 Hard) with several ways to solve each one: code, idea, time and space cost, and a slider showing how the work grows with input size. Tests run in a sandboxed worker with a time limit. Every approach in the bank is verified against every test and random inputs by tools/coding-bank. C++ versions for the original problems run through the Wandbox compiler |
-| **Live Interview** | Spoken mock interview with an AI interviewer (Aria): she asks questions aloud, you answer aloud with camera and microphone on (voice answers need Chrome or Edge; typing works anywhere). Eight interview types (mixed, technical, HR, CS fundamentals, coding, system design, situational, puzzles), a resume-based mode that asks about your own projects, company-style modes (Amazon, Google, Microsoft, Meta, TCS, Infosys, Wipro, Cognizant, Accenture), an optional per-answer time limit for pressure rounds, and cancel or end-early at any time. Adaptive follow-ups and a scored feedback report via Gemini, with a built-in question bank (about 150 questions) as offline fallback. Video and audio never leave your browser |
+| **Coding Practice** | 250 problems (101 Easy, 100 Medium, 49 Hard) fetched from `/api/coding-questions`, never bundled into the page. Each has several ways to solve it: code, idea, time and space cost, and a slider showing how the work grows with input size. Tests run in a sandboxed worker with a time limit. A **Your activity** section lists what you have solved and what you have tried (tries, best result, when). Every approach in the bank is verified against every test and random inputs by `tools/coding-bank`. C++ versions for the original problems run through the Wandbox compiler |
+| **Live Interview** | Spoken mock interview with an AI interviewer (Aria): she asks questions aloud, you answer aloud with camera and microphone on (voice answers need Chrome or Edge; typing works anywhere). Eight interview types (mixed, technical, HR, CS fundamentals, coding, system design, situational, puzzles), a resume-based mode that asks about your own projects, company-style modes (Amazon, Google, Microsoft, Meta, TCS, Infosys, Wipro, Cognizant, Accenture), an optional per-answer time limit for pressure rounds, and cancel or end-early at any time. Adaptive follow-ups and a scored feedback report via Gemini, with a built-in question bank (about 150 questions) as offline fallback. The interview opens in **full screen with your video filling the screen** (Aria floats in a corner, captions and controls overlay the bottom). Video and audio never leave your browser |
 | **Interview Experiences** | Interview rounds and tips you add, filterable by company and difficulty (stored in your browser) |
 | **Hiring Hub** | **India (Local)** tab for city jobs and internships (Adzuna), never blank: without Adzuna keys it shows remote roles open to India plus pre-filled searches on Internshala, LinkedIn, Naukri, Indeed and Google Jobs. **Remote (Global)** tab merges Remote OK, Remotive and Jobicy (Jobicy tags internships explicitly). **Analyze resume fit** returns an ATS match score, matched/missing skills, learning actions and practice interview questions |
 | **Application Tracker** | A board for every application — Saved → Applied → Assessment → Interview → Offer / Closed. Add by hand or press **Track** on any Hiring Hub job; move cards with buttons (works on phones and with a keyboard), edit notes and links, search. Stored per account in your browser and included in **Export / Import backup** |
@@ -78,6 +78,7 @@ Set these in **Vercel → Project → Settings → Environment Variables** (Prod
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Recommended | Shared rate-limit counters across serverless instances |
 | `GEMINI_MODEL`, `GEMINI_BASE_URL` | No | Default to `gemini-3.5-flash-lite` and the public Gemini v1beta endpoint |
 | `ALLOWED_ORIGINS` | No | Extra origins allowed to call `/api` (same-origin always works) |
+| `CODING_API_URL`, `CODING_API_KEY` | No | Read the coding questions from your own API instead of the bundled bank (see [Coding questions API](#coding-questions-api)) |
 
 Do **not** add `VERCEL_OIDC_TOKEN` — it is a local deployment credential managed by Vercel.
 
@@ -91,9 +92,27 @@ All routes are same-origin only, size-capped and rate-limited per client IP (def
 | `/api/aptitude` | POST | Generate up to 20 quiz questions | 10 |
 | `/api/job-apply` | POST | Resume-vs-job ATS analysis (resume capped at 20,000 chars) | 8 |
 | `/api/compile` | POST | C++ compile/run through Wandbox (allow-listed compilers, 30,000-char code cap) | 30 |
+| `/api/coding-questions` | GET | Coding practice questions: paged list with filters, one full question, ids for sessions (see below). Edge-cached | 240 |
 | `/api/jobs` | GET | Live listings: `source=india` (Adzuna, or remote-for-India fallback) or `source=remote` (Remote OK + Remotive + Jobicy); supports `q`, `where`, `distance`, `internship=1`, `page`. Edge-cached 1–5 minutes | 60 |
 
 Each AI route also has a global per-day ceiling so a misbehaving client can't run up your bill. Tune the numbers in each route's `guard()` call.
+
+## Coding questions API
+
+The website never contains the questions. The Coding Practice page asks `GET /api/coding-questions`:
+
+| Query | Returns |
+| --- | --- |
+| `id=two-sum` | `{ question, prelude }`: one full question (`id, title, difficulty, topic, targetRoles, description, constraints, starterCode, testCases[{input, expected}], approaches[...]`) and the helper code (ListNode, TreeNode, ...) the test runner defines |
+| `ids=a,b,c` | `{ items: [summary] }` for those ids (up to 100) |
+| `difficulty`, `topic`, `role`, `q`, `include=a,b`, `exclude=c`, `offset`, `limit` (max 100) | `{ total, offset, limit, items: [summary], facets: { total, difficulty: {Easy, Medium, Hard}, topics: {name: count}, roles: [] } }` |
+| the same filters plus `idsOnly=1` | `{ total, ids: [...] }` (used to build practice sessions) |
+
+A *summary* is `{ id, title, difficulty, topic, targetRoles, source, summary, approaches }`. `testCases[].input` is a JavaScript expression that calls the learner's function and `expected` is its JSON result.
+
+**By default** the answers come from `api/_data/coding-bank.js`, generated by `npm run bank:build` from `tools/coding-bank/problems/` (`npm run bank:check` verifies every approach against every test and against random inputs).
+
+**To use your own API**, set `CODING_API_URL` (and `CODING_API_KEY` if it needs a bearer token). The server forwards the same query string to that URL and returns its JSON, so your API only has to follow the table above. If it is down, the page shows a clear message with a retry button.
 
 ## Hiring Hub setup
 

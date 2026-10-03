@@ -967,15 +967,18 @@ const MockInterview = {
             </select>
           </label>
           <button type="button" class="btn btn-ghost" id="ivEnd" disabled title="Available after your first answer">End and get feedback</button>
+          <button type="button" class="btn btn-ghost" id="ivFull" aria-pressed="false">Full screen</button>
           <button type="button" class="btn btn-ghost iv-cancel" id="ivCancel">Cancel interview</button>
         </div>
       </div>`;
+    this._enterImmersive();
     const $ = (id) => document.getElementById(id);
     $('ivDone').addEventListener('click', () => this._submit());
     $('ivRepeat').addEventListener('click', () => this._repeat());
     $('ivTypedToggle').addEventListener('click', () => this._toggleTyped());
     $('ivEnd').addEventListener('click', () => this._end());
     $('ivCancel').addEventListener('click', () => this._cancel());
+    $('ivFull').addEventListener('click', () => this._toggleFullscreen());
     $('ivSpeedRoom').addEventListener('change', () => this._remember('rate', $('ivSpeedRoom').value));
     document.removeEventListener('keydown', this._escHandler);
     this._escHandler = (e) => { if (e.key === 'Escape' && this.state && this.state.phase === 'room' && !this.state.confirming && !document.getElementById('appConfirmModal')) this._cancel(); };
@@ -989,6 +992,56 @@ const MockInterview = {
       const t = Math.floor((Date.now() - s.startedAt) / 1000);
       el.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
     }, 1000);
+  },
+
+  /* ---------------------------------------------------------------- full screen */
+
+  /** The room fills the whole window (page chrome hidden) and the browser is asked for real full screen.
+      The overlay works even where the Fullscreen API is blocked or missing (for example iPhones). The whole
+      page, not just the room, goes full screen so dialogs such as "Cancel interview" stay visible. */
+  _enterImmersive() {
+    document.body.classList.add('iv-immersive');
+    // A transformed ancestor (page animations) would trap a fixed element, so the room moves to <body>.
+    const room = document.querySelector('.iv-room');
+    if (room && room.parentElement !== document.body) document.body.appendChild(room);
+    if (this._fsHandler) document.removeEventListener('fullscreenchange', this._fsHandler);
+    this._fsHandler = () => this._paintFullscreenButton();
+    document.addEventListener('fullscreenchange', this._fsHandler);
+    const root = document.documentElement;
+    if (!document.fullscreenElement && typeof root.requestFullscreen === 'function') {
+      try {
+        const p = root.requestFullscreen({ navigationUI: 'hide' });
+        if (p && p.catch) p.catch(() => this._paintFullscreenButton());
+      } catch { /* the overlay still fills the window */ }
+    }
+    this._paintFullscreenButton();
+  },
+
+  _leaveImmersive() {
+    document.body.classList.remove('iv-immersive');
+    const room = document.querySelector('body > .iv-room');
+    if (room) room.remove();
+    if (this._fsHandler) { document.removeEventListener('fullscreenchange', this._fsHandler); this._fsHandler = null; }
+    if (document.fullscreenElement && typeof document.exitFullscreen === 'function') {
+      try { const p = document.exitFullscreen(); if (p && p.catch) p.catch(() => {}); } catch { /* already left */ }
+    }
+  },
+
+  _toggleFullscreen() {
+    if (document.fullscreenElement) {
+      if (typeof document.exitFullscreen === 'function') document.exitFullscreen().catch(() => {});
+    } else if (typeof document.documentElement.requestFullscreen === 'function') {
+      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    }
+  },
+
+  _paintFullscreenButton() {
+    const b = document.getElementById('ivFull');
+    if (!b) return;
+    const on = Boolean(document.fullscreenElement);
+    b.textContent = on ? 'Exit full screen' : 'Full screen';
+    b.setAttribute('aria-pressed', String(on));
+    b.hidden = typeof document.documentElement.requestFullscreen !== 'function';
   },
 
   _paintProgress() {
@@ -1029,6 +1082,7 @@ const MockInterview = {
     clearInterval(s.clock);
     clearInterval(s.answerTimer);
     document.removeEventListener('keydown', this._escHandler);
+    this._leaveImmersive();
     this._stopStream();
     this.container.innerHTML = '<div class="loading-screen"><div class="spinner"></div><p>Aria is preparing your feedback…</p></div>';
     const stats = this.deliveryStats(s.history, s.durations);
@@ -1108,6 +1162,7 @@ const MockInterview = {
     clearInterval(s.answerTimer);
     clearTimeout(s.soundTimer);
     document.removeEventListener('keydown', this._escHandler);
+    this._leaveImmersive();
     if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch { /* unsupported */ } }
     this._stopStream();
   }

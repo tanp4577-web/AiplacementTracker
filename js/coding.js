@@ -1,204 +1,218 @@
 /* ============ Coding Sandbox Module ============
-   LeetCode + HackerRank style practice with rich filters:
-     - Difficulty filter (Easy / Medium / Hard)
-     - Source filter (LeetCode / HackerRank / Both)
-     - Target role filter (SDE / Data Analyst / ... )
-     - Number of questions selector -> generates a practice session
-   Keeps the existing in-browser editor + instant test runner.
+   Practice problems fetched from /api/coding-questions (nothing is bundled into the page):
+     - a paged list with search, difficulty, topic, role and solved/unsolved filters
+     - one full question (stubs, tests, approaches) loaded when you open it
+     - practice sessions built from the ids of the filtered list
+     - an activity section listing what you have solved and what you have tried
+   Keeps the in-browser editor + instant test runner.
    =============================================== */
 const Coding = {
-state: {
-    questions: [],
+  state: {
+    items: [],       // list summaries for the current filters (paged)
+    total: 0,        // how many problems match the filters
+    facets: null,    // overall counts for the filters (difficulty, topics, roles)
+    loading: false,
+    error: '',
     current: null,
     code: '',
     results: [],
     lang: 'javascript', // 'javascript' | 'cpp'
-    filters: { difficulty: 'all', source: 'both', role: 'all', topic: 'all', status: 'all', search: '', count: 10, limit: 30 },
+    filters: { difficulty: 'all', role: 'all', topic: 'all', status: 'all', search: '', count: 10, limit: 30 },
     session: [],
     sessionIndex: 0,
     sessionActive: false,
-    sessionResults: {}
+    sessionResults: {},
+    prelude: '',     // helpers (ListNode, TreeNode, ...) that the test runner makes available
+    tab: null        // activity section tab: 'solved' | 'attempted' (null = automatic)
   },
+  _cache: {},        // full questions already fetched, by id
+  _meta: {},         // title / difficulty / topic for ids seen in lists, sessions and activity
 
-render(container) {
+  render(container) {
     this.container = container;
-    // The verified bank (tools/coding-bank) comes first; older questions are kept only if the bank does not replace them.
-    const bank = typeof CODING_BANK !== 'undefined' && Array.isArray(CODING_BANK) ? CODING_BANK : [];
-    const have = new Set(bank.map(q => q.id));
-    const base = Array.isArray(FALLBACK_CODING) ? FALLBACK_CODING : [];
-    const extra = (typeof EXTRA_CODING !== 'undefined' && Array.isArray(EXTRA_CODING)) ? EXTRA_CODING : [];
-    this.state.questions = [...bank, ...[...base, ...extra].filter(q => !have.has(q.id))];
     this.state.current = null;
     this.state.session = [];
     this.state.sessionIndex = 0;
     this.state.sessionActive = false;
     this.state.sessionResults = {};
     this.state.filters.limit = 30;
+    this.state.items = [];
+    this.state.error = '';
     this._renderList();
+    this._loadList();
   },
 
-  _availableRoles() {
-    const roles = new Set();
-    this.state.questions.forEach(q => (q.targetRoles || []).forEach(r => roles.add(r)));
-    return [...roles].sort();
+  /* ---------------------------------------------------------------- API */
+
+  async _api(params) {
+    const res = await fetch(`/api/coding-questions?${params.toString()}`);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data) throw new Error((data && data.error) || 'The question service is not available.');
+    return data;
   },
 
-  _availableSources() {
-    const s = new Set();
-    this.state.questions.forEach(q => s.add(q.source || 'LeetCode'));
-    return [...s];
-  },
-
-  _filteredQuestions() {
-    const f = this.state.filters;
-    const solved = this._solvedSet();
-    const needle = (f.search || '').trim().toLowerCase();
-    return this.state.questions.filter(q => {
-      if (f.difficulty !== 'all' && q.difficulty !== f.difficulty) return false;
-      if (f.source !== 'both' && (q.source || 'LeetCode') !== f.source) return false;
-      if (f.role !== 'all' && !(q.targetRoles || []).includes(f.role)) return false;
-      if (f.topic !== 'all' && (q.topic || 'General') !== f.topic) return false;
-      if (f.status === 'solved' && !solved.has(q.id)) return false;
-      if (f.status === 'unsolved' && solved.has(q.id)) return false;
-      if (needle && !`${q.title} ${q.topic || ''} ${q.description || ''}`.toLowerCase().includes(needle)) return false;
-      return true;
-    });
-  },
-
-  _solvedSet() {
+  _solvedIds() {
     const prog = Auth.getEmail() ? DB.getProgress(Auth.getEmail()) : null;
-    return new Set(prog && prog.coding ? prog.coding.solved : []);
+    return prog && prog.coding && Array.isArray(prog.coding.solved) ? prog.coding.solved : [];
   },
 
-  _topics() {
-    return [...new Set(this.state.questions.map(q => q.topic || 'General'))].sort();
+  /** Filters as a query string. Solved / unsolved is sent as include / exclude lists of ids. */
+  _query(extra = {}) {
+    const f = this.state.filters;
+    const p = new URLSearchParams();
+    if (f.difficulty !== 'all') p.set('difficulty', f.difficulty);
+    if (f.topic !== 'all') p.set('topic', f.topic);
+    if (f.role !== 'all') p.set('role', f.role);
+    if (f.search.trim()) p.set('q', f.search.trim());
+    const solved = this._solvedIds();
+    if (f.status === 'solved') p.set('include', solved.length ? solved.join(',') : '-');
+    if (f.status === 'unsolved' && solved.length) p.set('exclude', solved.join(','));
+    for (const [k, v] of Object.entries(extra)) p.set(k, String(v));
+    return p;
   },
+
+  /** Loads the first page, or the next page when `append` is true, and repaints the list. */
+  async _loadList(append = false) {
+    const st = this.state;
+    const ticket = (this._ticket = (this._ticket || 0) + 1);
+    st.loading = true;
+    st.error = '';
+    this._paintList();
+    try {
+      const data = await this._api(this._query({ offset: append ? st.items.length : 0, limit: 30 }));
+      if (ticket !== this._ticket) return;
+      st.items = append ? [...st.items, ...data.items] : data.items;
+      st.total = data.total;
+      const firstFacets = !st.facets;
+      if (data.facets) st.facets = data.facets;
+      st.items.forEach((q) => { this._meta[q.id] = q; });
+      st.loading = false;
+      if (!document.getElementById('questionList')) return; // the learner has moved on (opened a problem)
+      if (firstFacets) this._renderList(); else this._paintList();
+    } catch (e) {
+      if (ticket !== this._ticket) return;
+      st.loading = false;
+      st.error = e.message || 'Could not load the problems.';
+      this._paintList();
+    }
+  },
+
+  /** Full question by id, cached. Also remembers the test-helper prelude the runner needs. */
+  async _fetchQuestion(id) {
+    if (this._cache[id]) return this._cache[id];
+    const data = await this._api(new URLSearchParams({ id }));
+    this._cache[id] = data.question;
+    this._meta[id] = data.question;
+    if (data.prelude) this.state.prelude = data.prelude;
+    return data.question;
+  },
+
+  /** Titles for ids we have not seen yet (older solved problems, session reviews). */
+  async _hydrate(ids) {
+    const missing = ids.filter((id) => !this._meta[id]);
+    if (!missing.length) return false;
+    try {
+      const data = await this._api(new URLSearchParams({ ids: missing.join(',') }));
+      data.items.forEach((q) => { this._meta[q.id] = q; });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  /* ---------------------------------------------------------------- list */
 
   _renderList() {
     const prog = Auth.getEmail() ? DB.getProgress(Auth.getEmail()) : null;
     const solved = prog && prog.coding ? prog.coding.solved : [];
-    const solvedIds = new Set(solved);
-    const filtered = this._filteredQuestions();
-    const shown = filtered.slice(0, this.state.filters.limit);
-    const roles = this._availableRoles();
-    const sources = this._availableSources();
-    const topics = this._topics();
     const f = this.state.filters;
+    const fc = this.state.facets;
     const esc = (v) => this._escapeHtml(v);
-    const bankCount = (d) => this.state.questions.filter(q => q.difficulty === d).length;
     const opt = (value, label, current) => `<option value="${esc(value)}" ${current === value ? 'selected' : ''}>${esc(label)}</option>`;
-
-    const sourceChip = (q) => {
-      const src = q.source || 'LeetCode';
-      return `<span class="chip ${src === 'LeetCode' ? 'blue' : 'purple'}">${esc(src)}</span>`;
-    };
-    const topicChip = (q) => q.topic ? `<span class="chip purple">${esc(q.topic)}</span>` : '';
-    const approachChip = (q) => (q.approaches && q.approaches.length) ? `<span class="chip">${q.approaches.length} approaches</span>` : '';
+    const topics = fc ? Object.keys(fc.topics).sort() : [];
+    const roles = fc ? fc.roles : [];
+    const total = fc ? fc.total : 0;
 
     this.container.innerHTML = `
       <div class="grid grid-2">
         <div class="card">
           <div class="card-title"><i class="bi bi-code-slash text-accent" style="font-size:16px"></i> Coding Practice</div>
-          <div class="card-sub">${this.state.questions.length} problems. Each one has several ways to solve it, with the time and space cost of every approach.</div>
+          <div class="card-sub">${fc ? `${total} problems. ` : ''}Each one has several ways to solve it, with the time and space cost of every approach.</div>
 
           <div class="filter-bar">
             <input type="search" id="codeSearch" placeholder="Search problems or topics" aria-label="Search problems" value="${esc(f.search)}">
             <select id="difficultyFilter" aria-label="Difficulty">
               ${opt('all', 'All difficulties', f.difficulty)}
-              ${['Easy', 'Medium', 'Hard'].map(d => opt(d, `${d} (${bankCount(d)})`, f.difficulty)).join('')}
+              ${['Easy', 'Medium', 'Hard'].map((d) => opt(d, fc ? `${d} (${fc.difficulty[d] || 0})` : d, f.difficulty)).join('')}
             </select>
             <select id="topicFilter" aria-label="Topic">
               ${opt('all', 'All topics', f.topic)}
-              ${topics.map(t => opt(t, t, f.topic)).join('')}
+              ${topics.map((t) => opt(t, t, f.topic)).join('')}
             </select>
             <select id="statusFilter" aria-label="Status">
               ${opt('all', 'Solved and unsolved', f.status)}
               ${opt('unsolved', 'Unsolved only', f.status)}
               ${opt('solved', 'Solved only', f.status)}
             </select>
-            ${sources.length > 1 ? `<select id="sourceFilter" aria-label="Source"><option value="both">All sources</option>${sources.map(s => opt(s, s, f.source)).join('')}</select>` : ''}
             <select id="roleFilter" aria-label="Role">
               ${opt('all', 'All roles', f.role)}
-              ${roles.map(r => opt(r, r, f.role)).join('')}
+              ${roles.map((r) => opt(r, r, f.role)).join('')}
             </select>
           </div>
 
           <div class="flex gap-1 items-center mt-2" style="flex-wrap:wrap">
             <label class="field-label" style="margin:0 4px 0 0;text-transform:none;letter-spacing:0">Practice questions:</label>
             <select id="countFilter" style="width:auto;min-width:110px">
-              ${[5, 10, 20, 50].map(c => `<option value="${c}" ${f.count == c ? 'selected' : ''}>${c} questions</option>`).join('')}
+              ${[5, 10, 20, 50].map((c) => `<option value="${c}" ${f.count == c ? 'selected' : ''}>${c} questions</option>`).join('')}
             </select>
             <button class="btn btn-primary btn-sm" id="startSessionBtn">
               <i class="bi bi-lightning-charge-fill" style="margin-right:4px"></i>
               Generate ${f.count}Q Session
             </button>
           </div>
-          <div class="text-dim" style="font-size:12px;margin-top:8px">
-            <b style="color:var(--accent)">${filtered.length}</b> questions match your filters.
-            ${filtered.length === 0 ? 'Try relaxing the filters.' : ''}
-          </div>
-
-          <div id="questionList" class="mt-2">
-            ${shown.map(q => `
-              <div class="card hoverable mb-1" style="padding:14px;cursor:pointer" data-qid="${esc(q.id)}" role="button" tabindex="0">
-                <div class="flex-between">
-                  <div>
-                    <b style="font-size:14px">${esc(q.title)}</b>
-                    <div class="text-dim" style="font-size:12px;margin-top:3px">${esc((q.description || '').split('\n')[0])}</div>
-                    <div class="tag-row" style="margin-top:8px">
-                      ${sourceChip(q)}
-                      <span class="chip ${q.difficulty === 'Easy' ? 'green' : q.difficulty === 'Medium' ? 'orange' : 'red'}">${esc(q.difficulty)}</span>
-                      ${topicChip(q)}
-                      ${approachChip(q)}
-                      ${q.targetRoles && q.targetRoles.length ? `<span class="chip cyan">${esc(q.targetRoles.slice(0, 2).join(', '))}${q.targetRoles.length > 2 ? '…' : ''}</span>` : ''}
-                      ${solvedIds.has(q.id) ? '<span class="chip green">[OK] Solved</span>' : ''}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            `).join('') || `<div class="empty-state"><div class="es-icon"></div><h3>No questions found</h3><p>Adjust your filters to see more challenges</p></div>`}
-            ${filtered.length > shown.length ? `<button type="button" class="btn btn-ghost btn-block" id="showMoreBtn">Show ${Math.min(30, filtered.length - shown.length)} more (${filtered.length - shown.length} left)</button>` : ''}
-          </div>
+          <div class="text-dim" id="matchCount" style="font-size:12px;margin-top:8px"></div>
+          <div id="questionList" class="mt-2" aria-live="polite"></div>
         </div>
-        <div class="card">
-          <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--accent)"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="8"/></svg> Your Progress</div>
-          <div class="card-sub">Coding statistics</div>
-          <div class="stat-row" style="margin-bottom:10px">
-            <div class="card stat-card" style="padding:14px">
-              <div class="card-stat">${solved.length}</div>
-              <div class="card-stat-label">Solved</div>
+        <div>
+          <div class="card">
+            <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--accent)"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="8"/></svg> Your Progress</div>
+            <div class="card-sub">Coding statistics</div>
+            <div class="stat-row" style="margin-bottom:10px">
+              <div class="card stat-card" style="padding:14px">
+                <div class="card-stat">${solved.length}</div>
+                <div class="card-stat-label">Solved</div>
+              </div>
+              <div class="card stat-card" style="padding:14px">
+                <div class="card-stat">${total || '…'}</div>
+                <div class="card-stat-label">Total Bank</div>
+              </div>
             </div>
-            <div class="card stat-card" style="padding:14px">
-              <div class="card-stat">${this.state.questions.length}</div>
-              <div class="card-stat-label">Total Bank</div>
+            <div class="progress-label"><span>Completion</span><span>${total ? Math.round((solved.length / total) * 100) : 0}%</span></div>
+            <div class="progress"><div class="progress-fill green" style="width:${total ? (solved.length / total) * 100 : 0}%"></div></div>
+            <div class="divider"></div>
+            <div class="card-title mb-1" style="font-size:13px">Topic Coverage</div>
+            <div class="tag-row">${this._topicSummary()}</div>
+            <div class="divider"></div>
+            <div class="text-dim" style="font-size:12.5px">Attempts made: <b style="color:var(--text)">${prog && prog.coding ? prog.coding.totalAttempts : 0}</b></div>
+            <div class="explanation mt-2" style="font-size:12.5px">
+              <b>How sessions work:</b> pick filters, choose a question count, then hit <b>Generate Session</b>. You will get a curated sequence of that many questions with a progress tracker and a final summary.
             </div>
           </div>
-          <div class="progress-label"><span>Completion</span><span>${this.state.questions.length ? Math.round((solved.length / this.state.questions.length) * 100) : 0}%</span></div>
-          <div class="progress"><div class="progress-fill green" style="width:${this.state.questions.length ? (solved.length / this.state.questions.length) * 100 : 0}%"></div></div>
-          <div class="divider"></div>
-          <div class="card-title mb-1" style="font-size:13px">Topic Coverage</div>
-          <div class="tag-row">${this._topicSummary()}</div>
-          <div class="divider"></div>
-          <div class="text-dim" style="font-size:12.5px">Attempts made: <b style="color:var(--text)">${prog && prog.coding ? prog.coding.totalAttempts : 0}</b></div>
-          <div class="explanation mt-2" style="font-size:12.5px">
-            <b>How sessions work:</b> pick filters, choose a question count, then hit <b>Generate Session</b>. You will get a curated sequence of that many questions with a progress tracker and a final summary.
-          </div>
+          <div class="card mt-3" id="activityCard">${this._activityHtml()}</div>
         </div>
       </div>
     `;
 
-    const refilter = (key, value) => { this.state.filters[key] = value; this.state.filters.limit = 30; this._renderList(); };
-    const search = document.getElementById('codeSearch');
-    search.addEventListener('input', (e) => {
-      const pos = e.target.selectionStart;
-      refilter('search', e.target.value);
-      const again = document.getElementById('codeSearch');
-      if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch { /* not supported */ } }
+    const refilter = (key, value) => { this.state.filters[key] = value; this._loadList(); };
+    let searchTimer = 0;
+    document.getElementById('codeSearch').addEventListener('input', (e) => {
+      clearTimeout(searchTimer);
+      const v = e.target.value;
+      searchTimer = setTimeout(() => refilter('search', v), 300);
     });
     document.getElementById('difficultyFilter').addEventListener('change', (e) => refilter('difficulty', e.target.value));
     document.getElementById('topicFilter').addEventListener('change', (e) => refilter('topic', e.target.value));
     document.getElementById('statusFilter').addEventListener('change', (e) => refilter('status', e.target.value));
-    document.getElementById('sourceFilter')?.addEventListener('change', (e) => refilter('source', e.target.value));
     document.getElementById('roleFilter').addEventListener('change', (e) => refilter('role', e.target.value));
     document.getElementById('countFilter').addEventListener('change', (e) => {
       this.state.filters.count = parseInt(e.target.value, 10) || 10;
@@ -206,31 +220,169 @@ render(container) {
       if (btn) btn.innerHTML = `Generate ${this.state.filters.count}Q Session`;
     });
     document.getElementById('startSessionBtn').addEventListener('click', () => this._startSession());
-    document.getElementById('showMoreBtn')?.addEventListener('click', () => { this.state.filters.limit += 30; this._renderList(); });
-    document.querySelectorAll('[data-qid]').forEach(el => {
+    this._bindActivity();
+    this._paintList();
+  },
+
+  /** Repaints only the list of problems (and the match count), so typing in the search box never loses focus. */
+  _paintList() {
+    const box = document.getElementById('questionList');
+    if (!box) return;
+    const st = this.state;
+    const esc = (v) => this._escapeHtml(v);
+    const solvedIds = new Set(this._solvedIds());
+    const count = document.getElementById('matchCount');
+    if (count) {
+      count.innerHTML = st.error ? '' : st.loading && !st.items.length ? 'Loading problems…' : `<b style="color:var(--accent)">${st.total}</b> questions match your filters.${st.total === 0 ? ' Try relaxing the filters.' : ''}`;
+    }
+    if (st.error) {
+      box.innerHTML = `<div class="empty-state" role="alert"><h3>Couldn't load the problems</h3><p>${esc(st.error)}</p><button type="button" class="btn btn-ghost btn-sm" id="retryCodingBtn">Try again</button></div>`;
+      document.getElementById('retryCodingBtn').addEventListener('click', () => this._loadList());
+      return;
+    }
+    const rows = st.items.map((q) => `
+      <div class="card hoverable mb-1" style="padding:14px;cursor:pointer" data-qid="${esc(q.id)}" role="button" tabindex="0">
+        <b style="font-size:14px">${esc(q.title)}</b>
+        <div class="text-dim" style="font-size:12px;margin-top:3px">${esc(q.summary || '')}</div>
+        <div class="tag-row" style="margin-top:8px">
+          <span class="chip ${q.difficulty === 'Easy' ? 'green' : q.difficulty === 'Medium' ? 'orange' : 'red'}">${esc(q.difficulty)}</span>
+          <span class="chip purple">${esc(q.topic)}</span>
+          ${q.approaches ? `<span class="chip">${q.approaches} approaches</span>` : ''}
+          ${q.targetRoles && q.targetRoles.length ? `<span class="chip cyan">${esc(q.targetRoles.slice(0, 2).join(', '))}${q.targetRoles.length > 2 ? '…' : ''}</span>` : ''}
+          ${solvedIds.has(q.id) ? '<span class="chip green">[OK] Solved</span>' : ''}
+        </div>
+      </div>`).join('');
+    const more = st.total > st.items.length
+      ? `<button type="button" class="btn btn-ghost btn-block" id="showMoreBtn" ${st.loading ? 'disabled' : ''}>${st.loading ? 'Loading…' : `Show ${Math.min(30, st.total - st.items.length)} more (${st.total - st.items.length} left)`}</button>`
+      : '';
+    box.innerHTML = rows || (st.loading ? '' : '<div class="empty-state"><h3>No questions found</h3><p>Adjust your filters to see more challenges</p></div>');
+    box.insertAdjacentHTML('beforeend', more);
+    document.getElementById('showMoreBtn')?.addEventListener('click', () => this._loadList(true));
+    box.querySelectorAll('[data-qid]').forEach((el) => {
       el.addEventListener('click', () => this._openQuestion(el.dataset.qid));
       el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._openQuestion(el.dataset.qid); } });
     });
   },
 
   _topicSummary() {
-    const topics = {};
-    this.state.questions.forEach(q => {
-      const t = q.topic || 'General';
-      topics[t] = (topics[t] || 0) + 1;
-    });
-    return Object.entries(topics).map(([t, n]) => `<span class="chip purple">${t} (${n})</span>`).join(' ') || '<span class="text-dim">No topics</span>';
+    const topics = this.state.facets ? this.state.facets.topics : {};
+    return Object.entries(topics).sort().map(([t, n]) => `<span class="chip purple">${this._escapeHtml(t)} (${n})</span>`).join(' ') || '<span class="text-dim">No topics yet</span>';
   },
 
-  _startSession() {
-    const pool = this._filteredQuestions();
-    if (pool.length === 0) {
+  /* ---------------------------------------------------------------- your activity */
+
+  /** Everything the learner has tried: each problem's tries, best result and when. Older progress that only has a
+      list of solved ids still shows up (without tries) once the titles are fetched. */
+  _attempts() {
+    const prog = Auth.getEmail() ? DB.getProgress(Auth.getEmail()) : null;
+    const coding = (prog && prog.coding) || {};
+    const map = { ...(coding.attempts || {}) };
+    for (const id of coding.solved || []) if (!map[id]) map[id] = { id, tries: 0, solved: true };
+    for (const [id, a] of Object.entries(map)) { map[id] = { ...a, id }; if ((coding.solved || []).includes(id)) map[id].solved = true; }
+    return Object.values(map);
+  },
+
+  _ago(ms) {
+    if (!ms) return '';
+    const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 90) return 'just now';
+    if (s < 3600) return `${Math.round(s / 60)} min ago`;
+    if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+    return `${Math.round(s / 86400)} d ago`;
+  },
+
+  _activityHtml() {
+    const esc = (v) => this._escapeHtml(v);
+    const all = this._attempts();
+    const solved = all.filter((a) => a.solved).sort((x, y) => (y.solvedAt || y.lastAt || 0) - (x.solvedAt || x.lastAt || 0));
+    const tried = all.filter((a) => !a.solved).sort((x, y) => (y.lastAt || 0) - (x.lastAt || 0));
+    // Until the learner picks a tab, show the one that has something in it.
+    const tab = this.state.tab || (solved.length || !tried.length ? 'solved' : 'attempted');
+    const list = tab === 'solved' ? solved : tried;
+    const show = this.state.showAllActivity ? list : list.slice(0, 8);
+    const row = (a) => {
+      const m = this._meta[a.id] || {};
+      const title = a.title || m.title || a.id;
+      const diff = a.difficulty || m.difficulty || '';
+      const topic = a.topic || m.topic || '';
+      const detail = a.solved
+        ? `Solved${a.tries ? ` in ${a.tries} ${a.tries === 1 ? 'try' : 'tries'}` : ''}${a.solvedAt || a.lastAt ? ` · ${this._ago(a.solvedAt || a.lastAt)}` : ''}`
+        : `${a.tries} ${a.tries === 1 ? 'try' : 'tries'} · best ${a.best || 0}/${a.total || '?'} tests${a.lastAt ? ` · ${this._ago(a.lastAt)}` : ''}`;
+      return `
+        <button type="button" class="act-row" data-act-open="${esc(a.id)}">
+          <span class="act-main"><b>${esc(title)}</b><span class="text-dim">${esc([diff, topic, a.lang === 'cpp' ? 'C++' : ''].filter(Boolean).join(' · '))}</span></span>
+          <span class="act-detail ${a.solved ? 'cx-ok-t' : ''}">${esc(detail)}</span>
+        </button>`;
+    };
+    return `
+      <div class="card-title">Your activity</div>
+      <div class="card-sub">What you have solved and what you have tried</div>
+      <div class="cx-tabs" role="tablist" aria-label="Activity">
+        <button type="button" class="cx-tab ${tab === 'solved' ? 'active' : ''}" role="tab" aria-selected="${tab === 'solved'}" data-act-tab="solved">Solved (${solved.length})</button>
+        <button type="button" class="cx-tab ${tab === 'attempted' ? 'active' : ''}" role="tab" aria-selected="${tab === 'attempted'}" data-act-tab="attempted">Attempted, not solved (${tried.length})</button>
+      </div>
+      <div class="act-list">
+        ${show.map(row).join('') || `<p class="text-dim" style="font-size:13px">${tab === 'solved' ? 'Nothing solved yet. Open a problem and press Run Tests: when every test passes it appears here.' : 'No unfinished attempts. Problems you run tests on but do not finish will be listed here.'}</p>`}
+      </div>
+      ${list.length > 8 ? `<button type="button" class="btn btn-ghost btn-sm mt-1" data-act-more>${this.state.showAllActivity ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}`;
+  },
+
+  _bindActivity() {
+    const card = document.getElementById('activityCard');
+    if (!card) return;
+    const repaint = () => { card.innerHTML = this._activityHtml(); this._bindActivity(); };
+    card.querySelectorAll('[data-act-tab]').forEach((b) => b.addEventListener('click', () => { this.state.tab = b.dataset.actTab; this.state.showAllActivity = false; repaint(); }));
+    card.querySelector('[data-act-more]')?.addEventListener('click', () => { this.state.showAllActivity = !this.state.showAllActivity; repaint(); });
+    card.querySelectorAll('[data-act-open]').forEach((b) => b.addEventListener('click', () => this._openQuestion(b.dataset.actOpen)));
+    // Older solved ids have no stored title: fetch them once and repaint.
+    const ids = this._attempts().filter((a) => !a.title).map((a) => a.id);
+    this._hydrate(ids).then((changed) => { if (changed && document.getElementById('activityCard') === card) repaint(); });
+  },
+
+  /** Records one run of the tests: tries, the best result, the last time, and when it was first solved. */
+  _recordProgress(q, passed, total, allPass) {
+    const email = Auth.getEmail();
+    if (!email) return;
+    const prog = DB.getProgress(email);
+    const coding = prog.coding || { solved: [], totalAttempts: 0 };
+    coding.totalAttempts = (coding.totalAttempts || 0) + 1;
+    const attempts = { ...(coding.attempts || {}) };
+    const prev = attempts[q.id] || {};
+    const now = Date.now();
+    attempts[q.id] = {
+      title: q.title, difficulty: q.difficulty, topic: q.topic || '',
+      tries: (prev.tries || 0) + 1,
+      best: Math.max(prev.best || 0, passed), total,
+      firstAt: prev.firstAt || now, lastAt: now,
+      solved: Boolean(prev.solved || allPass),
+      solvedAt: prev.solvedAt || (allPass ? now : 0),
+      lang: this.state.lang
+    };
+    coding.attempts = attempts;
+    if (allPass && !coding.solved.includes(q.id)) {
+      coding.solved = [...coding.solved, q.id];
+      App.showToast(' All tests passed! Challenge solved.', 'success');
+    }
+    DB.saveProgress(email, { coding });
+    App.refreshAll();
+  },
+
+  /* ---------------------------------------------------------------- sessions */
+
+  async _startSession() {
+    let data;
+    try {
+      data = await this._api(this._query({ idsOnly: 1 }));
+    } catch (e) {
+      App.showToast(e.message || 'Could not start a session', 'error');
+      return;
+    }
+    if (!data.ids.length) {
       App.showToast('No questions match the current filters', 'error');
       return;
     }
-    const count = Math.min(this.state.filters.count, pool.length);
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    this.state.session = shuffled.slice(0, count).map(q => q.id);
+    const count = Math.min(this.state.filters.count, data.ids.length);
+    this.state.session = [...data.ids].sort(() => Math.random() - 0.5).slice(0, count);
     this.state.sessionIndex = 0;
     this.state.sessionActive = true;
     this.state.sessionResults = {};
@@ -252,9 +404,18 @@ render(container) {
     return EXTRA_CODING_CPP.find(c => c.id === id + '-cpp') || null;
   },
 
-  _openQuestion(id) {
-    const q = this.state.questions.find(x => x.id === id);
-    if (!q) return;
+  async _openQuestion(id) {
+    let q = this._cache[id];
+    if (!q) {
+      this.container.innerHTML = '<div class="loading-screen"><div class="spinner"></div><p>Loading problem...</p></div>';
+      try {
+        q = await this._fetchQuestion(id);
+      } catch (e) {
+        App.showToast(e.message || 'Could not load this problem', 'error');
+        this._renderList();
+        return;
+      }
+    }
     this.state.current = q;
     this.state.code = q.starterCode;
     this.state.results = [];
@@ -532,19 +693,7 @@ using namespace std;
     const passCount = results.filter(r => r.pass).length;
     allPass = passCount === results.length;
 
-    // Progress tracking (same as JS mode)
-    const email = Auth.getEmail();
-    if (email) {
-      const prog = DB.getProgress(email);
-      const coding = prog.coding || { solved: [], totalAttempts: 0 };
-      coding.totalAttempts++;
-      if (allPass && !coding.solved.includes(q.id)) {
-        coding.solved.push(q.id);
-        App.showToast(' All tests passed! Challenge solved.', 'success');
-      }
-      DB.saveProgress(email, { coding });
-      App.refreshAll();
-    }
+    this._recordProgress(q, passCount, results.length, allPass);
 
     if (this.state.sessionActive && this.state.session.includes(q.id)) {
       this.state.sessionResults[q.id] = allPass;
@@ -918,8 +1067,9 @@ using namespace std;
     }
   },
 
-  _renderSessionSummary() {
+  async _renderSessionSummary() {
     const ids = this.state.session;
+    await this._hydrate(ids);
     const total = ids.length;
     const passed = ids.filter(id => this.state.sessionResults[id]).length;
 
@@ -940,15 +1090,15 @@ using namespace std;
         <div class="card-title">Session Review</div>
         <div class="card-sub">Tap any question to open it again</div>
         ${ids.map((id, i) => {
-          const q = this.state.questions.find(x => x.id === id);
+          const q = this._meta[id];
           if (!q) return '';
           const ok = this.state.sessionResults[id];
           return `
             <div class="section-check hoverable" style="cursor:pointer" data-reopen="${id}">
               <div class="check-icon ${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'}</div>
               <div style="flex:1">
-                <div style="font-weight:600;font-size:13.5px">${i + 1}. ${q.title}</div>
-                <div class="text-dim" style="font-size:12px">${q.source || 'LeetCode'} · ${q.difficulty} · ${q.topic || ''}</div>
+                <div style="font-weight:600;font-size:13.5px">${i + 1}. ${this._escapeHtml(q.title)}</div>
+                <div class="text-dim" style="font-size:12px">${this._escapeHtml(q.source || 'PlacementPrep')} · ${this._escapeHtml(q.difficulty)} · ${this._escapeHtml(q.topic || '')}</div>
               </div>
               <span class="chip ${ok ? 'green' : 'red'}">${ok ? '[OK] Solved' : 'Attempted'}</span>
             </div>
@@ -971,7 +1121,7 @@ using namespace std;
      terminated after `timeoutMs`, so an infinite loop cannot freeze the page. Where Workers are not available
      (older browsers, the test environment) it falls back to running on the main thread. */
   _sandboxRun(code, input, timeoutMs = 2500) {
-    const prelude = typeof CODING_PRELUDE === 'string' ? CODING_PRELUDE : '';
+    const prelude = this.state.prelude || '';
     const direct = () => {
       try {
         const value = new Function(prelude + '\n' + code + '\nreturn (' + input + ');')();
@@ -1038,18 +1188,7 @@ using namespace std;
     const passCount = results.filter(r => r.pass).length;
     const allPass = passCount === results.length;
 
-    const email = Auth.getEmail();
-    if (email) {
-      const prog = DB.getProgress(email);
-      const coding = prog.coding || { solved: [], totalAttempts: 0 };
-      coding.totalAttempts++;
-      if (allPass && !coding.solved.includes(q.id)) {
-        coding.solved.push(q.id);
-        App.showToast(' All tests passed! Challenge solved.', 'success');
-      }
-      DB.saveProgress(email, { coding });
-      App.refreshAll();
-    }
+    this._recordProgress(q, passCount, results.length, allPass);
 
     if (this.state.sessionActive && this.state.session.includes(q.id)) {
       this.state.sessionResults[q.id] = allPass;
