@@ -25,7 +25,7 @@ test('code editor: the self-hosted bundle loads, highlights, auto-closes bracket
 test('code editor: needs no CSP change (same-origin bundle, no third-party imports) and uses the emerald palette', () => {
   const js = fs.readFileSync(new URL('../js/code-editor.js', import.meta.url), 'utf8');
   assert.doesNotMatch(js, /https?:\/\//, 'no remote module URLs');
-  const css = fs.readFileSync(new URL('../css/app.css', import.meta.url), 'utf8');
+  const css = fs.readFileSync(new URL('../css/editorial.css', import.meta.url), 'utf8');
   const block = css.slice(css.indexOf('/* Code editor (CodeMirror)'));
   const colours = block.match(/#[0-9a-f]{6}/gi) || [];
   assert.ok(colours.length >= 8);

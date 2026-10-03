@@ -1,0 +1,434 @@
+/* ============================================================
+   PlacementPrep — "Depth" theme layer
+   Loaded AFTER css/fibery-theme.css. Overrides its flatter emerald/
+   paper palette with a richer, more dimensional look: gradient accents,
+   glass-morphic cards with layered shadows, and slow ambient background
+   motion — without touching any layout/structural CSS, so nothing else
+   in the app can break.
+   ============================================================ */
+
+:root {
+  /* Palette based on Horizon UI's documented brand colors (brand.500/400/300),
+     a well-known MIT-licensed open-source Tailwind dashboard template —
+     recoloured to the emerald/teal family (no blue or violet anywhere). */
+  --accent: #097a54;
+  --accent-hover: #076445;
+  --accent-soft: rgba(9, 122, 84, 0.12);
+  --accent-ink: #ffffff;
+
+  --gradient-brand: linear-gradient(135deg, #097a54 0%, #298063 50%, #57a689 100%);
+  --gradient-brand-soft: linear-gradient(135deg, rgba(9, 122, 84,0.14) 0%, rgba(41, 128, 99,0.14) 50%, rgba(87, 166, 137,0.14) 100%);
+  --glow-brand: 0 8px 26px rgba(9, 122, 84, 0.35), 0 2px 8px rgba(41, 128, 99, 0.25);
+
+  --purple: #298063;
+  --purple-soft: rgba(41, 128, 99, 0.12);
+  --blue: #57a689;
+  --blue-soft: rgba(87, 166, 137, 0.12);
+  --cyan: #17c9c9;
+  --cyan-soft: rgba(23, 201, 201, 0.12);
+
+  /* Slightly cooler, less flat base surfaces */
+  --bg: #f3f7f5;
+  --bg-2: #e8f0ec;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-2: rgba(255, 255, 255, 0.55);
+  --border: rgba(50, 131, 104, 0.14);
+  --border-strong: rgba(50, 131, 104, 0.30);
+
+  /* Deeper, layered shadows for a real sense of elevation */
+  --shadow-xs: 0 1px 2px rgba(15, 45, 35, 0.06);
+  --shadow-sm: 0 2px 6px rgba(15, 45, 35, 0.08);
+  --shadow: 0 10px 28px rgba(15, 45, 35, 0.12), 0 2px 6px rgba(15, 45, 35, 0.08);
+  --shadow-lg: 0 20px 48px rgba(15, 45, 35, 0.16), 0 4px 10px rgba(15, 45, 35, 0.10);
+  --shadow-xl: 0 32px 70px rgba(15, 45, 35, 0.22), 0 8px 18px rgba(15, 45, 35, 0.12);
+
+  --radius-lg: 18px;
+}
+
+/* ---------- Ambient background: slow drifting gradient blobs ---------- */
+body {
+  background: var(--bg);
+  position: relative;
+}
+
+.ambient-blob {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.32;
+  z-index: -1;
+  pointer-events: none;
+  will-change: transform;
+}
+.ambient-blob.b1 {
+  top: -10%; left: -8%;
+  width: 46vw; height: 46vw;
+  background: radial-gradient(circle, #097a54 0%, transparent 70%);
+  animation: none;
+}
+.ambient-blob.b2 {
+  bottom: -14%; right: -10%;
+  width: 50vw; height: 50vw;
+  background: radial-gradient(circle, #17c9c9 0%, transparent 70%);
+  animation: none;
+}
+.ambient-blob.b3 {
+  top: 35%; right: 15%;
+  width: 30vw; height: 30vw;
+  background: radial-gradient(circle, #57a689 0%, transparent 70%);
+  animation: none;
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-blob { animation: none; }
+}
+
+/* ---------- Mobile: reduce visual cost, increase touch targets ----------
+   Blur (backdrop-filter) and continuously-animated background blobs are
+   genuinely expensive on phone GPUs and drain battery. Below 768px, blobs
+   shrink, stop animating, and card blur is disabled — the app still looks
+   tinted/glassy via a plain semi-opaque surface, just without the
+   per-frame cost. Buttons also grow to a real touch-friendly size. */
+@media (max-width: 768px) {
+  .ambient-blob {
+    opacity: 0.28;
+    animation: none !important;
+  }
+  .ambient-blob.b1, .ambient-blob.b2 { width: 70vw; height: 70vw; }
+  .ambient-blob.b3 { width: 50vw; height: 50vw; }
+
+  .card,
+  .grid > .card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  .btn {
+    min-height: 44px;
+    padding: 10px 18px;
+    font-size: 14px;
+  }
+  .btn-sm {
+    min-height: 40px;
+  }
+}
+
+/* Keep real app content above the ambient blobs. NOTE: .modal-overlay and
+   .sidebar are deliberately excluded from this rule — both need their own
+   position:fixed (set in style.css) to work at all. Overriding .sidebar to
+   `relative` pulled it into .app-layout's flex flow, where its own width
+   PLUS .main-content's margin-left (which assumes a fixed, out-of-flow
+   sidebar) stacked together into a large visible gap between them. Both
+   elements already have a high enough z-index and need no help here. */
+
+/* ---------- Glass-morphic depth cards ---------- */
+.card {
+  background: var(--surface);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s ease;
+}
+
+/* Repeated list-item cards (job listings, quiz questions, lecture cards —
+   anything inside a .grid) skip the per-element blur. Blurring 15-20 cards
+   at once is genuinely expensive on weaker devices/phones; a plain
+   semi-opaque surface with the same border/shadow looks nearly identical
+   without the GPU cost, since only a handful of these are usually
+   visible on screen at a time anyway. */
+.grid > .card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.card.hoverable:hover,
+.grid > .card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-xl);
+  transform: none;
+}
+
+/* ---------- Gradient brand elements ---------- */
+.btn-primary {
+  background: var(--gradient-brand);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: var(--glow-brand);
+}
+.btn-primary:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 12px 32px rgba(50, 131, 104, 0.45), 0 4px 12px rgba(52, 161, 121, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Headings use solid, readable text — NOT a gradient fill. Gradient text on
+   every single heading (every card title, every page title) is what made
+   the whole app read as "too blue" — a strong accent works best used
+   sparingly (buttons, logos, active states), not applied to all text. */
+.card-title, .page-title, h1, h2 {
+  color: var(--text, #1c1b22);
+}
+
+.text-accent { color: var(--accent) !important; }
+
+.chip.green {
+  background: rgba(23, 160, 90, 0.12);
+  color: #0e8f5a;
+  border-color: rgba(23, 160, 90, 0.3);
+}
+.chip.blue {
+  background: var(--blue-soft);
+  color: #2c785c;
+  border-color: rgba(52, 161, 121,0.3);
+}
+.chip.purple {
+  background: var(--purple-soft);
+  color: var(--purple);
+  border-color: rgba(51, 136, 127,0.3);
+}
+
+/* Sidebar gets a subtle glass treatment too, matching the rest of the app */
+.sidebar {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-right: 1px solid var(--border);
+}
+
+.nav-link.active {
+  background: var(--gradient-brand-soft);
+  color: var(--accent-hover);
+}
+
+/* ---------- Company avatar badges (Hiring Hub cards) ---------- */
+.job-avatar {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 17px;
+  box-shadow: 0 4px 10px rgba(15, 45, 35, 0.18);
+}
+
+/* ---------- Skeleton loading shimmer (replaces plain "Loading..." text) ---------- */
+.skeleton-block {
+  background: linear-gradient(90deg, rgba(50, 131, 104,0.08) 25%, rgba(50, 131, 104,0.18) 37%, rgba(50, 131, 104,0.08) 63%);
+  background-size: 400% 100%;
+  border-radius: 6px;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+}
+.skeleton-card { pointer-events: none; }
+@keyframes skeletonShimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block { animation: none; }
+}
+
+/* ---------- Eliminate remaining hardcoded green ----------
+   fibery-theme.css hardcodes the old emerald (#097a54) and its gradient
+   partner directly into these specific rules, as literal hex values —
+   not via var(--accent). Redefining --accent above never touched these;
+   they need direct overrides. This is why the UI still looked green
+   after the first pass. */
+:root {
+  --success: #17c9c9;
+  --success-soft: rgba(23, 201, 201, 0.12);
+}
+
+.brand-logo,
+.user-avatar,
+.chatbot-avatar {
+  background: var(--gradient-brand);
+}
+
+.brand-text h1 span,
+.grad-text {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.mini-fill,
+.progress-fill {
+  background: var(--gradient-brand);
+}
+
+.btn-accent {
+  background: var(--gradient-brand);
+  box-shadow: var(--glow-brand);
+}
+
+.msg.user {
+  background: var(--gradient-brand);
+}
+
+.auth-logo,
+.chatbot-fab {
+  background: var(--gradient-brand);
+  box-shadow: var(--glow-brand);
+}
+
+/* Skill-gap heatmap: shift from a green intensity scale to the brand's
+   blue → violet scale, so it matches the rest of the UI. */
+.heat-cell.l1 { background: #cee9e0; border-color: #a9d6c7; }
+.heat-cell.l2 { background: #83c4ad; border-color: #62b093; }
+.heat-cell.l3 { background: #328368; border-color: #1f6f55; }
+.heat-cell.l4 { background: #097a54; border-color: #076445; }
+
+/* ---------- Accessibility & resilience additions ---------- */
+/* Faint text was ~3:1 on the page background; 4.5:1 is the WCAG AA minimum for body text. */
+:root {
+  --text-faint: #606865;
+}
+
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 10000;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-160%);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.noscript-note {
+  padding: 14px 18px;
+  background: #fff4d6;
+  color: #4a3b00;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* The chatbot launcher is a real <button> now: keep the same look. */
+button.chatbot-fab {
+  padding: 0;
+  font: inherit;
+}
+
+/* Visible keyboard focus everywhere (mouse clicks are unaffected). */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+#viewContainer:focus {
+  outline: none;
+}
+
+/* ---------- Mobile drawer: solid, sharp, above its backdrop ----------
+   An old z-index rule on the app wrapper made the whole app (sidebar included) sit BELOW the
+   drawer backdrop, so opening the menu dimmed and blurred the menu itself. The layer rule is
+   gone; these rules also make the drawer opaque and the backdrop a plain dim (no blur). */
+@media (max-width: 900px) {
+  .sidebar {
+    background: #ffffff;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    width: min(84vw, 320px);
+    overflow-y: auto;
+  }
+  .overlay {
+    background: rgba(4, 20, 14, 0.45);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* ---------- Smoothness ----------
+   backdrop-filter re-blurs everything behind an element on every scroll frame. With a blurred
+   card, sidebar and header on screen at once that is what makes scrolling stutter on phones and
+   laptops, so surfaces are now near-opaque instead. The look is the same; the jank is gone. */
+.card,
+.grid > .card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(255, 255, 255, 0.92);
+}
+.sidebar {
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.topbar {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.ambient-blob { will-change: auto; }
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+
+/* Tapping controls responds instantly (no double-tap-zoom delay, no grey flash on iOS). */
+button, a, .btn, .nav-link, [role="button"], select, label {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* While the phone menu is open the page behind it must not scroll. */
+body.menu-open { overflow: hidden; }
+.sidebar { overscroll-behavior: contain; }
+
+/* ---------- Application Tracker ---------- */
+.tracker-form { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.tracker-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(250px, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+.tracker-col {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--tracker-color, #7a827f);
+  border-radius: 12px;
+  padding: 12px;
+  min-height: 160px;
+  scroll-snap-align: start;
+}
+.tracker-col[data-status="saved"] { --tracker-color: #7a827f; }
+.tracker-col[data-status="applied"] { --tracker-color: #097a54; }
+.tracker-col[data-status="assessment"] { --tracker-color: #b7791f; }
+.tracker-col[data-status="interview"] { --tracker-color: #0f766e; }
+.tracker-col[data-status="offer"] { --tracker-color: #15803d; }
+.tracker-col[data-status="closed"] { --tracker-color: #b4534b; }
+.tracker-col-head { display: flex; align-items: center; justify-content: space-between; }
+.tracker-col-hint { font-size: 12px; margin: 2px 0 10px; }
+.tracker-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+}
+.tracker-card-title { font-weight: 600; font-size: 14px; }
+.tracker-card-title a { color: inherit; text-decoration: underline; text-decoration-color: var(--accent); }
+.tracker-notes { font-size: 12.5px; line-height: 1.5; margin-top: 6px; white-space: pre-wrap; }
+.tracker-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.tracker-empty { font-size: 12.5px; padding: 8px 2px; }
+@media (max-width: 680px) {
+  .tracker-board { grid-auto-columns: 82vw; }
+}
