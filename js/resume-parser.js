@@ -2,14 +2,89 @@
 /* Zero-dependency client-side extraction using the browser's
    Compression Streams API (Chrome 80+, Firefox 113+, Safari 16.4+). */
 const ResumeParser = {
-  async parseFile(file) {
+  PDFJS: 'js/vendor/pdf.min.mjs',
+  PDFJS_WORKER: 'js/vendor/pdf.worker.min.mjs',
+  _pdfjs: null,
+
+  /** Reads a file and says HOW it went: { text, method, readable, reasons }. Never returns binary noise as text. */
+  async load(file) {
     const name = (file.name || '').toLowerCase();
     const buffer = await file.arrayBuffer();
-    if (name.endsWith('.pdf')) return this.parsePDF(buffer);
-    if (name.endsWith('.docx')) return this.parseDOCX(buffer);
-    if (name.endsWith('.rtf')) return this._stripRTF(new TextDecoder('utf-8').decode(buffer));
-    // .txt and everything else
-    return new TextDecoder('utf-8').decode(buffer);
+    const head = new Uint8Array(buffer.slice(0, 5));
+    const isPdf = name.endsWith('.pdf') || String.fromCharCode(...head) === '%PDF-';
+    const isDocx = name.endsWith('.docx') || (head[0] === 0x50 && head[1] === 0x4b);
+    let text = '';
+    let method = 'text';
+    if (isPdf) {
+      method = 'pdf.js';
+      let opened = false;
+      try { text = await this.parsePdfJs(buffer); opened = true; } catch { text = ''; }
+      if (!opened) {
+        method = 'built-in PDF reader';
+        try { text = await this.parsePDF(buffer); } catch { text = ''; }
+        if (!this._readable(this._tidy(text))) return { text: '', method, readable: false, reasons: ['This PDF could not be opened, or it has no text that can be read.'] };
+      }
+      else if (text.replace(/\s/g, '').length < 20) {
+        return { text: '', method, readable: false, reasons: ['This PDF has no selectable text: it looks like a scan or a photo of a page.'] };
+      }
+    } else if (isDocx) {
+      method = 'docx';
+      text = await this.parseDOCX(buffer);
+    } else if (name.endsWith('.rtf')) {
+      method = 'rtf';
+      text = this._stripRTF(new TextDecoder('utf-8').decode(buffer));
+    } else if (name.endsWith('.doc')) {
+      return { text: '', method: 'doc', readable: false, reasons: ['Old .doc files cannot be read here. Save it as .docx or PDF, or paste the text.'] };
+    } else {
+      text = new TextDecoder('utf-8').decode(buffer);
+    }
+    text = this._tidy(text);
+    const check = this.readability(text);
+    return { text: check.ok ? text : '', method, readable: check.ok, reasons: check.reasons, rawLength: text.length };
+  },
+
+  /** Kept for older callers: the text, or '' when the file could not be read. */
+  async parseFile(file) { return (await this.load(file)).text; },
+
+  readability(text) {
+    if (typeof ResumeInsights !== 'undefined') return ResumeInsights.readability(text);
+    return { ok: String(text || '').trim().length > 40, reasons: [] };
+  },
+
+  _readable(text) { return this.readability(text).ok; },
+
+  _tidy(text) {
+    return String(text || '').split(String.fromCharCode(0)).join('').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  },
+
+  /** Real PDF text extraction with pdf.js, loaded from this site on first use (no third-party server). */
+  async parsePdfJs(buffer) {
+    if (!this._pdfjs) {
+      const base = (typeof document !== 'undefined' && document.baseURI) || location.href;
+      const lib = await import(/* @vite-ignore */ new URL(this.PDFJS, base).href);
+      lib.GlobalWorkerOptions.workerSrc = new URL(this.PDFJS_WORKER, base).href;
+      this._pdfjs = lib;
+    }
+    const doc = await this._pdfjs.getDocument({ data: new Uint8Array(buffer.slice(0)), useSystemFonts: true, isEvalSupported: false }).promise;
+    const pages = [];
+    for (let p = 1; p <= Math.min(doc.numPages, 6); p++) {
+      const page = await doc.getPage(p);
+      const content = await page.getTextContent();
+      let lastY = null;
+      let line = '';
+      const out = [];
+      for (const it of content.items) {
+        if (typeof it.str !== 'string') continue;
+        const y = it.transform ? Math.round(it.transform[5]) : lastY;
+        if (lastY !== null && y !== null && Math.abs(y - lastY) > 3) { out.push(line); line = ''; }
+        line += it.str + (it.hasEOL ? '' : '');
+        if (it.hasEOL) { out.push(line); line = ''; }
+        lastY = y;
+      }
+      if (line) out.push(line);
+      pages.push(out.map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n'));
+    }
+    return pages.join('\n');
   },
 
   /* ================= PDF ================= */

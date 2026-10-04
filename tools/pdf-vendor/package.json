@@ -1,0 +1,1 @@
+{ "name": "pdf-vendor", "private": true, "description": "Copies pdf.js (Apache-2.0) into js/vendor for the resume analyzer. Not part of CI.", "dependencies": { "pdfjs-dist": "^4.10.38" } }

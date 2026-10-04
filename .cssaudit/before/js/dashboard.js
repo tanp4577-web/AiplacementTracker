@@ -1,0 +1,519 @@
+/* ============ Progress Dashboard & Analytics Module ============ */
+const Dashboard = {
+  _resizeHandler: null,
+  _themeHandler: null,
+
+  render(container) {
+    const email = Auth.getEmail();
+    if (!email) {
+      container.innerHTML = `
+        <div class="card text-center" style="padding:60px 24px">
+          <div style="font-size:44px;margin-bottom:14px;color:var(--accent)">
+            <i class="bi bi-person-lock" style="font-size:48px"></i>
+          </div>
+          <h3 style="font-size:20px;margin-bottom:8px">Sign in to view your dashboard</h3>
+          <p class="text-dim" style="max-width:440px;margin:0 auto">Create an account or sign in to track your placement readiness, analyze skill gaps, and view study streaks. Or try everything as a guest.</p>
+          <div class="flex gap-2 flex-wrap" style="justify-content:center;margin-top:18px">
+            <button type="button" class="btn btn-primary" id="dashSignInBtn">Sign in</button>
+            <button type="button" class="btn btn-ghost" id="dashGuestBtn">Continue as guest</button>
+          </div>
+        </div>
+      `;
+      document.getElementById('dashSignInBtn').addEventListener('click', () => Auth._showModal());
+      document.getElementById('dashGuestBtn').addEventListener('click', () => Auth._loginAsGuest());
+      return;
+    }
+
+    const prog = DB.getProgress(email);
+    const readiness = this._computeReadiness(prog, 0);
+
+    if (prog.readiness !== readiness) {
+      DB.saveProgress(email, { readiness });
+    }
+
+    container.innerHTML = `
+      <div class="card dashboard-hero mb-3">
+        <div class="hero-score">
+          <div class="hero-ring">
+            <svg viewBox="0 0 100 100">
+              <defs>
+                <linearGradient id="readinessGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#097a54"/>
+                  <stop offset="100%" stop-color="#2e8165"/>
+                </linearGradient>
+              </defs>
+              <circle class="bg" cx="50" cy="50" r="42" stroke-width="8" fill="none"/>
+              <circle class="fg" id="readinessRing" cx="50" cy="50" r="42" stroke-width="8" fill="none"
+                stroke-dasharray="${2 * Math.PI * 42}"
+                stroke-dashoffset="${2 * Math.PI * 42 * (1 - readiness / 100)}"/>
+            </svg>
+            <div class="hero-num">
+              <b id="readinessValue">${readiness}%</b>
+              <span>Readiness</span>
+            </div>
+          </div>
+          <div class="hero-msg">
+            <h3 id="readinessMessage">${this._readinessMessage(readiness)}</h3>
+            <p>Readiness = resume score &times; 25% + aptitude accuracy &times; 25% + coding (3 problems solved = 100%) &times; 30% + interview experiences added (3 = 100%) &times; 20%.</p>
+            <div class="flex gap-2 mt-3 flex-wrap items-center">
+              <span class="chip blue"><i class="bi bi-fire"></i> ${this._daysActive(prog)} day streak</span>
+              <span class="chip green"><i class="bi bi-patch-check"></i> ${prog.aptitude.completed || 0} quizzes taken</span>
+              <span class="chip purple"><i class="bi bi-code"></i> ${prog.coding.solved ? prog.coding.solved.length : 0} problems solved</span>
+            </div>
+            <div class="flex gap-2 mt-3 flex-wrap">
+              <a href="#coding" class="btn btn-primary btn-sm"><i class="bi bi-code-slash" style="margin-right:4px"></i>Practice Coding</a>
+              <a href="#interview" class="btn btn-outline btn-sm"><i class="bi bi-chat-square-quote" style="margin-right:4px"></i>Interview Experiences</a>
+              <a href="#resume" class="btn btn-ghost btn-sm"><i class="bi bi-file-earmark-person" style="margin-right:4px"></i>Analyze Resume</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      ${readiness === 0 ? `
+        <div class="card mb-3" id="startHereCard">
+          <div class="card-title"><i class="bi bi-rocket-takeoff text-accent" style="margin-right:4px"></i>Start here</div>
+          <div class="card-sub">Three quick steps to get your readiness score moving</div>
+          <div class="flex gap-2 mt-2 flex-wrap">
+            <a href="#resume" class="btn btn-primary btn-sm">1 · Analyze your resume</a>
+            <a href="#aptitude" class="btn btn-outline btn-sm">2 · Take an aptitude quiz</a>
+            <a href="#coding" class="btn btn-outline btn-sm">3 · Solve a coding problem</a>
+            <a href="#jobs" class="btn btn-ghost btn-sm">Browse jobs &amp; internships</a>
+          </div>
+        </div>
+      ` : ''}
+
+      <div class="grid grid-4 mb-3">
+        <div class="card text-center">
+          <div class="card-stat text-accent">${prog.resumeScore || 0}</div>
+          <div class="card-stat-label">Resume Score</div>
+        </div>
+        <div class="card text-center">
+          <div class="card-stat text-success">${this._aptitudeAccuracy(prog)}%</div>
+          <div class="card-stat-label">Aptitude Accuracy</div>
+        </div>
+        <div class="card text-center">
+          <div class="card-stat" id="experienceSharedCount" style="color:var(--purple)">0</div>
+          <div class="card-stat-label">Experiences Added</div>
+        </div>
+        <div class="card text-center">
+          <div class="card-stat text-warning">${Object.keys(prog.skills || {}).length ? prog.skills.matchPct || 0 : 0}%</div>
+          <div class="card-stat-label">Target Skill Match</div>
+        </div>
+      </div>
+
+      <div class="grid grid-2 mb-3">
+        <div class="card">
+          <div class="card-title"><i class="bi bi-bar-chart-line text-accent" style="margin-right:4px"></i>Aptitude Performance</div>
+          <div class="card-sub">Recent quiz accuracy trends across attempts</div>
+          <canvas class="bar-canvas" id="aptBarCanvas"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="bi bi-diagram-3 text-accent" style="margin-right:4px"></i>Skill Radar</div>
+          <div class="card-sub">Your profile skills versus target role requirements</div>
+          <canvas class="radar-canvas" id="radarCanvas"></canvas>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-title"><i class="bi bi-calendar2-check text-accent" style="margin-right:4px"></i>Recent Study Activity</div>
+          <div class="card-sub">Last 26 days of practice sessions</div>
+          ${this._renderHeatmap(prog)}
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="bi bi-chat-left-quote text-accent" style="margin-right:4px"></i>Recent Interview Experiences</div>
+          <div class="card-sub">Your most recently saved interview experiences</div>
+          <div id="recentExperiencesCard">${this._renderTopics([])}</div>
+        </div>
+      </div>
+
+      <div class="card mt-3" id="dataBackupCard">
+        <div class="card-title"><i class="bi bi-hdd text-accent" style="margin-right:4px"></i>Your data</div>
+        <div class="card-sub">Progress is saved only in this browser${Auth.getCurrentUser() && Auth.getCurrentUser().guest ? ' (guest profile)' : ''}. Download a backup to keep it safe or move it to another device.</div>
+        <div class="flex gap-2 mt-2 flex-wrap">
+          <button type="button" class="btn btn-outline btn-sm" id="exportDataBtn"><i class="bi bi-download" style="margin-right:4px"></i>Export backup</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="importDataBtn"><i class="bi bi-upload" style="margin-right:4px"></i>Import backup</button>
+          <input type="file" id="importDataInput" accept="application/json,.json" hidden />
+        </div>
+      </div>
+    `;
+
+    document.getElementById('exportDataBtn').addEventListener('click', () => this._exportData(email));
+    const importInput = document.getElementById('importDataInput');
+    document.getElementById('importDataBtn').addEventListener('click', () => importInput.click());
+    importInput.addEventListener('change', () => {
+      if (importInput.files && importInput.files[0]) this._importData(email, importInput.files[0]);
+      importInput.value = '';
+    });
+
+    const renderCharts = () => {
+      const barEl = document.getElementById('aptBarCanvas');
+      const radarEl = document.getElementById('radarCanvas');
+      if (barEl) this._drawBarChart(barEl, this._aptHistory(prog));
+      if (radarEl) this._drawRadar(radarEl, prog);
+    };
+
+    requestAnimationFrame(renderCharts);
+
+    if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+    this._resizeHandler = () => renderCharts();
+    window.addEventListener('resize', this._resizeHandler);
+    if (this._themeHandler) window.removeEventListener('themechange', this._themeHandler);
+    this._themeHandler = () => renderCharts();
+    window.addEventListener('themechange', this._themeHandler);
+    this._loadInterviewExperiences(email, prog);
+  },
+
+  _exportData(email) {
+    const backup = DB.exportBackup(email);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `placementprep-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    App.showToast('Backup downloaded', 'success');
+  },
+
+  async _importData(email, file) {
+    if (file.size > 2 * 1024 * 1024) {
+      App.showToast('That file is too large to be a PlacementPrep backup.', 'error');
+      return;
+    }
+    let backup;
+    try {
+      backup = JSON.parse(await file.text());
+    } catch {
+      App.showToast('That file is not valid JSON.', 'error');
+      return;
+    }
+    const result = DB.importBackup(email, backup);
+    if (!result.ok) {
+      App.showToast(result.error, 'error');
+      return;
+    }
+    App.showToast('Backup restored', 'success');
+    App.refreshAll();
+  },
+
+  async _loadInterviewExperiences(email, prog) {
+    const user = Auth.getCurrentUser();
+    if (!user || !user.id) return;
+    /* Load interview experiences from localStorage */
+    const data = (DB.getGlobal('interview_experiences') || []).map(e => ({id:e.id,company_name:e.company_name,role_applied:e.role_applied,created_at:e.created_at}));
+    const error = null;
+    if (error) {
+      console.warn('Interview experience count failed:', error.message || error);
+      return;
+    }
+    const experiences = data || [];
+    const count = experiences.length;
+    const countEl = document.getElementById('experienceSharedCount');
+    if (countEl) countEl.textContent = count;
+    const recentEl = document.getElementById('recentExperiencesCard');
+    if (recentEl) {
+      recentEl.innerHTML = this._renderTopics(experiences.slice(0, 3));
+      recentEl.querySelectorAll('[data-interview-experience]').forEach(link => {
+        link.addEventListener('click', () => sessionStorage.setItem('interviewWallFocusId', link.dataset.interviewExperience));
+      });
+    }
+    const readiness = this._computeReadiness(prog, count);
+    if (prog.readiness !== readiness) DB.saveProgress(email, { readiness });
+    const ring = document.getElementById('readinessRing');
+    const readinessValue = document.getElementById('readinessValue');
+    const message = document.getElementById('readinessMessage');
+    if (ring) ring.style.strokeDashoffset = `${2 * Math.PI * 42 * (1 - readiness / 100)}`;
+    if (readinessValue) readinessValue.textContent = `${readiness}%`;
+    if (message) message.textContent = this._readinessMessage(readiness);
+    App._updateMiniReadiness();
+  },
+
+  _computeReadiness(prog, experiencesShared = 0) {
+    const resumeScore = prog.resumeScore || 0;
+    const apt = prog.aptitude || { completed: 0, correct: 0, total: 0 };
+    const coding = prog.coding || { solved: [] };
+
+    const resume = Math.min(resumeScore, 100);
+    const aptitude = apt.total ? Math.round((apt.correct / apt.total) * 100) : 0;
+    const code = Math.min((coding.solved.length / 3) * 100, 100);
+    const intrv = Math.min((experiencesShared / 3) * 100, 100);
+
+    const readiness = Math.round(
+      resume * 0.25 +
+      aptitude * 0.25 +
+      code * 0.30 +
+      intrv * 0.20
+    );
+    return Math.min(Math.max(readiness, 0), 100);
+  },
+
+  _readinessMessage(r) {
+    if (r >= 80) return 'Outstanding! You are placement-ready.';
+    if (r >= 60) return 'Great progress! Keep practicing daily.';
+    if (r >= 40) return 'On the right track. Focus on weak areas.';
+    return 'Getting started. Build momentum with mock tests.';
+  },
+
+  _aptitudeAccuracy(prog) {
+    const apt = prog.aptitude || {};
+    return apt.total ? Math.round((apt.correct / apt.total) * 100) : 0;
+  },
+
+  _daysActive(prog) {
+    const activity = prog.activity || [];
+    if (!activity.length) return 0;
+    let streak = 0;
+    const today = new Date();
+    for (let i = 0; i < 60; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = d.toDateString();
+      if (activity.some(a => a.date && new Date(a.date).toDateString() === key)) streak++;
+      else if (i > 0) break;
+    }
+    return streak;
+  },
+
+  _aptHistory(prog) {
+    const history = (prog.aptitude && prog.aptitude.history) || [];
+    return history.slice(-8);
+  },
+
+  _renderHeatmap(prog) {
+    const activity = prog.activity || [];
+    const today = new Date();
+    const cells = [];
+    for (let i = 25; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = d.toDateString();
+      const count = activity.filter(a => a.date && new Date(a.date).toDateString() === key).length;
+      const level = count === 0 ? '' : count === 1 ? 'l1' : count === 2 ? 'l2' : count === 3 ? 'l3' : 'l4';
+      const title = `${d.toDateString()}: ${count} activity`;
+      cells.push(`<div class="heat-cell ${level}" title="${title}"></div>`);
+    }
+    return `
+      <div class="heatmap">
+        ${cells.join('')}
+      </div>
+      <div class="legend mt-2">
+        <span>Less</span>
+        <span class="sw" style="background:var(--surface-2);border:1px solid var(--border)"></span>
+        <span class="sw heat-cell l1"></span>
+        <span class="sw heat-cell l2"></span>
+        <span class="sw heat-cell l3"></span>
+        <span class="sw heat-cell l4"></span>
+        <span>More</span>
+      </div>
+    `;
+  },
+
+  _renderTopics(experiences) {
+    if (!experiences.length) {
+      return `
+        <div class="empty-state" style="padding:28px 12px;text-align:center">
+          <div style="margin-bottom:8px;color:var(--text-faint)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:36px;height:36px;margin:0 auto"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+          </div>
+          <h4 style="font-size:14px;margin-bottom:4px">No interview experience added yet</h4>
+          <p class="text-dim" style="font-size:12.5px">Add your first interview experience. It also boosts your readiness score.</p>
+        </div>
+      `;
+    }
+    return `<div class="tag-row mt-2" style="display:flex;flex-direction:column;align-items:stretch;gap:8px">
+      ${experiences.map(item => `<a href="#interview" class="chip green" data-interview-experience="${this._escape(item.id)}" style="text-decoration:none;white-space:normal;text-align:left"><strong>${this._escape(item.company_name || 'Unknown company')}</strong> · ${this._escape(item.role_applied || 'Role not specified')}</a>`).join('')}
+    </div>`;
+  },
+
+  _escape(value) {
+    const div = document.createElement('div');
+    div.textContent = value == null ? '' : String(value);
+    return div.innerHTML;
+  },
+
+  /** Chart colours come from the active theme so canvases follow light / dark. */
+  _palette() {
+    const css = getComputedStyle(document.documentElement);
+    const v = (name, fallback) => (css.getPropertyValue(name).trim() || fallback);
+    return {
+      grid: v('--border', '#dcd7c9'),
+      muted: v('--text-faint', '#6b695f'),
+      dim: v('--text-dim', '#55534a'),
+      ink: v('--text', '#14130f'),
+      accent: v('--accent', '#c93b17')
+    };
+  },
+
+  _drawBarChart(canvas, history) {
+    const pal = this._palette();
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 320;
+    const h = canvas.clientHeight || 220;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.scale(dpr, dpr);
+
+    ctx.clearRect(0, 0, w, h);
+
+    if (!history.length) {
+      ctx.fillStyle = pal.muted;
+      ctx.font = '500 13px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Complete quizzes to see performance trends', w / 2, h / 2);
+      return;
+    }
+
+    const labels = history.map((x, i) => 'Q' + (i + 1));
+    const values = history.map(x => x.pct || 0);
+    const pad = { top: 24, right: 16, bottom: 28, left: 36 };
+    const chartW = w - pad.left - pad.right;
+    const chartH = h - pad.top - pad.bottom;
+    const max = Math.max(...values, 100);
+    const barW = chartW / values.length;
+
+    // Grid lines
+    ctx.strokeStyle = pal.grid;
+    ctx.lineWidth = 1;
+    [0, 50, 100].forEach(level => {
+      const y = pad.top + chartH - (level / 100) * chartH;
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(w - pad.right, y);
+      ctx.stroke();
+
+      ctx.fillStyle = pal.muted;
+      ctx.font = '10px Inter, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(level + '%', pad.left - 6, y + 3);
+    });
+
+    values.forEach((v, i) => {
+      const bh = (v / max) * chartH;
+      const x = pad.left + i * barW + barW * 0.2;
+      const y = pad.top + chartH - bh;
+
+      // Bar fill
+      ctx.fillStyle = pal.accent;
+      ctx.beginPath();
+      this._roundedRect(ctx, x, y, barW * 0.6, bh, 4);
+      ctx.fill();
+
+      // Bar value label
+      ctx.fillStyle = pal.ink;
+      ctx.font = '600 11px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(v + '%', x + barW * 0.3, y - 6);
+
+      // X-axis label
+      ctx.fillStyle = pal.dim;
+      ctx.font = '500 11px Inter, sans-serif';
+      ctx.fillText(labels[i], x + barW * 0.3, h - 8);
+    });
+  },
+
+  _drawRadar(canvas, prog) {
+    const pal = this._palette();
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 320;
+    const h = canvas.clientHeight || 220;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    const skills = prog.skills;
+    const role = skills && skills.targetRole;
+    if (!role || typeof ROLE_SKILLS === 'undefined' || !ROLE_SKILLS[role]) {
+      ctx.fillStyle = pal.muted;
+      ctx.font = '500 13px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Select a target role in Skill Gap to view radar', w / 2, h / 2);
+      return;
+    }
+
+    const roleData = ROLE_SKILLS[role];
+    const reqSkills = roleData.skills.slice(0, 6);
+    const cx = w / 2;
+    const cy = h / 2;
+    const radius = Math.min(w, h) / 2 - 32;
+    const n = reqSkills.length;
+
+    for (let ring = 1; ring <= 4; ring++) {
+      ctx.beginPath();
+      for (let i = 0; i <= n; i++) {
+        const angle = (i * 2 * Math.PI) / n - Math.PI / 2;
+        const r = (ring / 4) * radius;
+        const x = cx + r * Math.cos(angle);
+        const y = cy + r * Math.sin(angle);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = pal.grid;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    reqSkills.forEach((_, i) => {
+      const angle = (i * 2 * Math.PI) / n - Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle));
+      ctx.strokeStyle = pal.grid;
+      ctx.stroke();
+    });
+
+    const matchPct = skills.matchPct || 0;
+    ctx.beginPath();
+    reqSkills.forEach((s, i) => {
+      const angle = (i * 2 * Math.PI) / n - Math.PI / 2;
+      const r = Math.max(0.15, (matchPct / 100)) * radius;
+      const x = cx + r * Math.cos(angle);
+      const y = cy + r * Math.sin(angle);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = pal.accent;
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = pal.accent;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = pal.dim;
+    ctx.font = '600 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    reqSkills.forEach((s, i) => {
+      const angle = (i * 2 * Math.PI) / n - Math.PI / 2;
+      const x = cx + (radius + 18) * Math.cos(angle);
+      const y = cy + (radius + 18) * Math.sin(angle);
+      ctx.fillText(s.name, x, y + 4);
+    });
+  },
+
+  _roundedRect(ctx, x, y, w, h, r) {
+    if (!w || !h) return;
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(x, y, w, h, r);
+      return;
+    }
+    const rad = Math.min(r, w / 2, h / 2);
+    ctx.moveTo(x + rad, y);
+    ctx.lineTo(x + w - rad, y);
+    ctx.arcTo(x + w, y, x + w, y + rad, rad);
+    ctx.lineTo(x + w, y + h - rad);
+    ctx.arcTo(x + w, y + h, x + w - rad, y + h, rad);
+    ctx.lineTo(x + rad, y + h);
+    ctx.arcTo(x, y + h, x, y + h - rad, rad);
+    ctx.lineTo(x, y + rad);
+    ctx.arcTo(x, y, x + rad, y, rad);
+    ctx.closePath();
+  }
+};
