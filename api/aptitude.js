@@ -1,5 +1,9 @@
-const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
-const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
+/* Vercel Serverless Function — AI aptitude question generator (Gemini).
+   Endpoint: POST /api/aptitude   Body: { amount?, category?, difficulty? }
+   Response: { questions: [...] }
+   Protected by api/_lib/guard.js. */
+import { guard, getBody, send } from './_lib/guard.js';
+import { generateText, geminiConfigured, parseJsonLoose } from './_lib/gemini.js';
 
 const SUBJECTS = {
   mixed: 'a balanced mix of quantitative aptitude, logical reasoning, and verbal reasoning',
@@ -14,41 +18,35 @@ function cleanQuestions(value, subject, difficulty) {
   return value
     .filter((item) => item && typeof item.question === 'string' && Array.isArray(item.options))
     .map((item, index) => {
-      const options = item.options.map((option) => String(option).trim()).filter(Boolean);
+      const options = item.options.map((option) => String(option).trim().slice(0, 300)).filter(Boolean);
       const answer = Number(item.correct);
       return {
         id: `ai_${Date.now()}_${index}`,
         category: subject,
         difficulty,
-        question: item.question.trim(),
+        question: item.question.trim().slice(0, 1000),
         options,
         correct: Number.isInteger(answer) && answer >= 0 && answer < options.length ? answer : -1,
-        explanation: typeof item.explanation === 'string' ? item.explanation.trim() : ''
+        explanation: typeof item.explanation === 'string' ? item.explanation.trim().slice(0, 1000) : ''
       };
     })
     .filter((item) => item.options.length === 4 && item.correct >= 0 && item.explanation);
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  const ctx = await guard(req, res, {
+    route: 'aptitude',
+    maxBodyBytes: 2_000,
+    limit: { max: 10, windowSec: 600 },
+    globalDaily: 1000
+  });
+  if (!ctx) return;
 
-  if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!geminiConfigured()) return send(res, 503, { error: 'Question generation is not configured.' });
 
-  const apiKey = process.env.LLM_API_KEY || process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: 'LLM_API_KEY is not configured' });
-
-  let body;
-  try {
-    body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-  } catch (error) {
-    return res.status(400).json({ error: 'Invalid JSON body' });
-  }
-
+  const body = getBody(req);
   const amount = Math.min(Math.max(Number(body.amount) || 10, 1), 20);
-  const category = SUBJECTS[body.category] ? body.category : 'mixed';
+  const category = Object.hasOwn(SUBJECTS, body.category) ? body.category : 'mixed';
   const difficulty = ['easy', 'medium', 'hard'].includes(body.difficulty) ? body.difficulty : 'medium';
   const subject = SUBJECTS[category];
   const prompt = [
@@ -60,24 +58,16 @@ export default async function handler(req, res) {
   ].join('\n');
 
   try {
-    const baseUrl = (process.env.GEMINI_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
-    const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
-    const response = await fetch(`${baseUrl}/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0.9 }
-      })
+    const text = await generateText({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json' },
+      timeoutMs: 25_000
     });
-    if (!response.ok) return res.status(502).json({ error: 'Question generation failed' });
-
-    const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
-    const questions = cleanQuestions(JSON.parse(text), subject, difficulty);
-    if (!questions.length) return res.status(502).json({ error: 'Generated questions did not match the required format' });
-    return res.status(200).json({ questions });
-  } catch (error) {
-    return res.status(502).json({ error: 'Question generation failed' });
+    const questions = cleanQuestions(parseJsonLoose(text), subject, difficulty);
+    if (!questions.length) return send(res, 502, { error: 'Generated questions did not match the required format' });
+    return send(res, 200, { questions });
+  } catch (e) {
+    console.error('Aptitude API error:', e.message);
+    return send(res, 502, { error: 'Question generation failed' });
   }
 }

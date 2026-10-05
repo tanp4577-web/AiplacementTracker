@@ -186,28 +186,30 @@ const Skills = {
     }
   },
 
+  /** Whole-word check that treats + # . as part of a word, so "c" never matches "c++" or "javascript". */
+  _hasWord(haystack, needle) {
+    if (!needle) return false;
+    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^a-z0-9+#])${escaped}($|[^a-z0-9+#])`).test(haystack);
+  },
+
+  /** Does the profile (lower-cased skill strings) cover `skillName`? `poolKey` selects its synonym family. */
+  _profileHasSkill(profileLower, skillName, poolKey) {
+    const name = String(skillName).toLowerCase();
+    if (profileLower.some(p => p === name || this._hasWord(p, name) || this._hasWord(name, p))) return true;
+    const family = (typeof SKILL_POOL !== 'undefined' && poolKey && SKILL_POOL[poolKey]) || (poolKey ? [poolKey] : []);
+    return family.some(k => profileLower.some(p => p === k || this._hasWord(p, k)));
+  },
+
   /* ─── Compute match % for role explorer cards ─── */
   _computeMatchPct(allSkills, role) {
     try {
       const roleData = ROLE_SKILLS[role];
       if (!roleData) return 0;
-      const profileLower = allSkills.map(s => s.toLowerCase());
+      const profileLower = allSkills.map(s => String(s).toLowerCase());
       const poolKeys = (typeof ROLE_POOL_KEYS !== 'undefined' && ROLE_POOL_KEYS[role]) ? ROLE_POOL_KEYS[role] : [];
-      let matched = 0;
       const required = roleData.skills || [];
-      required.forEach(skill => {
-        const normalized = skill.name.toLowerCase();
-        let match = profileLower.some(p => p.includes(normalized) || normalized.includes(p.split(' ')[0]));
-        if (!match && typeof SKILL_POOL !== 'undefined') {
-          for (const key of poolKeys) {
-            const synonyms = SKILL_POOL[key] || [key];
-            if (synonyms.some(k => profileLower.some(p => p.includes(k) || k.includes(p)))) {
-              match = true; break;
-            }
-          }
-        }
-        if (match) matched++;
-      });
+      const matched = required.filter((skill, i) => this._profileHasSkill(profileLower, skill.name, poolKeys[i])).length;
       return required.length > 0 ? Math.round((matched / required.length) * 100) : 0;
     } catch { return 0; }
   },
@@ -239,21 +241,12 @@ const Skills = {
     const profileLower = allSkills.map(s => s.toLowerCase());
     const required = roleData.skills || [];
 
-    // Match each skill
-    const rows = required.map(skill => {
-      const normalized = skill.name.toLowerCase();
-      let match = false;
-      if (profileLower.some(p => p.includes(normalized) || normalized.includes(p.split(' ')[0]))) match = true;
-      if (!match && typeof SKILL_POOL !== 'undefined') {
-        for (const key of poolKeys) {
-          const synonyms = SKILL_POOL[key] || [key];
-          if (synonyms.some(k => normalized.includes(k) || profileLower.some(p => p.includes(k)))) {
-            match = true; break;
-          }
-        }
-      }
-      return { name: skill.name, level: skill.level || 70, match };
-    });
+    // Match each skill (poolKeys[i] is the synonym family for required[i])
+    const rows = required.map((skill, i) => ({
+      name: skill.name,
+      level: skill.level || 70,
+      match: this._profileHasSkill(profileLower, skill.name, poolKeys[i])
+    }));
 
     const matchedCount = rows.filter(r => r.match).length;
     const matchPct = rows.length ? Math.round((matchedCount / rows.length) * 100) : 0;
@@ -440,7 +433,7 @@ const Skills = {
     if (ytBtn) ytBtn.addEventListener('click', () => { window.location.hash = '#youtube'; });
   },
 
-  _mapGapsToYoutube(gaps, role) {
+  _mapGapsToYoutube(gaps) {
     const map = {};
     try {
       const playlists = (typeof YOUTUBE_DATA !== 'undefined' && YOUTUBE_DATA.playlists) ? YOUTUBE_DATA.playlists : [];

@@ -1,3 +1,5 @@
+> **Note (September 2026):** this document describes an earlier version of PlacementPrep. The live voice interview, camera/microphone recording and the local Flask recorder (`app.py`, `/upload-proof`) described below have since been removed. For the current architecture, routes, environment variables and setup, see [README.md](README.md).
+
 # PlacementPrep - Comprehensive Project Documentation
 
 ## 1. Project Overview

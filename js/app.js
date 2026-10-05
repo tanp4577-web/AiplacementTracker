@@ -5,19 +5,19 @@ const App = {
   _routeTimer: null,
 
   init() {
-    console.log('App.init() called');
     // Register views
     this.views = {
-      dashboard: { render: (c) => Dashboard.render(c), title: 'Dashboard', subtitle: 'Your placement readiness overview' },
+      dashboard: { render: (c) => Dashboard.render(c), title: 'Dashboard', subtitle: 'Where you stand, and what to do next' },
       resume: { render: (c) => Resume.render(c), title: 'Resume Analyzer', subtitle: 'ATS score & improvement suggestions' },
-      aptitude: { render: (c) => Aptitude.render(c), title: 'Aptitude Quiz', subtitle: 'Practice with adaptive difficulty' },
+      aptitude: { render: (c) => Aptitude.render(c), title: 'Aptitude Quiz', subtitle: 'Timed or untimed, with an explanation for every answer' },
       coding: { render: (c) => Coding.render(c), title: 'Coding Practice', subtitle: 'Solve challenges in your browser' },
-      interview: { render: (c) => InterviewWall.render(c), title: 'Interview Experiences', subtitle: 'Real rounds and tips, shared by students who\'ve been there' },
-      mockinterview: { render: (c) => MockInterview.render(c), title: 'Live AI Mock Interview', subtitle: 'Speak your answers — the AI listens, replies, and follows up' },
+      interview: { render: (c) => InterviewWall.render(c), title: 'Interview Experiences', subtitle: 'Rounds and tips from interviews you have sat' },
       jobs: { render: (c) => Jobs.render(c), title: 'Hiring Hub', subtitle: 'Find roles and check your resume fit' },
+      feedback: { render: (c) => Feedback.render(c), title: 'Feedback & Contact Us', subtitle: 'Report a bug or share an idea' },
+      tracker: { render: (c) => Tracker.render(c), title: 'Application Tracker', subtitle: 'Track every application from saved to offer' },
       skills: { render: (c) => Skills.render(c), title: 'Skill Gap Analysis', subtitle: 'Find what to learn next' },
-      company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle: 'Top tech interview patterns' },
-      youtube: { render: (c) => Youtube.render(c), title: 'YouTube Lectures', subtitle: 'Top-rated programming playlists from the best instructors' },
+      company: { render: (c) => Company.render(c), title: 'Company Patterns', subtitle: 'What each company asks, round by round' },
+      youtube: { render: (c) => Youtube.render(c), title: 'YouTube Lectures', subtitle: 'Hand-picked playlists, with your watch progress' },
       lecturequestions: { render: (c) => LectureQuestions.render(c), title: 'Lecture Questions', subtitle: 'Timestamped subject practice with runnable C++ code' }
     };
 
@@ -38,24 +38,25 @@ const App = {
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         link.classList.add('active');
         // Close mobile menu
-        document.getElementById('sidebar').classList.remove('open');
-        document.getElementById('overlay').classList.remove('show');
+        App._setMenu(false);
       });
     });
 
     // Mobile menu toggle
     document.getElementById('menuToggle').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('open');
-      document.getElementById('overlay').classList.toggle('show');
+      App._setMenu(!document.getElementById('sidebar').classList.contains('open'));
     });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') App._setMenu(false); });
+    // Rotating to a wide screen must not leave the phone menu open.
+    const wide = window.matchMedia('(min-width: 901px)');
+    if (wide.addEventListener) wide.addEventListener('change', (e) => { if (e.matches) App._setMenu(false); });
     document.getElementById('overlay').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.remove('open');
-      document.getElementById('overlay').classList.remove('show');
+      App._setMenu(false);
     });
 
     // Reset button
-    document.getElementById('resetDataBtn').addEventListener('click', () => {
-      if (confirm('Reset all progress? This cannot be undone.')) {
+    document.getElementById('resetDataBtn').addEventListener('click', async () => {
+      if (await this.confirm('Reset all progress? This cannot be undone.', { title: 'Reset progress', confirmLabel: 'Reset' })) {
         DB.resetAll();
         this.showToast('Progress reset', 'info');
         this.refreshAll();
@@ -90,12 +91,13 @@ const App = {
 
     // Update page title
     document.getElementById('pageTitle').textContent = view.title;
+    document.title = `${view.title} · PlacementPrep`;
     document.getElementById('pageSubtitle').textContent = view.subtitle;
 
     // Update active nav
-    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    document.querySelectorAll('.nav-link').forEach(l => { l.classList.remove('active'); l.removeAttribute('aria-current'); });
     const activeLink = document.querySelector(`.nav-link[data-view="${hash}"]`);
-    if (activeLink) activeLink.classList.add('active');
+    if (activeLink) { activeLink.classList.add('active'); activeLink.setAttribute('aria-current', 'page'); }
 
     // Render the view
     const container = document.getElementById('viewContainer');
@@ -104,6 +106,7 @@ const App = {
       this._routeTimer = null;
       container.innerHTML = '';
       view.render(container);
+      if (typeof Animations !== 'undefined') Animations.applyTo(container);
     }, 200);
   },
 
@@ -129,6 +132,14 @@ const App = {
     document.getElementById('miniReadinessVal').textContent = Math.round(r) + '%';
   },
 
+  /** Opens/closes the phone menu: drawer, backdrop, page scroll lock and aria state stay in sync. */
+  _setMenu(open) {
+    document.getElementById('sidebar').classList.toggle('open', open);
+    document.getElementById('overlay').classList.toggle('show', open);
+    document.body.classList.toggle('menu-open', open);
+    document.getElementById('menuToggle').setAttribute('aria-expanded', String(open));
+  },
+
   showToast(msg, type = 'info') {
     const container = document.getElementById('toastContainer');
     // Cap toasts at 6 to prevent memory leak
@@ -140,12 +151,51 @@ const App = {
       error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
       info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
     };
-    toast.innerHTML = `<span>${icons[type] || icons.info}</span> ${msg}`;
+    // Icon is trusted static SVG; the message may contain third-party text
+    // (e.g. a geocoded city name), so it is inserted as plain text.
+    const iconEl = document.createElement('span');
+    iconEl.innerHTML = icons[type] || icons.info;
+    toast.append(iconEl, document.createTextNode(' ' + msg));
     container.appendChild(toast);
     setTimeout(() => {
       toast.style.opacity = '0';
       setTimeout(() => toast.remove(), 300);
     }, 3000);
+  },
+
+  /** Styled replacement for the native confirm() dialog, matching the
+   *  app's own modal look instead of a jarring browser popup. Returns a
+   *  Promise<boolean> — use with `await`. */
+  confirm(message, { title = 'Please confirm', confirmLabel = 'Confirm', cancelLabel = 'Cancel' } = {}) {
+    return new Promise((resolve) => {
+      const existing = document.getElementById('appConfirmModal');
+      if (existing) existing.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'appConfirmModal';
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="modal" style="max-width:420px" role="alertdialog" aria-modal="true">
+          <div class="modal-head">
+            <h2>${Sanitize.html(title)}</h2>
+          </div>
+          <div class="modal-body">
+            <p>${Sanitize.html(message)}</p>
+          </div>
+          <div class="modal-foot flex-between">
+            <button class="btn btn-ghost" id="appConfirmCancel">${Sanitize.html(cancelLabel)}</button>
+            <button class="btn btn-primary" id="appConfirmOk">${Sanitize.html(confirmLabel)}</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      requestAnimationFrame(() => modal.classList.add('show'));
+
+      const finish = (result) => { modal.remove(); resolve(result); };
+      modal.querySelector('#appConfirmOk').addEventListener('click', () => finish(true));
+      modal.querySelector('#appConfirmCancel').addEventListener('click', () => finish(false));
+      modal.addEventListener('click', (e) => { if (e.target === modal) finish(false); });
+    });
   }
 };
 

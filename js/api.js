@@ -89,7 +89,7 @@ const API = {
       if (!titleMatch) continue;
       const title = titleMatch[1].trim();
       // Extract the body (everything before the options/first answer)
-      const body = block.replace(/^[^\n]*\n/, '').split(/^[-*]\s*[A-D][\.\):]/m)[0];
+      const body = block.replace(/^[^\n]*\n/, '').split(/^[-*]\s*[A-D][.):]/m)[0];
       const description = body.replace(/```/g, '').trim().slice(0, 400);
       const answered = /answer:\s*`?[A-D]`?/i.test(block);
       out.push({

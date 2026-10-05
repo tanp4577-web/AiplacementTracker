@@ -261,6 +261,8 @@ _lookupCppQuestion(id) {
       const cppBtn = document.getElementById('langCppBtn');
       if (jsBtn) jsBtn.classList.toggle('active', !isCpp);
       if (cppBtn) cppBtn.classList.toggle('active', isCpp);
+      // The C++ button only exists in the DOM when this question has a C++ harness
+      // (see the template below), so there is nothing to disable here otherwise.
       const runBtn = document.getElementById('runBtn');
       if (runBtn) runBtn.textContent = isCpp ? '▶ Run C++ Tests' : ' Run Tests';
       const cppNote = document.getElementById('cppNote');
@@ -290,7 +292,9 @@ _lookupCppQuestion(id) {
           <div class="flex gap-2 mb-2" style="align-items:center">
             <span class="text-dim" style="font-size:12.5px">Language:</span>
             <button class="btn btn-ghost btn-sm ${this.state.lang === 'javascript' ? 'active' : ''}" id="langJsBtn">JavaScript</button>
-            <button class="btn btn-ghost btn-sm ${this.state.lang === 'cpp' ? 'active' : ''}" id="langCppBtn">C++</button>
+            ${this._lookupCppQuestion(q.id)
+              ? `<button class="btn btn-ghost btn-sm ${this.state.lang === 'cpp' ? 'active' : ''}" id="langCppBtn">C++</button>`
+              : `<span class="chip gray" title="No C++ version of this question yet">C++ not available</span>`}
           </div>
           <div class="code-wrap">
             <div class="code-header">
@@ -365,7 +369,7 @@ _lookupCppQuestion(id) {
       this.state.lang = 'javascript';
       renderEditor();
     });
-    document.getElementById('langCppBtn').addEventListener('click', () => {
+    document.getElementById('langCppBtn')?.addEventListener('click', () => {
       this.state.lang = 'cpp';
       renderEditor();
     });
@@ -405,7 +409,11 @@ using namespace std;
     const bodyCode = document.getElementById('codeEditor').value || this.state.code;
 
     if (!cppQ || !Array.isArray(cppQ.cppTestCases) || !cppQ.cppTestCases.length) {
-      resultsDiv.innerHTML = `<div class="empty-state"><h3>No C++ test cases</h3><p>This question has no C++ test harness yet.</p></div>`;
+      resultsDiv.innerHTML = `<div class="empty-state"><h3>No C++ test cases</h3><p>This question has no C++ test harness yet. Switch to JavaScript to run it.</p><button class="btn btn-primary btn-sm mt-2" id="switchToJsBtn">Switch to JavaScript</button></div>`;
+      document.getElementById('switchToJsBtn')?.addEventListener('click', () => {
+        this.state.lang = 'javascript';
+        this._openQuestion(q.id);
+      });
       return;
     }
 
@@ -724,6 +732,136 @@ using namespace std;
   vector<vector<char>> g(R, vector<char>(C));
   for (int i=0;i<R;i++) for (int j=0;j<C;j++) cin >> g[i][j];
   cout << numIslands(g);
+  return 0;
+}`;
+      case "reverse-string-cpp":
+        return `int main(){
+  string t; cin >> t;
+  vector<char> s(t.begin(), t.end());
+  reverseString(s);
+  cout << string(s.begin(), s.end());
+  return 0;
+}`;
+      case "best-time-stock-cpp":
+        return `int main(){
+  int n; cin >> n;
+  vector<int> p(n); for (int i=0;i<n;i++) cin >> p[i];
+  cout << maxProfit(p);
+  return 0;
+}`;
+      case "contains-duplicate-cpp":
+        return `int main(){
+  int n; cin >> n;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  cout << (containsDuplicate(a) ? "true" : "false");
+  return 0;
+}`;
+      case "merge-sorted-arrays-cpp":
+        return `int main(){
+  int n, m; cin >> n >> m;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  vector<int> b(m); for (int i=0;i<m;i++) cin >> b[i];
+  auto r = mergeSorted(a, b);
+  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
+  return 0;
+}`;
+      case "valid-palindrome-2-cpp":
+        return `int main(){
+  string s; cin >> s;
+  cout << (validPalindrome(s) ? "true" : "false");
+  return 0;
+}`;
+      case "two-sum-2-sorted-cpp":
+        return `int main(){
+  int n, target; cin >> n >> target;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  auto r = twoSumSorted(a, target);
+  cout << r[0] << " " << r[1];
+  return 0;
+}`;
+      case "longest-substr-no-repeat-cpp":
+        return `int main(){
+  string s; cin >> s;
+  cout << lengthOfLongestSubstring(s);
+  return 0;
+}`;
+      case "min-window-substring-cpp":
+        return `int main(){
+  string s, t; cin >> s >> t;
+  cout << minWindow(s, t);
+  return 0;
+}`;
+      case "longest-common-subseq-cpp":
+        return `int main(){
+  string a, b; cin >> a >> b;
+  cout << longestCommonSubsequence(a, b);
+  return 0;
+}`;
+      case "edit-distance-cpp":
+        return `int main(){
+  string a, b; getline(cin, a); getline(cin, b);
+  cout << minDistance(a, b);
+  return 0;
+}`;
+      case "intersection-two-arrays-cpp":
+        return `int main(){
+  int n, m; cin >> n >> m;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  vector<int> b(m); for (int i=0;i<m;i++) cin >> b[i];
+  auto r = intersection(a, b);
+  sort(r.begin(), r.end());
+  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
+  return 0;
+}`;
+      case "isomorphic-strings-cpp":
+        return `int main(){
+  string s, t; cin >> s >> t;
+  cout << (isIsomorphic(s, t) ? "true" : "false");
+  return 0;
+}`;
+      case "sort-colors-cpp":
+        return `int main(){
+  int n; cin >> n;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  sortColors(a);
+  for (size_t i=0;i<a.size();i++) cout << a[i] << (i+1==a.size()?"":" ");
+  return 0;
+}`;
+      case "meeting-rooms-cpp":
+        return `int main(){
+  int n; cin >> n;
+  vector<vector<int>> v(n, vector<int>(2));
+  for (int i=0;i<n;i++) cin >> v[i][0] >> v[i][1];
+  cout << (canAttendMeetings(v) ? "true" : "false");
+  return 0;
+}`;
+      case "product-array-except-self-cpp":
+        return `int main(){
+  int n; cin >> n;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  auto r = productExceptSelf(a);
+  for (size_t i=0;i<r.size();i++) cout << r[i] << (i+1==r.size()?"":" ");
+  return 0;
+}`;
+      case "subarray-sum-equals-k-cpp":
+        return `int main(){
+  int n, k; cin >> n >> k;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  cout << subarraySum(a, k);
+  return 0;
+}`;
+      case "longest-consecutive-sequence-cpp":
+        return `int main(){
+  int n; cin >> n;
+  vector<int> a(n); for (int i=0;i<n;i++) cin >> a[i];
+  cout << longestConsecutive(a);
+  return 0;
+}`;
+      case "task-scheduler-cpp":
+        return `int main(){
+  string s; int n; cin >> s >> n;
+  vector<char> t(s.begin(), s.end());
+  cout << leastInterval(t, n);
   return 0;
 }`;
       default:

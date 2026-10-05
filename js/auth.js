@@ -21,14 +21,16 @@ const Auth = {
     this.passInput = document.getElementById('authPass');
     this.submitBtn = document.getElementById('authSubmitBtn');
     this.errorDiv = document.getElementById('authError');
+    this.guestBtn = document.getElementById('authGuestBtn');
     this.authArea = document.getElementById('authArea');
 
     this._bindEvents();
 
     // Check if already logged in
     const session = DB.getSession();
-    if (session && DB.getUser(session.email)) {
-      this._renderLoggedIn(DB.getUser(session.email));
+    const sessionUser = session && (session.guest ? session : DB.getUser(session.email));
+    if (sessionUser) {
+      this._renderLoggedIn(sessionUser);
     } else {
       DB.clearSession();
       this._showModal();
@@ -49,6 +51,7 @@ const Auth = {
     this.tabLogin.addEventListener('click', () => this._setMode('login'));
     this.tabSignup.addEventListener('click', () => this._setMode('signup'));
     this.submitBtn.addEventListener('click', () => this._handleSubmit());
+    if (this.guestBtn) this.guestBtn.addEventListener('click', () => this._loginAsGuest());
 
     // Enter key support
     this.passInput.addEventListener('keydown', (e) => {
@@ -66,9 +69,25 @@ const Auth = {
       if (e.target === this.modal) this._hideModal();
     });
 
-    // Close on Escape
+    // Escape closes the dialog; Tab stays inside it while it is open.
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') this._hideModal();
+      if (!this.modal.classList.contains('show')) return;
+      if (e.key === 'Escape') {
+        this._hideModal();
+      } else if (e.key === 'Tab') {
+        const focusable = [...this.modal.querySelectorAll('button, input, [href], select, textarea, [tabindex]:not([tabindex="-1"])')]
+          .filter((el) => !el.disabled && !el.closest('.hidden'));
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     });
   },
 
@@ -78,6 +97,8 @@ const Auth = {
     const isSignup = mode === 'signup';
     this.tabLogin.classList.toggle('active', !isSignup);
     this.tabSignup.classList.toggle('active', isSignup);
+    this.tabLogin.setAttribute('aria-selected', String(!isSignup));
+    this.tabSignup.setAttribute('aria-selected', String(isSignup));
     this.nameField.classList.toggle('hidden', !isSignup);
     this.nameInput.required = isSignup;
     this.title.textContent = isSignup ? 'Create Your Account' : 'Sign in to PlacementPrep';
@@ -86,13 +107,23 @@ const Auth = {
   },
 
   _showModal() {
+    this._lastFocus = document.activeElement;
     this.modal.classList.add('show');
     this._setMode('login');
     setTimeout(() => this.emailInput && this.emailInput.focus(), 300);
   },
 
   _hideModal() {
+    const wasOpen = this.modal.classList.contains('show');
     this.modal.classList.remove('show');
+    // Signed out and the dialog was dismissed: keep a way back in.
+    if (!DB.getSession()) this._renderLoggedOut();
+    if (wasOpen && this._lastFocus && document.contains(this._lastFocus)) this._lastFocus.focus();
+  },
+
+  _renderLoggedOut() {
+    this.authArea.innerHTML = '<button type="button" class="btn btn-primary btn-sm" id="openSignInBtn">Sign in</button>';
+    document.getElementById('openSignInBtn').addEventListener('click', () => this._showModal());
   },
 
   async _handleSubmit() {
@@ -118,8 +149,10 @@ const Auth = {
       return;
     }
 
-    if (pass.length < 4) {
-      this._showError('Password must be at least 4 characters.');
+    // New accounts need 8+ characters; the login check stays at 4 so people with
+    // older, shorter passwords can still sign in.
+    if (pass.length < (isSignup ? 8 : 4)) {
+      this._showError(isSignup ? 'Password must be at least 8 characters.' : 'Password must be at least 4 characters.');
       return;
     }
 
@@ -161,6 +194,12 @@ const Auth = {
     } finally {
       this.submitBtn.disabled = false;
     }
+  },
+
+  /** Try the app without an account. Progress is kept in this browser only. */
+  async _loginAsGuest() {
+    await this._login({ id: 'guest', name: 'Guest', email: 'guest@local', role: 'student', guest: true },
+      'Welcome! Guest progress is saved in this browser only.');
   },
 
   async _login(user, msg) {

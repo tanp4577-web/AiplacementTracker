@@ -9,36 +9,31 @@ const Company = {
   render(container) {
     this.container = container;
     this.state = { filterCompany: 'all', filterDifficulty: 'all', search: '' };
-    this._renderPatterns();
+    this._renderShell();
   },
 
-  _renderPatterns() {
+  /** Draws the page once. Filtering afterwards only swaps the pattern list (see _updateList),
+   *  so the search box keeps focus and no card is rebuilt or re-animated while you type. */
+  _renderShell() {
     const companies = COMPANY_PATTERNS.companies;
-    const patterns = COMPANY_PATTERNS.patterns;
-
-    const filtered = patterns.filter(p => {
-      const matchCompany = this.state.filterCompany === 'all' || p.companies.includes(this.state.filterCompany);
-      const matchDiff = this.state.filterDifficulty === 'all' || p.difficulty === this.state.filterDifficulty;
-      const matchSearch = !this.state.search || p.name.toLowerCase().includes(this.state.search.toLowerCase()) || p.desc.toLowerCase().includes(this.state.search.toLowerCase());
-      return matchCompany && matchDiff && matchSearch;
-    });
+    const esc = (v) => Sanitize.html(v);
 
     this.container.innerHTML = `
       <div class="card mb-2">
         <div class="card-title"><i class="bi bi-buildings text-accent" style="margin-right:4px"></i>Company Interview Patterns</div>
         <div class="card-sub">Master the DSA patterns and technical rounds asked at top tech employers</div>
         <div class="filter-bar mt-2">
-          <select id="companyFilter">
+          <select id="companyFilter" aria-label="Filter by company">
             <option value="all">All Companies</option>
-            ${companies.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+            ${companies.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}
           </select>
-          <select id="difficultyFilter">
+          <select id="difficultyFilter" aria-label="Filter by difficulty">
             <option value="all">All Difficulties</option>
             <option value="Easy">Easy</option>
             <option value="Medium">Medium</option>
             <option value="Hard">Hard</option>
           </select>
-          <input type="search" id="patternSearch" placeholder="Search patterns..." value="${this.state.search}" />
+          <input type="search" id="patternSearch" placeholder="Search patterns..." aria-label="Search patterns" value="${esc(this.state.search)}" />
         </div>
       </div>
 
@@ -47,16 +42,16 @@ const Company = {
         <div class="card-sub">What each company focuses on during campus hiring</div>
         <div class="grid grid-3">
           ${companies.map(c => `
-            <div class="card hoverable" style="padding:16px" data-company="${c.name}">
+            <div class="card hoverable" style="padding:16px" data-company="${esc(c.name)}">
               <div class="flex gap-2 items-center mb-1">
                 ${ICONS.logo(c.logo)}
                 <div>
-                  <b style="font-size:14.5px">${c.name}</b>
-                  <div class="text-dim" style="font-size:11.5px">${c.tagline}</div>
+                  <b style="font-size:14.5px">${esc(c.name)}</b>
+                  <div class="text-dim" style="font-size:11.5px">${esc(c.tagline)}</div>
                 </div>
               </div>
               <div class="flex-between">
-                <span class="chip ${c.difficulty === 'Hard' ? 'red' : c.difficulty === 'Medium' ? 'orange' : 'green'}">${c.difficulty}</span>
+                <span class="chip ${c.difficulty === 'Hard' ? 'red' : c.difficulty === 'Medium' ? 'orange' : 'green'}">${esc(c.difficulty)}</span>
                 <span class="text-dim" style="font-size:11.5px">${COMPANY_QUESTIONS[c.name] ? COMPANY_QUESTIONS[c.name].length + ' questions' : ''}</span>
               </div>
             </div>
@@ -65,53 +60,80 @@ const Company = {
       </div>
 
       <div class="card">
-        <div class="card-title">DSA Pattern Master List <span class="chip blue" style="margin-left:6px">${filtered.length} shown</span></div>
+        <div class="card-title">DSA Pattern Master List <span class="chip blue" style="margin-left:6px" id="patternCount"></span></div>
         <div class="card-sub">Click a pattern to see strategy, complexity, and sample code</div>
-        <div class="grid grid-2" id="patternGrid">
-          ${filtered.map(p => `
-            <div class="card pattern-card hoverable" data-pattern="${p.id}" style="cursor:pointer">
-              <div class="flex-between mb-1">
-                <div class="flex gap-2 items-center">
-                  <span style="color:var(--accent)">${ICONS.pattern(p.icon)}</span>
-                  <b style="font-size:15px">${p.name}</b>
-                </div>
-                <span class="chip ${p.difficulty === 'Easy' ? 'green' : p.difficulty === 'Medium' ? 'orange' : 'red'}">${p.difficulty}</span>
-              </div>
-              <div class="text-dim" style="font-size:13px;line-height:1.5">${p.desc}</div>
-              <div class="flex gap-1 mt-2" style="flex-wrap:wrap">
-                <span class="chip cyan">${p.time}</span>
-                <span class="chip purple">${p.space}</span>
-                ${p.companies.slice(0, 3).map(c => `<span class="chip">${c}</span>`).join('')}
-              </div>
-            </div>
-          `).join('') || '<div class="empty-state"><h3>No patterns match your filters</h3><p>Try clearing search or filters</p></div>'}
-        </div>
+        <div class="grid grid-2" id="patternGrid" aria-live="polite"></div>
       </div>
     `;
 
     document.getElementById('companyFilter').addEventListener('change', (e) => {
       this.state.filterCompany = e.target.value;
-      this._renderPatterns();
+      this._updateList();
     });
     document.getElementById('difficultyFilter').addEventListener('change', (e) => {
       this.state.filterDifficulty = e.target.value;
-      this._renderPatterns();
+      this._updateList();
     });
     document.getElementById('patternSearch').addEventListener('input', (e) => {
       this.state.search = e.target.value;
-      this._renderPatterns();
-    });
-
-    document.querySelectorAll('[data-pattern]').forEach(el => {
-      el.addEventListener('click', () => this._openPattern(el.dataset.pattern));
+      this._updateList();
     });
     document.querySelectorAll('[data-company]').forEach(el => {
       el.addEventListener('click', () => {
         this.state.filterCompany = el.dataset.company;
         document.getElementById('companyFilter').value = el.dataset.company;
-        this._renderPatterns();
+        this._updateList();
+        document.getElementById('patternGrid').scrollIntoView?.({ behavior: 'smooth', block: 'start' });
       });
     });
+    // One delegated listener, so it survives every list refresh.
+    const grid = document.getElementById('patternGrid');
+    grid.addEventListener('click', (e) => {
+      const card = e.target.closest('[data-pattern]');
+      if (card) this._openPattern(card.dataset.pattern);
+    });
+    grid.addEventListener('keydown', (e) => {
+      const card = e.target.closest('[data-pattern]');
+      if (card && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        this._openPattern(card.dataset.pattern);
+      }
+    });
+
+    this._updateList();
+  },
+
+  /** Recomputes the filtered patterns and replaces only the list contents. */
+  _updateList() {
+    const patterns = COMPANY_PATTERNS.patterns;
+    const term = this.state.search.trim().toLowerCase();
+    const esc = (v) => Sanitize.html(v);
+
+    const filtered = patterns.filter(p => {
+      const matchCompany = this.state.filterCompany === 'all' || p.companies.includes(this.state.filterCompany);
+      const matchDiff = this.state.filterDifficulty === 'all' || p.difficulty === this.state.filterDifficulty;
+      const matchSearch = !term || p.name.toLowerCase().includes(term) || p.desc.toLowerCase().includes(term);
+      return matchCompany && matchDiff && matchSearch;
+    });
+
+    document.getElementById('patternCount').textContent = `${filtered.length} shown`;
+    document.getElementById('patternGrid').innerHTML = filtered.map(p => `
+      <div class="card pattern-card hoverable" data-pattern="${esc(p.id)}" style="cursor:pointer" tabindex="0" role="button">
+        <div class="flex-between mb-1">
+          <div class="flex gap-2 items-center">
+            <span style="color:var(--accent)">${ICONS.pattern(p.icon)}</span>
+            <b style="font-size:15px">${esc(p.name)}</b>
+          </div>
+          <span class="chip ${p.difficulty === 'Easy' ? 'green' : p.difficulty === 'Medium' ? 'orange' : 'red'}">${esc(p.difficulty)}</span>
+        </div>
+        <div class="text-dim" style="font-size:13px;line-height:1.5">${esc(p.desc)}</div>
+        <div class="flex gap-1 mt-2" style="flex-wrap:wrap">
+          <span class="chip cyan">${esc(p.time)}</span>
+          <span class="chip purple">${esc(p.space)}</span>
+          ${p.companies.slice(0, 3).map(c => `<span class="chip">${esc(c)}</span>`).join('')}
+        </div>
+      </div>
+    `).join('') || '<div class="empty-state"><h3>No patterns match your filters</h3><p>Try clearing search or filters</p></div>';
   },
 
   _openPattern(id) {
@@ -170,6 +192,6 @@ const Company = {
       </div>
     `;
 
-    document.getElementById('backBtn').addEventListener('click', () => this._renderPatterns());
+    document.getElementById('backBtn').addEventListener('click', () => this._renderShell());
   }
 };

@@ -18,6 +18,12 @@ const Admin = {
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
   },
 
+  /** admin.html doesn't load app.js, so App.confirm may not exist here. */
+  _confirm(message, options) {
+    if (typeof App !== 'undefined' && App.confirm) return App.confirm(message, options);
+    return Promise.resolve(window.confirm(message));
+  },
+
   init() {
     this.loginShell = document.getElementById('adminLoginShell');
     this.loginForm = document.getElementById('adminLoginForm');
@@ -218,7 +224,8 @@ const Admin = {
 
   async _changeRole(id, currentRole) {
     const nextRole = currentRole === 'admin' ? 'student' : 'admin';
-    if (!confirm(`${nextRole === 'admin' ? 'Promote this user to admin' : 'Revoke admin access from this user'}?`)) return;
+    const ok = await this._confirm(`${nextRole === 'admin' ? 'Promote this user to admin' : 'Revoke admin access from this user'}?`, { title: 'Change role' });
+    if (!ok) return;
     const localUser = Object.entries(DB.getUsers()).find(([, u]) => u.id === id || u.email === id);
     if (localUser) { const [email] = localUser; DB.saveUser(email, { ...DB.getUser(email), role: nextRole }); }
     const profile = this.state.profiles.find(row => row.id === id);
@@ -229,7 +236,8 @@ const Admin = {
   },
 
   async _deleteExperience(id) {
-    if (!confirm('Delete this interview experience?')) return;
+    const ok = await this._confirm('Delete this interview experience?', { title: 'Delete experience', confirmLabel: 'Delete' });
+    if (!ok) return;
     const allExp = DB.getGlobal('interview_experiences') || [];
     DB.setGlobal('interview_experiences', allExp.filter(row => String(row.id) !== String(id)));
     const deleted = this.state.experiences.find(row => String(row.id) === String(id));

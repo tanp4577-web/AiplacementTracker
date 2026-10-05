@@ -1,6 +1,0 @@
-To build a live AI interviewer, connect these components:
-1. Speech-to-Text: Capture user audio and convert to text (e.g., using OpenAI Whisper or Google Cloud Speech-to-Text).
-2. Logic (LLM): Feed the text to a language model (like GPT-4) with context instructing it to act as an interviewer, generating the next question.
-3. Text-to-Speech: Convert the LLM's text response back into spoken audio.
-
-Process: User speaks -> Audio converted to text -> Text processed by LLM -> LLM text response -> Text converted to audio -> AI speaks.

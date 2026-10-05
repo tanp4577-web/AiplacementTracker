@@ -29,6 +29,7 @@ const Chatbot = {
   _toggle(force) {
     const willShow = force !== undefined ? force : this.panel.classList.contains('hidden');
     this.panel.classList.toggle('hidden', !willShow);
+    this.fab.setAttribute('aria-expanded', String(willShow));
     if (willShow && !this.body.children.length) {
       this._addBotMsg('Hello! I am your live AI placement assistant. Ask me anything about resumes, interviews, coding, aptitude, or your progress — I generate every answer in real time.');
       this._addQuickSuggestions();
@@ -138,7 +139,7 @@ const Chatbot = {
    *   2) LiveAI.chatReply (Pollinations.ai free keyless live LLM)
    *   3) Smart local fallback (context-aware, built from the user's words)
    */
-  async _getLiveReply(text) {
+  async _getLiveReply() {
     const system = [
       'You are PrepAI, a friendly, knowledgeable placement assistant for college students.',
       'You help with: resume tips and ATS optimization, HR and technical interview preparation,',

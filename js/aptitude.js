@@ -12,9 +12,59 @@ const Aptitude = {
     category: 'mixed'
   },
 
+  SECONDS_PER_QUESTION: 60,
+
+  _stopTimer() {
+    if (this.state.timer) clearInterval(this.state.timer);
+    this.state.timer = null;
+  },
+
+  /** Per-question countdown for timed mode. Stops itself if the user leaves the quiz view. */
+  _startTimer() {
+    this._stopTimer();
+    if (!this.state.timed) return;
+    this.state.timeLeft = this.SECONDS_PER_QUESTION;
+    this._paintTimer();
+    this.state.timer = setInterval(() => {
+      if (!document.getElementById('quizTimer')) { this._stopTimer(); return; }
+      this.state.timeLeft--;
+      this._paintTimer();
+      if (this.state.timeLeft <= 0) { this._stopTimer(); this._timeUp(); }
+    }, 1000);
+  },
+
+  _paintTimer() {
+    const el = document.getElementById('quizTimer');
+    if (!el) return;
+    const t = Math.max(0, this.state.timeLeft);
+    el.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    el.classList.toggle('timer-low', t <= 10);
+  },
+
+  /** Out of time on a question that has no answer yet: reveal it, break the streak, let the user move on. */
+  _timeUp() {
+    if (this.state.selected !== null) return;
+    const q = this.state.questions[this.state.index];
+    if (!q) return;
+    this.state.selected = -1;
+    this.state.streak = 0;
+    const btns = document.querySelectorAll('.option-btn');
+    btns.forEach((b) => { b.disabled = true; });
+    if (btns[q.correct]) btns[q.correct].classList.add('correct');
+    const fb = document.getElementById('feedback');
+    if (fb) {
+      fb.innerHTML = `
+        <div class="explanation" role="status">
+          <b style="color:var(--danger)">Time's up</b>
+          <div class="mt-1">${Sanitize.html(q.explanation || 'No explanation available.')}</div>
+        </div>`;
+    }
+  },
+
   render(container) {
+    this._stopTimer();
     this.container = container;
-    this.state = { ...this.state, mode: 'setup', questions: [], index: 0, score: 0, streak: 0, selected: null };
+    this.state = { ...this.state, timed: false, mode: 'setup', questions: [], index: 0, score: 0, streak: 0, selected: null };
     this._renderSetup();
   },
 
@@ -49,6 +99,11 @@ const Aptitude = {
             <option value="easy">Easy (Fundamentals)</option>
             <option value="medium" selected>Medium (Standard Campus)</option>
             <option value="hard">Hard (Advanced)</option>
+          </select>
+          <label class="field-label mt-2">Timing</label>
+          <select id="quizTimed">
+            <option value="off" selected>Untimed (practice)</option>
+            <option value="on">Timed (60 seconds per question)</option>
           </select>
           <button class="btn btn-primary btn-block mt-3" id="startQuizBtn">
             <i class="bi bi-lightning-charge-fill" style="margin-right:4px"></i>
@@ -101,6 +156,7 @@ const Aptitude = {
     const category = document.getElementById('quizCategory').value;
     const count = parseInt(document.getElementById('quizCount').value);
     const difficulty = document.getElementById('quizDifficulty').value;
+    const timed = document.getElementById('quizTimed').value === 'on';
 
     this.container.innerHTML = `
       <div class="loading-screen">
@@ -156,6 +212,7 @@ const Aptitude = {
     this.state.streak = 0;
     this.state.selected = null;
     this.state.mode = 'quiz';
+    this.state.timed = timed;
     this._renderQuestion();
   },
 
@@ -172,18 +229,19 @@ const Aptitude = {
     this.container.innerHTML = `
       <div class="quiz-meta">
         <div class="chip blue">Question ${qNum} / ${total}</div>
-        <div class="chip purple">${q.category || 'General'}</div>
+        <div class="chip purple">${Sanitize.html(q.category || 'General')}</div>
         <div class="chip orange">Streak: ${this.state.streak}</div>
         <div class="chip green">Score: ${this.state.score}</div>
+        ${this.state.timed ? '<div class="chip" title="Time left for this question"><i class="bi bi-stopwatch"></i> <span id="quizTimer">1:00</span></div>' : ''}
       </div>
       <div class="card question-card">
         <div class="progress mb-2"><div class="progress-fill" style="width:${(qNum / total) * 100}%"></div></div>
-        <h3 style="font-size:17px;margin-bottom:18px;line-height:1.5">${q.question}</h3>
+        <h3 style="font-size:17px;margin-bottom:18px;line-height:1.5">${Sanitize.html(q.question)}</h3>
         <div class="options" id="options">
           ${q.options.map((opt, i) => `
             <button class="option-btn" data-idx="${i}">
               <span class="option-letter">${String.fromCharCode(65 + i)}</span>
-              <span>${opt}</span>
+              <span>${Sanitize.html(opt)}</span>
             </button>
           `).join('')}
         </div>
@@ -199,11 +257,13 @@ const Aptitude = {
       btn.addEventListener('click', () => this._selectOption(parseInt(btn.dataset.idx)));
     });
     document.getElementById('nextBtn').addEventListener('click', () => this._next());
+    this._startTimer();
     const prevBtn = document.getElementById('prevBtn');
     if (prevBtn) prevBtn.addEventListener('click', () => this._prev());
   },
 
   _selectOption(idx) {
+    this._stopTimer();
     const q = this.state.questions[this.state.index];
     this.state.selected = idx;
 
@@ -233,7 +293,7 @@ const Aptitude = {
     document.getElementById('feedback').innerHTML = `
       <div class="explanation" style="${isCorrect ? 'border-color:rgba(63,174,111,0.3);background:rgba(63,174,111,0.06)' : ''}">
         <b style="color:${isCorrect ? 'var(--success)' : 'var(--danger)'}">${isCorrect ? '[OK] Correct!' : '[X] Incorrect'}</b>
-        <div class="mt-1">${q.explanation || 'No explanation available.'}</div>
+        <div class="mt-1">${Sanitize.html(q.explanation || 'No explanation available.')}</div>
       </div>
     `;
   },
@@ -259,6 +319,7 @@ const Aptitude = {
   },
 
   _renderResults() {
+    this._stopTimer();
     const total = this.state.questions.length;
     const score = this.state.score;
     const pct = total ? Math.round((score / total) * 100) : 0;
@@ -310,10 +371,10 @@ const Aptitude = {
         <div class="card mb-1" style="padding:16px">
           <div class="flex-between mb-1">
             <span class="chip ${'purple'}">Q${i + 1}</span>
-            <span class="chip green">Correct: ${q.options[q.correct]}</span>
+            <span class="chip green">Correct: ${Sanitize.html(q.options[q.correct])}</span>
           </div>
-          <div style="font-size:13.5px;margin-bottom:8px">${q.question}</div>
-          <div class="text-dim" style="font-size:12.5px">${q.explanation || ''}</div>
+          <div style="font-size:13.5px;margin-bottom:8px">${Sanitize.html(q.question)}</div>
+          <div class="text-dim" style="font-size:12.5px">${Sanitize.html(q.explanation || '')}</div>
         </div>
       `;
     }).join('');
